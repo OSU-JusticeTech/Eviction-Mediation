@@ -1,5 +1,6 @@
 class ScreeningQuestion < ApplicationRecord
   self.table_name = "ScreeningQuestions"
+  self.primary_key = "ScreeningID"
 
   belongs_to :user, foreign_key: "UserID"
 
