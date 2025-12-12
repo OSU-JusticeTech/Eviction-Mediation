@@ -1,5 +1,6 @@
 class PrimaryMessageGroup < ApplicationRecord
   self.table_name = "PrimaryMessageGroups"
+  self.primary_key = "ConversationID"
   validates :ConversationID, :TenantID, :LandlordID, presence: true
   validates :accepted_by_landlord, inclusion: { in: [ true, false ] }
   validates :accepted_by_tenant, inclusion: { in: [ true, false ] }

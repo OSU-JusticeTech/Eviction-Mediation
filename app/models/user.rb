@@ -1,4 +1,5 @@
 class User < ApplicationRecord
+  self.primary_key = "UserID"
   has_secure_password
   attr_accessor :ProfileDisclaimer
   validates :ProfileDisclaimer, acceptance: { accept: "yes", message: "You must agree to the Disclaimer to sign up." }

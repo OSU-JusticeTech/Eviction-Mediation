@@ -1,0 +1,180 @@
+<!-- BEGIN app/views/documents/templates/mediation_agreement.html.erb --><!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      max-width: 8.5in;
+      margin: 0 auto;
+      padding: 0.75in;
+      line-height: 1.6;
+      color: #000;
+    }
+    h1 {
+      text-align: center;
+      font-size: 18pt;
+      font-weight: bold;
+      margin-bottom: 24pt;
+      text-transform: uppercase;
+    }
+    h2 {
+      font-size: 14pt;
+      font-weight: bold;
+      margin-top: 18pt;
+      margin-bottom: 12pt;
+    }
+    .section {
+      margin-bottom: 18pt;
+    }
+    .info-line {
+      margin: 6pt 0;
+      font-size: 11pt;
+    }
+    .label {
+      font-weight: bold;
+      display: inline-block;
+      width: 180pt;
+    }
+    .value {
+      border-bottom: 1px solid #000;
+      display: inline-block;
+      min-width: 200pt;
+    }
+    .terms-list {
+      margin-left: 24pt;
+      margin-top: 12pt;
+    }
+    .terms-list li {
+      margin-bottom: 12pt;
+    }
+    .sub-terms {
+      margin-left: 18pt;
+      margin-top: 8pt;
+    }
+    .sub-terms li {
+      margin-bottom: 6pt;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12pt 0;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 8pt;
+      text-align: left;
+    }
+    th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+    }
+    .signature-section {
+      margin-top: 48pt;
+      page-break-inside: avoid;
+    }
+    .signature-line {
+      margin: 24pt 0;
+    }
+    .signature-line .line {
+      display: inline-block;
+      width: 250pt;
+      border-bottom: 1px solid #000;
+    }
+    .footer {
+      margin-top: 36pt;
+      font-size: 9pt;
+      color: #666;
+      text-align: center;
+    }
+    @media print {
+      body {
+        padding: 0.5in;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Mediation Agreement</h1>
+
+  <div class="section">
+    <p>This Mediation Agreement is executed on <strong>December 02, 2025</strong> between:</p>
+  </div>
+
+  <div class="section">
+    <div class="info-line">
+      <span class="label">PARTY A (Landlord):</span>
+      <span class="value">landlord name</span>
+    </div>
+    <div class="info-line">
+      <span class="label">PARTY B (Tenant):</span>
+      <span class="value">Jane Smith</span>
+    </div>
+    <div class="info-line">
+      <span class="label">CONCERNING PROPERTY:</span>
+      <span class="value">456 Elm St</span>
+    </div>
+  </div>
+
+  <h2>BACKGROUND:</h2>
+  <div class="section">
+    <p>The parties have entered into mediation to resolve the following dispute:</p>
+    <ul class="terms-list">
+      <li>Nature of dispute: Failure to Pay Rent</li>
+      <li>Amount in question: $0.01</li>
+      <li>Current monthly rent: $0.01</li>
+    </ul>
+  </div>
+
+  <h2>MEDIATED RESOLUTION:</h2>
+  <div class="section">
+    <p>The parties agree to the following terms to resolve this dispute:</p>
+  </div>
+
+  <ol class="terms-list">
+    <li>
+      <strong>PAYMENT ARRANGEMENT:</strong>
+    </li>
+
+    <li>
+      <strong>ONGOING OBLIGATIONS:</strong>
+      <ul class="sub-terms">
+        <li>Tenant will continue paying regular monthly rent of $0.01 on or before the due date</li>
+        <li>Tenant will maintain the property in good condition and comply with all lease terms</li>
+        <li>Landlord will not pursue eviction while this agreement is honored in good faith</li>
+        <li>Both parties agree to communicate openly regarding any issues or concerns</li>
+      </ul>
+    </li>
+
+    <li>
+      <strong>DEFAULT PROVISION:</strong>
+      <p>If Tenant fails to make any scheduled payment or violates any terms of this agreement, Landlord may proceed with eviction proceedings. Tenant will be given written notice of any alleged default and a reasonable opportunity to cure within 5 business days.</p>
+    </li>
+
+    <li>
+      <strong>GOOD FAITH:</strong>
+      <p>Both parties agree to act in good faith to resolve this matter and maintain a positive landlord-tenant relationship. Any disputes arising from this agreement will first be addressed through mediation before legal action.</p>
+    </li>
+
+    <li>
+      <strong>ENTIRE AGREEMENT:</strong>
+      <p>This agreement represents the full understanding between the parties and supersedes any prior agreements or discussions regarding this matter.</p>
+    </li>
+  </ol>
+
+  <div class="section">
+    <p><strong>Acknowledgment:</strong> Both parties acknowledge that they have read, understood, and voluntarily agree to all terms contained in this Mediation Agreement.</p>
+  </div>
+
+  <div class="signature-section">
+    <div class="signature-line">
+      <strong>Tenant Signature:</strong> <span class="line"></span> <strong>Date:</strong> __________
+    </div>
+    <div class="signature-line">
+      <strong>Landlord Signature:</strong> <span class="line"></span> <strong>Date:</strong> __________
+    </div>
+  </div>
+
+</body>
+</html>
+<!-- END app/views/documents/templates/mediation_agreement.html.erb -->

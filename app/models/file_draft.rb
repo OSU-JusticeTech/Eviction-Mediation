@@ -1,6 +1,6 @@
 class FileDraft < ApplicationRecord
   self.table_name  = "FileDrafts"
-  # self.primary_key = 'FileID'
+  self.primary_key = 'FileID'
 
   has_many :file_attachments, foreign_key: :FileID
   has_many :messages, through: :file_attachments
