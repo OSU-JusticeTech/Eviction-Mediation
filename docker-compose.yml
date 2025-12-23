@@ -1,18 +1,29 @@
-version: "3.8"
-
 services:
   db:
     image: mcr.microsoft.com/azure-sql-edge:latest
     container_name: eviction_sqlserver
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "StrongPassword1"
+      ACCEPT_EULA: 'Y'
+      MSSQL_SA_PASSWORD: '${DB_PASSWORD:-StrongPassword1}'
+      MSSQL_USER: 'mssql'
     ports:
-      - "1433:1433"
+      - '1433:1433'
     volumes:
-      - ./SQLData:/var/opt/mssql
+      - sqlserver_data:/var/opt/mssql
     healthcheck:
-      test: [ "CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "StrongPassword1", "-Q", "SELECT 1" ]
+      test:
+        [
+          'CMD',
+          '/opt/mssql-tools/bin/sqlcmd',
+          '-S',
+          'localhost',
+          '-U',
+          '${DB_USER:-sa}',
+          '-P',
+          '${DB_PASSWORD:-StrongPassword1}',
+          '-Q',
+          'SELECT 1',
+        ]
       interval: 10s
       timeout: 5s
       retries: 30
@@ -20,20 +31,23 @@ services:
   web:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     command: ./bin/rails server -b 0.0.0.0 -p 3000
     working_dir: /rails
     volumes:
       - .:/rails
     ports:
-      - "3000:3000"
+      - '3000:3000'
     depends_on:
       db:
         condition: service_healthy
     environment:
       RAILS_ENV: development
       DB_ADAPTER: sqlserver
-      DB_HOST: db
+      DB_HOST: ${DB_SERVICE:-db}
       DB_PORT: 1433
-      DB_USERNAME: sa
-      DB_PASSWORD: StrongPassword1
+      DB_USERNAME: ${DB_USER:-sa}
+      DB_PASSWORD: ${DB_PASSWORD:-StrongPassword1}
+
+volumes:
+  sqlserver_data:
