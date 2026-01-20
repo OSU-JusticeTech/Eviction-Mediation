@@ -9,6 +9,7 @@ services:
       - '${DB_PORT:-1433}:1433'
     volumes:
       - sqlserver_data:/var/opt/mssql
+    restart: unless-stopped
     healthcheck:
       test:
         [
@@ -23,30 +24,33 @@ services:
           '-Q',
           'SELECT 1',
         ]
-      interval: 10s
-      timeout: 5s
-      retries: 30
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 80s
 
   web:
     build:
       context: .
-      dockerfile: Dockerfile.dev
-    command: ./bin/rails server -b 0.0.0.0 -p 3000
-    working_dir: /rails
-    volumes:
-      - .:/rails
+      dockerfile: Dockerfile # Use production Dockerfile
+    restart: unless-stopped
     ports:
       - '${WEB_PORT:-3000}:3000'
     depends_on:
       db:
         condition: service_healthy
     environment:
-      RAILS_ENV: development
+      RAILS_ENV: '${RAILS_ENV:-production}'
       DB_ADAPTER: sqlserver
-      DB_HOST: ${DB_SERVICE:-db}
-      DB_PORT: ${DB_PORT:-1433}
-      DB_USERNAME: ${DB_USER:-sa}
-      DB_PASSWORD: ${DB_PASSWORD:-StrongPassword1}
+      DB_HOST: '${DB_SERVICE:-db}'
+      DB_PORT: '${DB_PORT:-1433}'
+      DB_USERNAME: '${DB_USER:-sa}'
+      DB_PASSWORD: '${DB_PASSWORD:-StrongPassword1}'
+      RAILS_MASTER_KEY: '${RAILS_MASTER_KEY}'
+      # Add other production environment variables as needed
+      RAILS_LOG_TO_STDOUT: 'true'
+      RAILS_SERVE_STATIC_FILES: 'true'
 
 volumes:
   sqlserver_data:
+    driver: local

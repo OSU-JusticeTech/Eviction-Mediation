@@ -55,3 +55,6 @@ create-secrets.sh
 
 # ignore environment-specific encrypted credentials
 /config/credentials/*.yml.enc
+
+# Makefile
+env.mk
