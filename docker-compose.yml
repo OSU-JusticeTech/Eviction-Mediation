@@ -28,6 +28,7 @@ services:
       retries: 30
 
   web:
+    image: eviction-mediation-web-development
     build:
       context: .
       dockerfile: Dockerfile.dev

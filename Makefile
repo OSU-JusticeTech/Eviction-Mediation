@@ -63,5 +63,8 @@ db-init:
 	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -i /tmp/setup.sql
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails db:migrate
 
+credentials:
+	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails credentials:edit
+
 # Import makefile target overrides if available
 -include env-targets.mk

@@ -30,9 +30,10 @@ services:
       start_period: 80s
 
   web:
+    image: eviction-mediation-web-production
     build:
       context: .
-      dockerfile: Dockerfile # Use production Dockerfile
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - '${WEB_PORT:-3000}:3000'
