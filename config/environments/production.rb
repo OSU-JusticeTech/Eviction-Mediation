@@ -58,7 +58,10 @@ Rails.application.configure do
   # config.action_mailer.raise_delivery_errors = false
 
   # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  config.action_mailer.default_url_options = { 
+    host: ENV.fetch("APP_URL", "eviction-mediation.novelminds.io"), 
+    protocol: ENV.fetch("APP_PROTOCOL", "https") 
+  }
 
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via rails credentials:edit.
   # config.action_mailer.smtp_settings = {
@@ -72,28 +75,34 @@ Rails.application.configure do
   # START EMAIL STUFF
   config.action_mailer.delivery_method = :smtp
 
-  # Configuring smpt settings, will need changed to proper MSA.
+  # Flexible SMTP configuration using environment variables
+  # Works with any SMTP service (Gmail, SendGrid, Mailgun, SES, etc.) or testing tools
   config.action_mailer.smtp_settings = {
-    address: "smtp.gmail.com",
-    port: 587,
-    domain: "gmail.com",
-    authentication: "plain",
-    enable_starttls_auto: true,
-    user_name: ENV["GMAIL_USERNAME"], # Use environment variables for security
-    password: ENV["GMAIL_PASSWORD"]   # Use environment variables for security
+    address: ENV.fetch("SMTP_ADDRESS", "smtp.gmail.com"),
+    port: ENV.fetch("SMTP_PORT", 587).to_i,
+    domain: ENV.fetch("SMTP_DOMAIN", "gmail.com"),
+    authentication: ENV.fetch("SMTP_AUTHENTICATION", "plain").to_sym,
+    enable_starttls_auto: ENV.fetch("SMTP_ENABLE_STARTTLS_AUTO", "true") == "true",
+    user_name: ENV["SMTP_USERNAME"], # Can be nil for testing tools that don't require auth
+    password: ENV["SMTP_PASSWORD"],  # Can be nil for testing tools that don't require auth
+    open_timeout: ENV.fetch("SMTP_OPEN_TIMEOUT", 5).to_i,
+    read_timeout: ENV.fetch("SMTP_READ_TIMEOUT", 5).to_i
   }
 
   # Show error if mailer can't send
-  config.action_mailer.raise_delivery_errors = true
+  config.action_mailer.raise_delivery_errors = ENV.fetch("SMTP_RAISE_DELIVERY_ERRORS", "true") == "true"
 
   # Make template changes take effect immediately.
   config.action_mailer.perform_caching = false
 
   # Mailer performs deliveries
-  config.action_mailer.perform_deliveries = true
+  config.action_mailer.perform_deliveries = ENV.fetch("SMTP_PERFORM_DELIVERIES", "true") == "true"
 
-  # Set localhost to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "localhost", port: 3000 } # TODO: CHANGE THIS TO MATCH PRODUCTION
+  # Set production host to be used by links generated in mailer templates.
+  config.action_mailer.default_url_options = { 
+    host: ENV.fetch("APP_URL", "eviction-mediation.novelminds.io"), 
+    protocol: ENV.fetch("APP_PROTOCOL", "https") 
+  }
 
   # END EMAIL STUFF
 
@@ -109,11 +118,16 @@ Rails.application.configure do
   config.active_record.attributes_for_inspect = [ :id ]
 
   # Enable DNS rebinding protection and other `Host` header attacks.
-  # config.hosts = [
-  #   "example.com",     # Allow requests from example.com
-  #   /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
-  # ]
+  config.hosts = [
+    ENV.fetch("APP_URL", "eviction-mediation.novelminds.io")     # Allow requests from configured domain
+  ]
   #
   # Skip DNS rebinding protection for the default health check endpoint.
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+
+  # ActionCable for real-time messaging
+  config.action_cable.mount_path = "/cable"
+  config.action_cable.allowed_request_origins = [
+    "#{ENV.fetch('APP_PROTOCOL', 'https')}://#{ENV.fetch('APP_URL', 'eviction-mediation.novelminds.io')}"
+  ]
 end

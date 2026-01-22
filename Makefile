@@ -16,6 +16,8 @@ export DB_ADAPTER := sqlserver
 export RAILS_MASTER_KEY := 
 export RAILS_LOG_TO_STDOUT := true
 export RAILS_SERVE_STATIC_FILES := true
+export APP_URL := localhost:$(WEB_PORT)
+export APP_PROTOCOL := http
 
 # Import environment-specific overrides if available
 -include env.mk
@@ -45,6 +47,12 @@ down-clean:
 
 logs:
 	$(COMPOSE_CMD) logs -f
+
+web-shell:
+	$(COMPOSE_CMD) exec $(WEB_SERVICE) /bin/bash
+
+db-shell:
+	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)'
 
 db-setup:
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails db:create db:migrate
