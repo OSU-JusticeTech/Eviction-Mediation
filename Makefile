@@ -48,6 +48,9 @@ down-clean:
 logs:
 	$(COMPOSE_CMD) logs -f
 
+build:
+	$(COMPOSE_CMD) build
+
 web-shell:
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) /bin/bash
 

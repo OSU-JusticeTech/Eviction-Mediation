@@ -1,0 +1,29 @@
+---
+:verbose: false
+:pidfile: tmp/pids/sidekiq.pid
+:logfile: log/sidekiq.log
+:concurrency: 10
+:timeout: 25
+:retry: 3
+
+# Redis connection
+:redis:
+  url: <%= ENV.fetch("REDIS_URL", "redis://localhost:6379/0") %>
+  namespace: eviction_mediation_jobs
+
+# Queue configuration
+:queues:
+  - default
+  - mailers
+  - active_storage_analysis
+  - active_storage_purge
+
+# Production specific settings
+production:
+  :concurrency: 20
+  :timeout: 30
+
+# Development specific settings  
+development:
+  :concurrency: 5
+  :timeout: 15
