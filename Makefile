@@ -22,6 +22,9 @@ export APP_PROTOCOL := http
 # Import environment-specific overrides if available
 -include env.mk
 
+# Ensures make ignores /test directory and always runs make test
+.PHONY: test
+
 dev-setup: down-clean
 	@test -f config/database.yml || cp config/database.yml.docker config/database.yml
 	$(COMPOSE_CMD) build
@@ -50,6 +53,12 @@ logs:
 
 build:
 	$(COMPOSE_CMD) build
+
+test:
+	$(COMPOSE_CMD) up -d db
+	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:create 
+	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:prepare
+	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test $(TEST)
 
 web-shell:
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) /bin/bash
