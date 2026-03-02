@@ -1,0 +1,45 @@
+# Development-focused Dockerfile
+# This includes development gems and runs in development mode
+ARG RUBY_VERSION=3.3.4
+FROM docker.io/library/ruby:$RUBY_VERSION-slim
+
+# Rails app lives here
+WORKDIR /rails
+
+# Install base packages + development tools
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y \
+    curl libjemalloc2 libvips sqlite3 nodejs npm \
+    freetds-dev build-essential git pkg-config && \
+    rm -rf /var/lib/apt/lists /var/cache/apt/archives
+
+# Set development environment
+ENV RAILS_ENV="development" \
+    BUNDLE_PATH="/usr/local/bundle"
+
+# Copy gemfiles and install ALL gems (including development)
+COPY Gemfile Gemfile.lock ./
+RUN bundle install
+
+# Copy app code
+COPY . .
+
+# Make scripts executable
+RUN chmod +x ./bin/*
+
+# Create rails user and set permissions
+RUN groupadd --system --gid 1000 rails && \
+    useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash && \
+    chown -R rails:rails db log storage tmp
+
+# Switch to rails user
+USER 1000:1000
+
+# Expose app port
+EXPOSE 3000
+
+# Development entrypoint that handles database setup
+ENTRYPOINT ["/rails/bin/docker-entrypoint"]
+
+# Default command
+CMD ["./bin/rails", "server", "-b", "0.0.0.0", "-p", "3000"]

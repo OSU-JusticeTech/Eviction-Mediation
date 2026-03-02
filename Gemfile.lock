@@ -500,6 +500,10 @@ GEM
       logger
     rdoc (6.12.0)
       psych (>= 4.0.0)
+    redis (5.4.1)
+      redis-client (>= 0.22.0)
+    redis-client (0.26.3)
+      connection_pool
     regexp_parser (2.10.0)
     reline (0.6.0)
       io-console (~> 0.5)
@@ -559,6 +563,12 @@ GEM
       rexml (~> 3.2, >= 3.2.5)
       rubyzip (>= 1.2.2, < 3.0)
       websocket (~> 1.0)
+    sidekiq (7.3.10)
+      base64
+      connection_pool (>= 2.3.0, < 3)
+      logger
+      rack (>= 2.2.4, < 3.3)
+      redis-client (>= 0.23.0, < 1)
     simpleidn (0.2.3)
     solid_cable (3.0.7)
       actioncable (>= 7.2)
@@ -684,11 +694,13 @@ DEPENDENCIES
   puma (>= 5.0)
   rails (~> 8.0.1)
   rails-controller-testing
+  redis (>= 5.0)
   rubocop (~> 1.71)
   rubocop-rails-omakase
   rubocop-rspec (~> 3.4)
   ruby-lsp (~> 0.26.1)
   selenium-webdriver
+  sidekiq (~> 7.2)
   solid_cable
   solid_cache
   solid_queue

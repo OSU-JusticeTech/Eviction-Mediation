@@ -1,0 +1,119 @@
+services:
+  db:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    environment:
+      ACCEPT_EULA: 'Y'
+      MSSQL_SA_PASSWORD: '${DB_PASSWORD:-StrongPassword1}'
+      MSSQL_USER: 'mssql'
+    ports:
+      - '${DB_PORT:-1433}:1433'
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          '/opt/mssql-tools/bin/sqlcmd',
+          '-S',
+          'localhost',
+          '-U',
+          '${DB_USER:-sa}',
+          '-P',
+          '${DB_PASSWORD:-StrongPassword1}',
+          '-Q',
+          'SELECT 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 80s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  web:
+    image: eviction-mediation-web-production
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - .:/rails  # Bind mount for live code updates without rebuilding
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      RAILS_ENV: '${RAILS_ENV:-production}'
+      DB_ADAPTER: sqlserver
+      DB_HOST: '${DB_SERVICE:-db}'
+      DB_PORT: '${DB_PORT:-1433}'
+      DB_USERNAME: '${DB_USER:-sa}'
+      DB_PASSWORD: '${DB_PASSWORD:-StrongPassword1}'
+      RAILS_MASTER_KEY: '${RAILS_MASTER_KEY}'
+      MAILPIT_HOST: '${MAILPIT_HOST:-mailpit}'
+      MAILPIT_PORT: '${MAILPIT_SMTP_PORT:-1025}'
+      REDIS_URL: 'redis://redis:6379/0'
+      # Add other production environment variables as needed
+      RAILS_LOG_TO_STDOUT: 'true'
+      RAILS_SERVE_STATIC_FILES: 'true'
+      APP_URL: '${APP_URL}'
+      APP_PROTOCOL: '${APP_PROTOCOL:-https}'
+
+  sidekiq:
+    image: eviction-mediation-web-production
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - .:/rails  # Bind mount for live code updates
+    command: bundle exec sidekiq -C config/sidekiq.yml
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      RAILS_ENV: '${RAILS_ENV:-production}'
+      DB_ADAPTER: sqlserver
+      DB_HOST: '${DB_SERVICE:-db}'
+      DB_PORT: '${DB_PORT:-1433}'
+      DB_USERNAME: '${DB_USER:-sa}'
+      DB_PASSWORD: '${DB_PASSWORD:-StrongPassword1}'
+      RAILS_MASTER_KEY: '${RAILS_MASTER_KEY}'
+      REDIS_URL: 'redis://redis:6379/0'
+      RAILS_LOG_TO_STDOUT: 'true'
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - '${MAILPIT_WEB_PORT:-8025}:8025'  # Web UI
+      - '${MAILPIT_SMTP_PORT:-1025}:1025' # SMTP server
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      
+volumes:
+  sqlserver_data:
+    driver: local
+  redis_data:
+    driver: local

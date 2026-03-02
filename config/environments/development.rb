@@ -34,18 +34,16 @@ Rails.application.configure do
   # Use smtp for mailing
   config.action_mailer.delivery_method = :smtp
 
-  # Configuring smtp settings. Wrap credential access in a rescue so a
-  # corrupted/incorrect credentials file won't prevent the server from
-  # booting during development. If credentials can't be decrypted we
-  # fall back to an empty hash (so ActionMailer can be configured later).
-  begin
-    smtp_cfg = Rails.application.credentials.dig(:smtp)
-    config.action_mailer.smtp_settings = smtp_cfg.present? ? smtp_cfg.symbolize_keys : {}
-  rescue ActiveSupport::MessageEncryptor::InvalidMessage, OpenSSL::Cipher::CipherError => e
-    # Avoid raising during boot — log and continue with empty settings.
-    warn "[dev config] Could not decrypt credentials for SMTP: #{e.class} - #{e.message}"
-    config.action_mailer.smtp_settings = {}
-  end
+  # Configure SMTP to use Mailpit for development email testing
+  # Mailpit runs on port 1025 for SMTP and port 8025 for web UI
+  config.action_mailer.smtp_settings = {
+    address: ENV.fetch('MAILPIT_HOST', 'localhost'),
+    port: ENV.fetch('MAILPIT_PORT', 1025),
+    authentication: :plain,
+    enable_starttls_auto: false,
+    open_timeout: 5,
+    read_timeout: 5
+  }
 
   # Show error if mailer can't send
   config.action_mailer.raise_delivery_errors = true
@@ -58,6 +56,12 @@ Rails.application.configure do
 
   # Set localhost to be used by links generated in mailer templates.
   config.action_mailer.default_url_options = { host: "localhost", port: 3000 }
+
+  # Allow GitHub Codespaces hosts
+  config.hosts << /.*\.app\.github\.dev/
+
+  # Relax CSRF protection for development (especially useful in codespaces)
+  config.action_controller.allow_forgery_protection = false
 
   # Print deprecation notices to the Rails logger.
   config.active_support.deprecation = :log

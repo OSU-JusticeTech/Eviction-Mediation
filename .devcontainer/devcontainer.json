@@ -1,0 +1,19 @@
+{
+  "name": "CSE5911 Eviction Development",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y make && cp config/database.yml.docker config/database.yml",
+  "forwardPorts": [3000, 1433],
+  "portsAttributes": {
+    "3000": {
+      "label": "Rails App",
+      "onAutoForward": "notify"
+    },
+    "1433": {
+      "label": "SQL Server",
+      "onAutoForward": "silent"
+    }
+  }
+}
