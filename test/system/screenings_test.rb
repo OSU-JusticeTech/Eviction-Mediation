@@ -1,9 +1,8 @@
 require "application_system_test_case"
 # This is just a auto-generated template it will need modified
 class ScreeningsTest < ApplicationSystemTestCase
-  skip "Screenings may be a deprecated/dead feature and is therefore excluded from active system suite"
-
   setup do
+    omit "Screenings may be a deprecated/dead feature and is therefore excluded from active system suite"
     @screening = screenings(:one)
   end
 
