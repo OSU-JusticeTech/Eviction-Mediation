@@ -9,6 +9,7 @@ mediator1:
   Available: 1
   ActiveMediations: 3
   MediationCap: 5
+
 mediator2:
   UserID: 8
   Available: 0
