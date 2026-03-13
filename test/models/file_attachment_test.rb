@@ -13,13 +13,13 @@ class FileAttachmentTest < ActiveSupport::TestCase
   #BUSINESS LOGIC TESTS
   test "belongs to the correct message" do
     attachment = file_attachments(:one)
-    assert_equal messages(:one), attachment.message
+    assert_equal messages(:one).MessageID, attachment.message.MessageID
     assert_equal 1, attachment.MessageID
   end
 
   test "belongs to the correct file draft" do
     attachment = file_attachments(:two)
-    assert_equal file_drafts(:two), attachment.file_draft
+    assert_equal file_drafts(:two).FileID, attachment.file_draft.FileID
     assert_equal 2, attachment.FileID
   end
 

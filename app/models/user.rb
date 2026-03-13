@@ -25,7 +25,7 @@ class User < ApplicationRecord
     email = self[:Email]
     return email.split("@").first.titleize if email.present?
 
-    "there"
+    "unnamed"
   end
 
   def tenant?   = self[:Role] == "Tenant"
