@@ -18,6 +18,7 @@ export RAILS_LOG_TO_STDOUT := true
 export RAILS_SERVE_STATIC_FILES := true
 export APP_URL := localhost:$(WEB_PORT)
 export APP_PROTOCOL := http
+export EXPORT_FILE := db_export.bak
 
 # Import environment-specific overrides if available
 -include env.mk
@@ -73,6 +74,18 @@ db-init:
 	$(COMPOSE_CMD) exec $(DB_SERVICE) sed 's/$(DB_SOURCE_NAME)/$(DB_TARGET_NAME)/g' /tmp/init.sql > /tmp/setup.sql
 	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -i /tmp/setup.sql
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails db:migrate
+
+export-db:
+	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -Q "BACKUP DATABASE [$(DB_TARGET_NAME)] TO DISK = N'/tmp/export.bak' WITH FORMAT, INIT"
+	$(COMPOSE_CMD) cp $(DB_SERVICE):/tmp/export.bak $(EXPORT_FILE)
+	@echo "Database exported to $(EXPORT_FILE)"
+
+import-db:
+	$(COMPOSE_CMD) cp $(or $(FILE),$(EXPORT_FILE)) $(DB_SERVICE):/tmp/import.bak
+	$(COMPOSE_CMD) exec -u root $(DB_SERVICE) chmod 644 /tmp/import.bak
+	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -Q "ALTER DATABASE [$(DB_TARGET_NAME)] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [$(DB_TARGET_NAME)] FROM DISK = N'/tmp/import.bak' WITH REPLACE; ALTER DATABASE [$(DB_TARGET_NAME)] SET MULTI_USER;"
+	$(COMPOSE_CMD) restart $(WEB_SERVICE)
+	@echo "Database imported from $(or $(FILE),$(EXPORT_FILE))"
 
 credentials:
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails credentials:edit
