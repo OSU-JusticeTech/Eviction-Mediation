@@ -85,7 +85,6 @@ resources :documents, only: [ :index, :new, :create, :show, :destroy ] do
 end
 
   resources :resources, only: [ :index ]
-  resources :applications
 
   # System Data
   resource :system_data, only: [ :show ]

@@ -43,6 +43,8 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+      chrome:
+        condition: service_started
     environment:
       RAILS_ENV: development
       DB_ADAPTER: sqlserver
@@ -54,6 +56,7 @@ services:
       MAILPIT_PORT: ${MAILPIT_SMTP_PORT:-1025}
       APP_URL: ${APP_URL:-localhost}:${WEB_PORT:-3000}
       APP_PROTOCOL: ${APP_PROTOCOL:-http}
+      SELENIUM_REMOTE_URL: http://chrome:4444
 
   mailpit:
     image: axllent/mailpit:latest
@@ -64,6 +67,15 @@ services:
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+  chrome:
+    image: selenium/standalone-chrome:latest
+    shm_size: 2gb
+    ports:
+      - '4444:4444'
+    environment:
+      SE_NODE_MAX_SESSIONS: 5
+      SE_NODE_SESSION_TIMEOUT: 150
 
 volumes:
   sqlserver_data:
