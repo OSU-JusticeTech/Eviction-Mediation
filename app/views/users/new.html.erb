@@ -19,7 +19,7 @@
         <div class="error-summary">
           <h4>The following errors occured: </h4>
             <% @user.errors.full_messages.each do |msg| %>
-              <span><%= msg %></span>
+              <span><%= msg %></span><br>
             <% end %>
         </div>
       <% end %>

@@ -4,10 +4,15 @@ class User < ApplicationRecord
   attr_accessor :ProfileDisclaimer
   validates :ProfileDisclaimer, acceptance: { accept: "yes", message: "You must agree to the Disclaimer to sign up." }
 
+  VALID_TENANT_ADDRESS_REGEX = /\A(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9\s.,#\-\/]{6,255}\z/
+
   validates :Email,
             presence: true,
             uniqueness: { case_sensitive: false, message: "is already registered" },
             format: { with: URI::MailTo::EMAIL_REGEXP, message: "must be a valid email address" }
+
+  validates :PhoneNumber, presence: true
+  validate :phone_number_must_be_valid
 
   validates :password_confirmation, presence: true, if: -> { password.present? }
 
@@ -66,8 +71,20 @@ class User < ApplicationRecord
   def role_based_field_requirements
     if self[:Role] == "Tenant" && self[:TenantAddress].blank?
       errors.add(:TenantAddress, "can't be blank for tenants")
+    elsif self[:Role] == "Tenant" && self[:TenantAddress].present? && self[:TenantAddress].strip !~ VALID_TENANT_ADDRESS_REGEX
+      errors.add(:TenantAddress, "is not a valid address")
     elsif self[:Role] == "Landlord" && self[:CompanyName].present? && self[:CompanyName].length > 255
       errors.add(:CompanyName, "is too long")
     end
+  end
+
+  def phone_number_must_be_valid
+    return if self[:PhoneNumber].blank?
+
+    digits_only = self[:PhoneNumber].to_s.gsub(/\D/, "")
+    return if digits_only.length == 10
+    return if digits_only.length == 11 && digits_only.start_with?("1")
+
+    errors.add(:PhoneNumber, "is not a valid phone number")
   end
 end

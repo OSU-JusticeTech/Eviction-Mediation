@@ -39,8 +39,8 @@ class AccountController < ApplicationController
         flash[:notice] ||= "Address updated successfully."
         updated = true
       else
-        flash.now[:alert] = "Address update failed."
-        render :show and return
+        flash[:alert] = @user.errors.full_messages.to_sentence
+        redirect_to account_path and return
       end
     end
 
