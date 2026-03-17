@@ -29,3 +29,8 @@
 
 en:
   hello: "Hello world"
+  activerecord:
+    attributes:
+      user:
+        PhoneNumber: "Phone number"
+        TenantAddress: "Address"
