@@ -195,7 +195,7 @@ class DocumentsController < ApplicationController
         preview_url: view_file_path(file_draft.FileID),
         download_url: download_file_path(file_draft.FileID),
         view_url: view_file_path(file_draft.FileID),
-        sign_url: sign_document_path(file_draft.FileID),
+        sign_url: view_file_path(file_draft.FileID),
         tenant_signature_required: !file_draft.TenantSignature,
         landlord_signature_required: !file_draft.LandlordSignature,
         extension: extension.presence || file_draft.FileTypes
