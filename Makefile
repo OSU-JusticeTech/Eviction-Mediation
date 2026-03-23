@@ -22,8 +22,8 @@ export APP_PROTOCOL := http
 # Import environment-specific overrides if available
 -include env.mk
 
-# Ensures make ignores /test directory and always runs make test
-.PHONY: test
+# Ensures make ignores file/directory name collisions for these targets
+.PHONY: test test-all test-system-headed
 
 dev-setup: down-clean
 	@test -f config/database.yml || cp config/database.yml.docker config/database.yml
@@ -58,7 +58,24 @@ test:
 	$(COMPOSE_CMD) up -d db
 	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:create 
 	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:prepare
-	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test $(TEST)
+	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) sh -lc 'rm -f coverage/.resultset.json coverage/.last_run.json'
+	@if [ "$(TEST)" = "test:all" ]; then \
+		$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test; \
+		$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test test/system; \
+	else \
+		$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test $(TEST); \
+	fi
+
+test-all:
+	$(MAKE) test TEST=test:all
+
+#Test with a headed version of Chrome to witness tests live on port 7900
+test-system-headed:
+	$(COMPOSE_CMD) up -d db chrome web
+	$(COMPOSE_CMD) exec -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:create
+	$(COMPOSE_CMD) exec -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:prepare
+	@echo "Open http://localhost:7900/?autoconnect=1&resize=scale to watch browser actions"
+	$(COMPOSE_CMD) exec -e RAILS_ENV=test -e SYSTEM_TEST_HEADLESS=false $(WEB_SERVICE) bin/rails test $(or $(TEST),test/system)
 
 web-shell:
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) /bin/bash
