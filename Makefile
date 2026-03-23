@@ -66,6 +66,7 @@ test:
 		$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test $(TEST); \
 	fi
 
+#Test unit tests and system tests
 test-all:
 	$(MAKE) test TEST=test:all
 
