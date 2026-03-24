@@ -1,7 +1,7 @@
 class User < ApplicationRecord
   self.primary_key = "UserID"
   has_secure_password
-  attr_accessor :ProfileDisclaimer
+  attr_accessor :ProfileDisclaimer, :AddressLine1, :AddressLine2, :City, :State, :ZipCode
   validates :ProfileDisclaimer, acceptance: { accept: "yes", message: "You must agree to the Disclaimer to sign up." }
 
   VALID_TENANT_ADDRESS_REGEX = /\A(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9\s.,#\-\/]{6,255}\z/

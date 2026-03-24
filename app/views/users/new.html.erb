@@ -90,13 +90,46 @@
         </label>
       </div>
 
-      <!-- Address Field -->
+      <!-- Address Fields (Tenant) -->
       <div id="address-field" class="conditional-field">
+        <%= f.hidden_field :TenantAddress, id: "tenant-address-combined" %>
         <div class="input-group">
-          <label for="TenantAddress">Address</label>
+          <label for="AddressLine1">Address Line 1</label>
           <div class="input-field">
             <i class="fa-solid fa-map-marker-alt"></i>
-            <%= f.text_field :TenantAddress, placeholder: "Enter your address", class: "signup-input" %>
+            <%= f.text_field :AddressLine1, placeholder: "Street address", class: "signup-input", id: "address-line-1", autocomplete: "address-line1" %>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label for="AddressLine2">Address Line 2 (Optional)</label>
+          <div class="input-field">
+            <i class="fa-solid fa-map-pin"></i>
+            <%= f.text_field :AddressLine2, placeholder: "Apartment, suite, unit, etc.", class: "signup-input", id: "address-line-2", autocomplete: "address-line2" %>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label for="City">City</label>
+          <div class="input-field">
+            <i class="fa-solid fa-city"></i>
+            <%= f.text_field :City, placeholder: "City", class: "signup-input", id: "city", autocomplete: "address-level2" %>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label for="State">State (2-letter code)</label>
+          <div class="input-field">
+            <i class="fa-solid fa-flag-usa"></i>
+            <%= f.text_field :State, placeholder: "OH", class: "signup-input", id: "state", maxlength: 2, pattern: "[A-Za-z]{2}", title: "Use a 2-letter US state code, e.g., OH", autocomplete: "address-level1" %>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label for="ZipCode">ZIP Code</label>
+          <div class="input-field">
+            <i class="fa-solid fa-mail-bulk"></i>
+            <%= f.text_field :ZipCode, placeholder: "12345 or 12345-6789", class: "signup-input", id: "zip-code", inputmode: "numeric", pattern: "\\d{5}(-\\d{4})?", title: "Use 5 digits or ZIP+4 (12345-6789)", autocomplete: "postal-code" %>
           </div>
         </div>
       </div>
@@ -117,7 +150,7 @@
         <label for="PhoneNumber">Phone Number</label>
         <div class="input-field">
           <i class="fa-solid fa-phone"></i>
-          <%= f.telephone_field :PhoneNumber, placeholder: "Enter your phone number", required: true, class: "signup-input" %>
+          <%= f.telephone_field :PhoneNumber, placeholder: "(555) 555-1234", required: true, class: "signup-input", id: "phone-number", inputmode: "tel", pattern: "\\(\\d{3}\\) \\d{3}-\\d{4}", title: "Use format (123) 456-7890" %>
         </div>
       </div>
 
@@ -213,30 +246,161 @@
 </div>
 
 <script>
+  function formatPhoneDigitsToDisplay(digits) {
+    const trimmed = digits.slice(0, 10);
+    const area = trimmed.slice(0, 3);
+    const middle = trimmed.slice(3, 6);
+    const last = trimmed.slice(6, 10);
+
+    if (trimmed.length === 0) return "";
+    if (trimmed.length < 4) return `(${area}`;
+    if (trimmed.length < 7) return `(${area}) ${middle}`;
+    return `(${area}) ${middle}-${last}`;
+  }
+
+  function countDigits(str) {
+    return (str.match(/\d/g) || []).length;
+  }
+
+  function caretIndexForDigitCount(formattedValue, digitCount) {
+    if (digitCount <= 0) return 0;
+
+    let seenDigits = 0;
+    for (let i = 0; i < formattedValue.length; i += 1) {
+      if (/\d/.test(formattedValue[i])) {
+        seenDigits += 1;
+        if (seenDigits >= digitCount) {
+          return i + 1;
+        }
+      }
+    }
+
+    return formattedValue.length;
+  }
+
+  function setupPhoneFormatting() {
+    const phoneInput = document.getElementById("phone-number");
+    if (!phoneInput || phoneInput.dataset.phoneMaskBound === "true") return;
+
+    phoneInput.dataset.phoneMaskBound = "true";
+
+    phoneInput.addEventListener("keydown", function(event) {
+      if (event.key !== "Backspace") return;
+      if (this.selectionStart !== this.selectionEnd) return;
+
+      const cursor = this.selectionStart;
+      if (cursor <= 0) return;
+
+      const previousChar = this.value[cursor - 1];
+      if (previousChar && /\D/.test(previousChar)) {
+        event.preventDefault();
+        this.setSelectionRange(cursor - 1, cursor - 1);
+      }
+    });
+
+    phoneInput.addEventListener("input", function() {
+      const originalValue = this.value;
+      const originalCursor = this.selectionStart || 0;
+      const digitsBeforeCursor = countDigits(originalValue.slice(0, originalCursor));
+
+      const digits = originalValue.replace(/\D/g, "").slice(0, 10);
+      const formatted = formatPhoneDigitsToDisplay(digits);
+      this.value = formatted;
+
+      const newCursor = caretIndexForDigitCount(formatted, digitsBeforeCursor);
+      this.setSelectionRange(newCursor, newCursor);
+    });
+
+    phoneInput.value = formatPhoneDigitsToDisplay(phoneInput.value.replace(/\D/g, "").slice(0, 10));
+  }
+
+  function setupAddressFormatting() {
+    const stateInput = document.getElementById("state");
+    const zipInput = document.getElementById("zip-code");
+
+    if (stateInput && stateInput.dataset.addressMaskBound !== "true") {
+      stateInput.dataset.addressMaskBound = "true";
+      stateInput.addEventListener("input", function() {
+        this.value = this.value.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
+      });
+      stateInput.value = stateInput.value.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
+    }
+
+    if (zipInput && zipInput.dataset.addressMaskBound !== "true") {
+      zipInput.dataset.addressMaskBound = "true";
+      zipInput.addEventListener("input", function() {
+        const cleaned = this.value.replace(/[^\d-]/g, "").replace(/-{2,}/g, "-");
+        this.value = cleaned.slice(0, 10);
+      });
+    }
+  }
+
+  function syncTenantAddressField() {
+    const hiddenAddress = document.getElementById("tenant-address-combined");
+    const line1 = document.getElementById("address-line-1");
+    const line2 = document.getElementById("address-line-2");
+    const city = document.getElementById("city");
+    const state = document.getElementById("state");
+    const zip = document.getElementById("zip-code");
+
+    if (!hiddenAddress || !line1 || !line2 || !city || !state || !zip) return;
+
+    const street = [line1.value.trim(), line2.value.trim()].filter(Boolean).join(", ");
+    const stateZip = [state.value.trim().toUpperCase(), zip.value.trim()].filter(Boolean).join(" ");
+    const cityStateZip = [city.value.trim(), stateZip].filter(Boolean).join(", ");
+    hiddenAddress.value = [street, cityStateZip].filter(Boolean).join(", ");
+  }
+
+  function setupTenantAddressSync() {
+    const addressInputs = [
+      document.getElementById("address-line-1"),
+      document.getElementById("address-line-2"),
+      document.getElementById("city"),
+      document.getElementById("state"),
+      document.getElementById("zip-code")
+    ].filter(Boolean);
+
+    addressInputs.forEach((input) => {
+      if (input.dataset.addressSyncBound === "true") return;
+
+      input.dataset.addressSyncBound = "true";
+      input.addEventListener("input", syncTenantAddressField);
+    });
+
+    syncTenantAddressField();
+  }
+
   function toggleFields() {
     const tenantRadio = document.getElementById("role_tenant");
     const landlordRadio = document.getElementById("role_landlord");
     const addressField = document.getElementById("address-field");
     const companyField = document.getElementById("company-field");
+    const tenantAddressInputs = [
+      document.getElementById("address-line-1"),
+      document.getElementById("city"),
+      document.getElementById("state"),
+      document.getElementById("zip-code")
+    ].filter(Boolean);
 
     if (!tenantRadio || !landlordRadio || !addressField || !companyField) return;
 
     if (tenantRadio.checked) {
-      // If signing up as tenant, show address field, hide company name field
       addressField.style.display = "block";
-      addressField.querySelector("input").required = true;
+      tenantAddressInputs.forEach((input) => { input.required = true; });
       companyField.style.display = "none";
       companyField.querySelector("input").required = false;
     } else if (landlordRadio.checked) {
-      // If signing up as landlord, show company name field, hide address field
       addressField.style.display = "none";
-      addressField.querySelector("input").required = false;
+      tenantAddressInputs.forEach((input) => { input.required = false; });
       companyField.style.display = "block";
       companyField.querySelector("input").required = false;
     } else {
       addressField.style.display = "none";
+      tenantAddressInputs.forEach((input) => { input.required = false; });
       companyField.style.display = "none";
     }
+
+    syncTenantAddressField();
   }
 
   function setupTermsTracking() {
@@ -293,6 +457,9 @@
     if (tenantRadio) tenantRadio.addEventListener("change", toggleFields);
     if (landlordRadio) landlordRadio.addEventListener("change", toggleFields);
 
+    setupPhoneFormatting();
+    setupAddressFormatting();
+    setupTenantAddressSync();
     toggleFields(); // initial setup
     setupTermsTracking(); // setup terms validation
   }
