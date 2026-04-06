@@ -59,6 +59,9 @@ Rails.application.configure do
 
   # Allow GitHub Codespaces hosts
   config.hosts << /.*\.app\.github\.dev/
+  
+  # Allow Docker container hostnames for system tests
+  config.hosts << "web"
 
   # Relax CSRF protection for development (especially useful in codespaces)
   config.action_controller.allow_forgery_protection = false

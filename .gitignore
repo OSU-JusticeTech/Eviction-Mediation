@@ -30,6 +30,7 @@
 
 /public/assets
 public/userFiles
+/coverage
 
 # Ignore master key for decrypting credentials and more.
 /config/master.key

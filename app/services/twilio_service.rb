@@ -17,9 +17,11 @@ class TwilioService
       Rails.logger.info "Phone: #{formatted_number}"
       Rails.logger.info "Code: #{code}"
       Rails.logger.info "=" * 80
-      puts "=" * 80
-      puts "2FA CODE: #{code}"
-      puts "=" * 80
+      unless Rails.env.test?
+        puts "=" * 80
+        puts "2FA CODE: #{code}"
+        puts "=" * 80
+      end
       return true
     end
 

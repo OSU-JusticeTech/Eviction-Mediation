@@ -23,7 +23,7 @@
         </div>
       <% end %>
       
-      <%= form_with url: login_path, method: :post, class: "login-form" do |form| %>
+      <%= form_with url: login_path, method: :post, class: "login-form", data: { turbo: false } do |form| %>
         <!-- Email Input -->
         <div class="input-group">
           <label for="email">Email</label>

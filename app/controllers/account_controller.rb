@@ -4,10 +4,7 @@ class AccountController < ApplicationController
 
   def show
   end
-
-  def update
-  end
-
+  
   def edit
   end
 
@@ -55,7 +52,7 @@ class AccountController < ApplicationController
       end
 
       
-      unless @user.update(phone_number: params[:user][:phone_number])
+      unless @user.update(PhoneNumber: params[:user][:phone_number])
         flash[:alert] = "Invalid phone number format."
         redirect_to account_path and return
       end
