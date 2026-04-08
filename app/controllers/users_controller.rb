@@ -47,6 +47,11 @@ class UsersController < ApplicationController
     )
 
     if permitted[:Role] == "Tenant"
+      permitted[:AddressLine1] = permitted[:AddressLine1].to_s.strip.presence
+      permitted[:AddressLine2] = permitted[:AddressLine2].to_s.strip.presence
+      permitted[:City] = permitted[:City].to_s.strip.presence
+      permitted[:State] = permitted[:State].to_s.strip.upcase.presence
+      permitted[:ZipCode] = permitted[:ZipCode].to_s.strip.presence
       permitted[:TenantAddress] = composed_tenant_address(permitted)
     end
 

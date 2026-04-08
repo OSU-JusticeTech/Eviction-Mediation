@@ -43,7 +43,7 @@
             <div class="info-label">
               <i class="fa-solid fa-location-dot"></i> Address
             </div>
-            <div class="info-value"><%= @user.TenantAddress.presence || "Not provided" %></div>
+            <div class="info-value"><%= @user.formatted_tenant_address.presence || "Not provided" %></div>
           </div>
         <% end %>
         </div>
@@ -54,7 +54,11 @@
             <i class="fa-solid fa-edit"></i> Update Address
           </div>
           <%= form_with model: @user, url: account_path, method: :patch, local: true, id: "address-form", class: "account-form" do |f| %>
-            <%= f.text_field :TenantAddress, class: "form-input-simple", placeholder: "Enter new address" %>
+            <%= f.text_field :AddressLine1, class: "form-input-simple", placeholder: "Address line 1" %>
+            <%= f.text_field :AddressLine2, class: "form-input-simple", placeholder: "Address line 2 (optional)" %>
+            <%= f.text_field :City, class: "form-input-simple", placeholder: "City" %>
+            <%= f.text_field :State, class: "form-input-simple", placeholder: "State (e.g., OH)", maxlength: 2 %>
+            <%= f.text_field :ZipCode, class: "form-input-simple", placeholder: "ZIP code (e.g., 12345 or 12345-6789)" %>
             <%= f.submit "Update Address", class: "btn-primary" %>
           <% end %>
         </div>

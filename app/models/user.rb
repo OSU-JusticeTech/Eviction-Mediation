@@ -1,7 +1,7 @@
 class User < ApplicationRecord
   self.primary_key = "UserID"
   has_secure_password
-  attr_accessor :ProfileDisclaimer, :AddressLine1, :AddressLine2, :City, :State, :ZipCode
+  attr_accessor :ProfileDisclaimer
   validates :ProfileDisclaimer, acceptance: { accept: "yes", message: "You must agree to the Disclaimer to sign up." }
 
   VALID_TENANT_ADDRESS_REGEX = /\A(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9\s.,#\-\/]{6,255}\z/
@@ -36,6 +36,15 @@ class User < ApplicationRecord
   def landlord? = self[:Role] == "Landlord"
   def mediator? = self[:Role] == "Mediator"
   def admin?    = self[:Role] == "Admin"
+
+  def formatted_tenant_address
+    street = [ self[:AddressLine1].presence, self[:AddressLine2].presence ].compact.join(", ")
+    state_zip = [ self[:State].presence, self[:ZipCode].presence ].compact.join(" ")
+    city_state_zip = [ self[:City].presence, state_zip.presence ].compact.join(", ")
+    composed = [ street.presence, city_state_zip.presence ].compact.join(", ").presence
+
+    composed || self[:TenantAddress].presence
+  end
 
   # Two-Factor Authentication methods
   def two_factor_enabled?

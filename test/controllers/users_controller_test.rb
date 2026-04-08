@@ -22,7 +22,11 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       FName: "New",
       LName: "Tenant",
       Role: "Tenant",
-      TenantAddress: "123 Main St",
+      AddressLine1: "123 Main St",
+      AddressLine2: "Apt 4B",
+      City: "Columbus",
+      State: "oh",
+      ZipCode: "43215-1234",
       ProfileDisclaimer: "yes"
     }
 
@@ -36,6 +40,12 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to dashboard_url
     assert_equal created_user.UserID, session[:user_id]
     assert_equal "Account created successfully!", flash[:notice]
+    assert_equal "123 Main St", created_user[:AddressLine1]
+    assert_equal "Apt 4B", created_user[:AddressLine2]
+    assert_equal "Columbus", created_user[:City]
+    assert_equal "OH", created_user[:State]
+    assert_equal "43215-1234", created_user[:ZipCode]
+    assert_equal "123 Main St, Apt 4B, Columbus, OH 43215-1234", created_user[:TenantAddress]
   end
 
   test "does not create a user with invalid data" do

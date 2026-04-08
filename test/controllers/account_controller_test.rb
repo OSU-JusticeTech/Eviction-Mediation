@@ -37,6 +37,55 @@ class AccountControllerTest < ActionDispatch::IntegrationTest
     assert_equal "500 Updated Ave, Columbus, OH", @tenant.reload[:TenantAddress]
   end
 
+  test "tenant can update split address fields" do
+    log_in_as(@tenant)
+    follow_redirect!
+
+    patch account_path, params: {
+      commit: "Update Address",
+      user: {
+        AddressLine1: "500 Oak St",
+        AddressLine2: "Unit 2",
+        City: "Columbus",
+        State: "oh",
+        ZipCode: "43210-1111"
+      }
+    }
+
+    assert_redirected_to account_path
+    assert_equal "Address updated successfully.", flash[:notice]
+
+    @tenant.reload
+    assert_equal "500 Oak St", @tenant[:AddressLine1]
+    assert_equal "Unit 2", @tenant[:AddressLine2]
+    assert_equal "Columbus", @tenant[:City]
+    assert_equal "OH", @tenant[:State]
+    assert_equal "43210-1111", @tenant[:ZipCode]
+    assert_equal "500 Oak St, Unit 2, Columbus, OH 43210-1111", @tenant[:TenantAddress]
+  end
+
+  test "tenant address fallback still works with legacy TenantAddress param" do
+    log_in_as(@tenant)
+    follow_redirect!
+
+    patch account_path, params: {
+      commit: "Update Address",
+      user: {
+        TenantAddress: "700 Legacy Ave"
+      }
+    }
+
+    assert_redirected_to account_path
+    assert_equal "Address updated successfully.", flash[:notice]
+
+    @tenant.reload
+    assert_equal "700 Legacy Ave", @tenant[:TenantAddress]
+    assert_nil @tenant[:AddressLine2]
+    assert_nil @tenant[:City]
+    assert_nil @tenant[:State]
+    assert_nil @tenant[:ZipCode]
+  end
+
   test "blank address update does not change tenant address" do
     log_in_as(@tenant)
     original_address = @tenant[:TenantAddress]
