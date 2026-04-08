@@ -104,4 +104,30 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_nil flash[:notice]
     assert_select ".error-text", text: /already registered/i
   end
+
+  test "does not create tenant with invalid state and zip format" do
+    invalid_address_params = {
+      Email: "invalid-address@example.com",
+      password: "Password!23",
+      password_confirmation: "Password!23",
+      FName: "Bad",
+      LName: "Address",
+      Role: "Tenant",
+      AddressLine1: "789 Elm St",
+      City: "Columbus",
+      State: "Ohio",
+      ZipCode: "43A15",
+      ProfileDisclaimer: "yes"
+    }
+
+    assert_no_enqueued_jobs do
+      assert_no_difference("User.count") do
+        post signup_url, params: { user: invalid_address_params }
+      end
+    end
+
+    assert_response :success
+    assert_select ".error-summary", text: /state must be a 2-letter state code/i
+    assert_select ".error-summary", text: /zipcode must be a valid ZIP code/i
+  end
 end

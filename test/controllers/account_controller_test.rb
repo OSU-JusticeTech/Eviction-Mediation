@@ -72,6 +72,35 @@ class AccountControllerTest < ActionDispatch::IntegrationTest
     assert_equal original_address, @tenant.reload.formatted_tenant_address
   end
 
+  test "invalid address update shows validation errors and preserves existing address" do
+    log_in_as(@tenant)
+    original_line_1 = @tenant[:AddressLine1]
+    original_city = @tenant[:City]
+    original_state = @tenant[:State]
+    original_zip = @tenant[:ZipCode]
+
+    patch "/account", params: {
+      user: {
+        AddressLine1: "900 Invalid Ave",
+        AddressLine2: "",
+        City: "Columbus",
+        State: "Ohio",
+        ZipCode: "43A10"
+      },
+      commit: "Update Address"
+    }
+
+    assert_redirected_to account_path
+    assert_match(/State must be a 2-letter state code/i, flash[:alert])
+    assert_match(/Zipcode must be a valid ZIP code/i, flash[:alert])
+
+    @tenant.reload
+    assert_equal original_line_1, @tenant[:AddressLine1]
+    assert_equal original_city, @tenant[:City]
+    assert_equal original_state, @tenant[:State]
+    assert_equal original_zip, @tenant[:ZipCode]
+  end
+
   test "disable 2fa updates user flags" do
     @tenant.update!(two_factor_enabled: false, phone_verified: true)
     log_in_as(@tenant)

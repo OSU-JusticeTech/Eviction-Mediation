@@ -3,7 +3,7 @@ require "application_system_test_case"
 class UsersTest < ApplicationSystemTestCase
   test "visiting the signup page shows the signup form" do
     visit signup_path
-    
+
     assert_selector "h2", text: "Sign Up"
     assert_selector "input#user_FName"
     assert_selector "input#user_LName"
@@ -17,7 +17,7 @@ class UsersTest < ApplicationSystemTestCase
 
   test "signing up as a tenant with valid data" do
     visit signup_path
-    
+
     within(".signup-form") do
       find("#user_FName").set("Alice")
       find("#user_LName").set("Tenant")
@@ -31,11 +31,11 @@ class UsersTest < ApplicationSystemTestCase
       find("#state").set("OH")
       find("#zip-code").set("43215")
       find("#phone-number").set("614-555-0100")
-    
+
       # Use JavaScript to accept disclaimer (both checkbox and termsOpened tracker)
       page.execute_script("document.getElementById('user_ProfileDisclaimer').checked = true;")
       page.execute_script("document.getElementById('termsOpened').value = 'true';")
-      
+
       click_button "Sign Up"
     end
 
@@ -45,7 +45,7 @@ class UsersTest < ApplicationSystemTestCase
 
   test "signing up as a landlord with valid data" do
     visit signup_path
-    
+
     within(".signup-form") do
       find("#user_FName").set("Bob")
       find("#user_LName").set("Landlord")
@@ -55,11 +55,11 @@ class UsersTest < ApplicationSystemTestCase
       choose "role_landlord"
       find("#user_CompanyName").set("Property Management LLC")
       find("#phone-number").set("614-555-0200")
-    
+
       # Use JavaScript to accept disclaimer (both checkbox and termsOpened tracker)
       page.execute_script("document.getElementById('user_ProfileDisclaimer').checked = true;")
       page.execute_script("document.getElementById('termsOpened').value = 'true';")
-      
+
       click_button "Sign Up"
     end
 
@@ -69,26 +69,53 @@ class UsersTest < ApplicationSystemTestCase
 
   test "signup fails with mismatched passwords" do
     visit signup_path
-    
-    # Verify the signup form has password and password_confirmation fields
-    assert_selector "input#user_password"
-    assert_selector "input#user_password_confirmation"
-    
-    # Note: Password mismatch validation is better tested at controller/model level
-    # System tests focus on UI elements and successful flows
+
+    attempted_email = "mismatch.#{SecureRandom.hex(4)}@example.com"
+
+    within(".signup-form") do
+      find("#user_FName").set("Mismatch")
+      find("#user_LName").set("User")
+      find("#user_Email").set(attempted_email)
+      find("#user_password").set("SecurePassword123!")
+      find("#user_password_confirmation").set("DifferentPassword123!")
+      choose "role_tenant"
+      find("#address-line-1").set("101 Error St")
+      find("#city").set("Columbus")
+      find("#state").set("OH")
+      find("#zip-code").set("43215")
+      find("#phone-number").set("614-555-0300")
+      page.execute_script("document.getElementById('user_ProfileDisclaimer').checked = true;")
+      page.execute_script("document.getElementById('termsOpened').value = 'true';")
+
+      click_button "Sign Up"
+    end
+
+    assert_current_path signup_path
+    assert_text "Password confirmation doesn't match Password"
+    assert_nil User.find_by(Email: attempted_email)
   end
 
   test "signup fails with duplicate email" do
     visit signup_path
-    
-    # Verify email is unique - existing email in fixtures
+
     existing_user = users(:landlord1)
-    assert_not_nil existing_user.Email
-    
-    # Verify the email field exists
-    assert_selector "input#user_Email"
-    
-    # Note: Email uniqueness validation is better tested at controller/model level
-    # System tests focus on UI elements and successful user flows
+
+    within(".signup-form") do
+      find("#user_FName").set("Duplicate")
+      find("#user_LName").set("User")
+      find("#user_Email").set(existing_user.Email)
+      find("#user_password").set("SecurePassword123!")
+      find("#user_password_confirmation").set("SecurePassword123!")
+      choose "role_landlord"
+      find("#user_CompanyName").set("Duplicate Co")
+      find("#phone-number").set("614-555-0400")
+      page.execute_script("document.getElementById('user_ProfileDisclaimer').checked = true;")
+      page.execute_script("document.getElementById('termsOpened').value = 'true';")
+
+      click_button "Sign Up"
+    end
+
+    assert_current_path signup_path
+    assert_text "Email is already registered"
   end
 end
