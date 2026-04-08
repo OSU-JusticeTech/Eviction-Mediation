@@ -177,35 +177,11 @@ class AccountController < ApplicationController
   private
 
   def address_params
-    permitted = params.require(:user).permit(:TenantAddress, :AddressLine1, :AddressLine2, :City, :State, :ZipCode)
+    permitted = params.require(:user).permit(:AddressLine1, :AddressLine2, :City, :State, :ZipCode).to_h
 
-    address_line_1 = permitted[:AddressLine1].to_s.strip.presence
-    address_line_2 = permitted[:AddressLine2].to_s.strip.presence
-    city = permitted[:City].to_s.strip.presence
-    state = permitted[:State].to_s.strip.upcase.presence
-    zip_code = permitted[:ZipCode].to_s.strip.presence
-    fallback_tenant_address = permitted[:TenantAddress].to_s.strip.presence
-
-    {
-      AddressLine1: address_line_1,
-      AddressLine2: address_line_2,
-      City: city,
-      State: state,
-      ZipCode: zip_code,
-      TenantAddress: compose_tenant_address(address_line_1, address_line_2, city, state, zip_code, fallback_tenant_address)
-    }
-  end
-
-  def compose_tenant_address(address_line_1, address_line_2, city, state, zip_code, fallback_tenant_address)
-    if [ address_line_1, address_line_2, city, state, zip_code ].all?(&:blank?)
-      return fallback_tenant_address
-    end
-
-    street = [ address_line_1, address_line_2 ].compact.join(", ")
-    state_zip = [ state, zip_code ].compact.join(" ")
-    city_state_zip = [ city, state_zip.presence ].compact.join(", ")
-
-    [ street.presence, city_state_zip.presence ].compact.join(", ").presence
+    permitted.transform_values! { |value| value.to_s.strip.presence }
+    permitted[:State] = permitted[:State].to_s.upcase.presence
+    permitted.symbolize_keys
   end
 
   def password_params

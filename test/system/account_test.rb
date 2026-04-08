@@ -19,12 +19,15 @@ class AccountTest < ApplicationSystemTestCase
     dismiss_terms_modal_if_present
 
     assert_selector "h1", text: "My Account"
-    fill_in "user_TenantAddress", with: "456 Updated St, Columbus OH"
+    find("#user_AddressLine1").set("456 Updated St")
+    find("#user_City").set("Columbus")
+    find("#user_State").set("OH")
+    find("#user_ZipCode").set("43210")
     click_button "Update Address"
 
     assert_current_path account_path
     assert_text "Address updated successfully."
-    assert_text "456 Updated St, Columbus OH"
+    assert_text "456 Updated St, Columbus, OH 43210"
   end
 
   test "tenant can update password and sign in with the new password" do

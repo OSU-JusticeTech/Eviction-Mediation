@@ -25,8 +25,12 @@ class UsersTest < ApplicationSystemTestCase
       find("#user_password").set("SecurePassword123!")
       find("#user_password_confirmation").set("SecurePassword123!")
       choose "role_tenant"
-      find("#user_TenantAddress").set("123 Main St, Columbus OH")
-      find("#user_PhoneNumber").set("614-555-0100")
+      assert_selector "#address-line-1", visible: true
+      find("#address-line-1").set("123 Main St")
+      find("#city").set("Columbus")
+      find("#state").set("OH")
+      find("#zip-code").set("43215")
+      find("#phone-number").set("614-555-0100")
     
       # Use JavaScript to accept disclaimer (both checkbox and termsOpened tracker)
       page.execute_script("document.getElementById('user_ProfileDisclaimer').checked = true;")
@@ -50,7 +54,7 @@ class UsersTest < ApplicationSystemTestCase
       find("#user_password_confirmation").set("SecurePassword123!")
       choose "role_landlord"
       find("#user_CompanyName").set("Property Management LLC")
-      find("#user_PhoneNumber").set("614-555-0200")
+      find("#phone-number").set("614-555-0200")
     
       # Use JavaScript to accept disclaimer (both checkbox and termsOpened tracker)
       page.execute_script("document.getElementById('user_ProfileDisclaimer').checked = true;")

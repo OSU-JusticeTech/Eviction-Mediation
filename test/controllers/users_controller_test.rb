@@ -45,18 +45,21 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Columbus", created_user[:City]
     assert_equal "OH", created_user[:State]
     assert_equal "43215-1234", created_user[:ZipCode]
-    assert_equal "123 Main St, Apt 4B, Columbus, OH 43215-1234", created_user[:TenantAddress]
+    assert_equal "123 Main St, Apt 4B, Columbus, OH 43215-1234", created_user.formatted_tenant_address
   end
 
   test "does not create a user with invalid data" do
     invalid_params = {
       Email: "not-an-email",
-      password: "",
-      password_confirmation: "",
+      password: "Password!23",
+      password_confirmation: "Password!23",
       FName: "",
       LName: "",
       Role: "Tenant",
-      TenantAddress: "",
+      AddressLine1: "123 Main St",
+      City: "Columbus",
+      State: "OH",
+      ZipCode: "43215",
       ProfileDisclaimer: "no"
     }
 
@@ -82,7 +85,10 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       FName: "Duplicate",
       LName: "Tenant",
       Role: "Tenant",
-      TenantAddress: "456 Broad St",
+      AddressLine1: "456 Broad St",
+      City: "Columbus",
+      State: "OH",
+      ZipCode: "43215",
       ProfileDisclaimer: "yes"
     }
 

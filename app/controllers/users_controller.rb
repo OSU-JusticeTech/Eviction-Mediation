@@ -36,7 +36,6 @@ class UsersController < ApplicationController
       :LName, 
       :Role, 
       :CompanyName, 
-      :TenantAddress, 
       :PhoneNumber, 
       :ProfileDisclaimer,
       :AddressLine1,
@@ -52,28 +51,8 @@ class UsersController < ApplicationController
       permitted[:City] = permitted[:City].to_s.strip.presence
       permitted[:State] = permitted[:State].to_s.strip.upcase.presence
       permitted[:ZipCode] = permitted[:ZipCode].to_s.strip.presence
-      permitted[:TenantAddress] = composed_tenant_address(permitted)
     end
 
     permitted
-  end
-
-  def composed_tenant_address(permitted)
-    existing_tenant_address = permitted[:TenantAddress].to_s.strip
-    address_line_1 = permitted[:AddressLine1].to_s.strip
-    address_line_2 = permitted[:AddressLine2].to_s.strip
-    city = permitted[:City].to_s.strip
-    state = permitted[:State].to_s.strip.upcase
-    zip_code = permitted[:ZipCode].to_s.strip
-
-    if [ address_line_1, address_line_2, city, state, zip_code ].all?(&:blank?)
-      return existing_tenant_address.presence
-    end
-
-    street = [ address_line_1, address_line_2.presence ].compact.join(", ")
-    state_zip = [ state.presence, zip_code.presence ].compact.join(" ")
-    city_state_zip = [ city.presence, state_zip.presence ].compact.join(", ")
-
-    [ street.presence, city_state_zip.presence ].compact.join(", ").presence
   end
 end

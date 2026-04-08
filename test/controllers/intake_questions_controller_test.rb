@@ -30,7 +30,7 @@ class IntakeQuestionsControllerTest < ActionDispatch::IntegrationTest
           BestOption: "Pay Missed Rent",
           Section8: "false",
           MoneyOwed: 1000,
-          TotalCostOrMonthly: "true",
+          TotalCostOrMonthly: "false",
           MonthlyRent: 900,
           DateDue: Date.today.to_s,
           PayableToday: 300

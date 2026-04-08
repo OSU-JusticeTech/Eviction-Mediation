@@ -92,7 +92,6 @@
 
       <!-- Address Fields (Tenant) -->
       <div id="address-field" class="conditional-field">
-        <%= f.hidden_field :TenantAddress, id: "tenant-address-combined" %>
         <div class="input-group">
           <label for="AddressLine1">Address Line 1</label>
           <div class="input-field">
@@ -335,47 +334,12 @@
     }
   }
 
-  function syncTenantAddressField() {
-    const hiddenAddress = document.getElementById("tenant-address-combined");
-    const line1 = document.getElementById("address-line-1");
-    const line2 = document.getElementById("address-line-2");
-    const city = document.getElementById("city");
-    const state = document.getElementById("state");
-    const zip = document.getElementById("zip-code");
-
-    if (!hiddenAddress || !line1 || !line2 || !city || !state || !zip) return;
-
-    const street = [line1.value.trim(), line2.value.trim()].filter(Boolean).join(", ");
-    const stateZip = [state.value.trim().toUpperCase(), zip.value.trim()].filter(Boolean).join(" ");
-    const cityStateZip = [city.value.trim(), stateZip].filter(Boolean).join(", ");
-    hiddenAddress.value = [street, cityStateZip].filter(Boolean).join(", ");
-  }
-
-  function setupTenantAddressSync() {
-    const addressInputs = [
-      document.getElementById("address-line-1"),
-      document.getElementById("address-line-2"),
-      document.getElementById("city"),
-      document.getElementById("state"),
-      document.getElementById("zip-code")
-    ].filter(Boolean);
-
-    addressInputs.forEach((input) => {
-      if (input.dataset.addressSyncBound === "true") return;
-
-      input.dataset.addressSyncBound = "true";
-      input.addEventListener("input", syncTenantAddressField);
-    });
-
-    syncTenantAddressField();
-  }
-
   function toggleFields() {
     const tenantRadio = document.getElementById("role_tenant");
     const landlordRadio = document.getElementById("role_landlord");
     const addressField = document.getElementById("address-field");
     const companyField = document.getElementById("company-field");
-    const tenantAddressInputs = [
+    const tenantFields = [
       document.getElementById("address-line-1"),
       document.getElementById("city"),
       document.getElementById("state"),
@@ -386,21 +350,19 @@
 
     if (tenantRadio.checked) {
       addressField.style.display = "block";
-      tenantAddressInputs.forEach((input) => { input.required = true; });
+      tenantFields.forEach((input) => { input.required = true; });
       companyField.style.display = "none";
       companyField.querySelector("input").required = false;
     } else if (landlordRadio.checked) {
       addressField.style.display = "none";
-      tenantAddressInputs.forEach((input) => { input.required = false; });
+      tenantFields.forEach((input) => { input.required = false; });
       companyField.style.display = "block";
       companyField.querySelector("input").required = false;
     } else {
       addressField.style.display = "none";
-      tenantAddressInputs.forEach((input) => { input.required = false; });
+      tenantFields.forEach((input) => { input.required = false; });
       companyField.style.display = "none";
     }
-
-    syncTenantAddressField();
   }
 
   function setupTermsTracking() {
@@ -459,7 +421,6 @@
 
     setupPhoneFormatting();
     setupAddressFormatting();
-    setupTenantAddressSync();
     toggleFields(); // initial setup
     setupTermsTracking(); // setup terms validation
   }

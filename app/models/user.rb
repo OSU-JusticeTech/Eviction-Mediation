@@ -4,8 +4,6 @@ class User < ApplicationRecord
   attr_accessor :ProfileDisclaimer
   validates :ProfileDisclaimer, acceptance: { accept: "yes", message: "You must agree to the Disclaimer to sign up." }
 
-  VALID_TENANT_ADDRESS_REGEX = /\A(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9\s.,#\-\/]{6,255}\z/
-
   validates :Email,
             presence: true,
             uniqueness: { case_sensitive: false, message: "is already registered" },
@@ -41,9 +39,8 @@ class User < ApplicationRecord
     street = [ self[:AddressLine1].presence, self[:AddressLine2].presence ].compact.join(", ")
     state_zip = [ self[:State].presence, self[:ZipCode].presence ].compact.join(" ")
     city_state_zip = [ self[:City].presence, state_zip.presence ].compact.join(", ")
-    composed = [ street.presence, city_state_zip.presence ].compact.join(", ").presence
 
-    composed || self[:TenantAddress].presence
+    [ street.presence, city_state_zip.presence ].compact.join(", ").presence
   end
 
   # Two-Factor Authentication methods
@@ -77,10 +74,19 @@ class User < ApplicationRecord
   end
 
   def role_based_field_requirements
-    if self[:Role] == "Tenant" && self[:TenantAddress].blank?
-      errors.add(:TenantAddress, "can't be blank for tenants")
-    elsif self[:Role] == "Tenant" && self[:TenantAddress].present? && self[:TenantAddress].strip !~ VALID_TENANT_ADDRESS_REGEX
-      errors.add(:TenantAddress, "is not a valid address")
+    if self[:Role] == "Tenant"
+      errors.add(:AddressLine1, "can't be blank for tenants") if self[:AddressLine1].blank?
+      errors.add(:City, "can't be blank for tenants") if self[:City].blank?
+      errors.add(:State, "can't be blank for tenants") if self[:State].blank?
+      errors.add(:ZipCode, "can't be blank for tenants") if self[:ZipCode].blank?
+
+      if self[:State].present? && self[:State].to_s !~ /\A[A-Za-z]{2}\z/
+        errors.add(:State, "must be a 2-letter state code")
+      end
+
+      if self[:ZipCode].present? && self[:ZipCode].to_s !~ /\A\d{5}(-\d{4})?\z/
+        errors.add(:ZipCode, "must be a valid ZIP code")
+      end
     elsif self[:Role] == "Landlord" && self[:CompanyName].present? && self[:CompanyName].length > 255
       errors.add(:CompanyName, "is too long")
     end
