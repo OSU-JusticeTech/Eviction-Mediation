@@ -35,7 +35,10 @@ class AccountController < ApplicationController
 
     # Address Update
     if @user.Role == "Tenant" && params[:commit] == "Update Address"
-      if @user.update(address_params)
+      address_update_params = address_params
+
+      if address_update_params.values.all?(&:blank?)
+      elsif @user.update(address_update_params)
         flash[:notice] ||= "Address updated successfully."
         updated = true
       else
