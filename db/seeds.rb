@@ -19,7 +19,11 @@ landlord = User.create!(
   LName: 'Doe',
   Role: 'Landlord',
   CompanyName: 'Doe Property Management',
-  TenantAddress: nil,
+  AddressLine1: nil,
+  AddressLine2: nil,
+  City: nil,
+  State: nil,
+  ZipCode: nil,
   PhoneNumber: '555-555-1234'
 )
 
@@ -30,7 +34,11 @@ tenant = User.create!(
   FName: 'Jane',
   LName: 'Smith',
   Role: 'Tenant',
-  TenantAddress: '456 Elm St',
+  AddressLine1: '456 Elm St',
+  AddressLine2: nil,
+  City: 'Columbus',
+  State: 'OH',
+  ZipCode: '43215',
   PhoneNumber: '555-555-5678'
 )
 
@@ -81,7 +89,11 @@ landlord2 = User.create!(
   LName: 'Doe2',
   Role: 'Landlord',
   CompanyName: 'Doe2 Property Management 2',
-  TenantAddress: nil,
+  AddressLine1: nil,
+  AddressLine2: nil,
+  City: nil,
+  State: nil,
+  ZipCode: nil,
   PhoneNumber: '111-555-1234'
 )
 
@@ -92,7 +104,11 @@ tenant2 = User.create!(
   FName: 'Jane2',
   LName: 'Smith2',
   Role: 'Tenant',
-  TenantAddress: '456 Elm St 2',
+  AddressLine1: '456 Elm St 2',
+  AddressLine2: nil,
+  City: 'Cleveland',
+  State: 'OH',
+  ZipCode: '44114',
   PhoneNumber: '111-555-4321'
 )
 
