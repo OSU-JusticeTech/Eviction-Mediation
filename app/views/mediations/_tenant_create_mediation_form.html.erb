@@ -12,7 +12,7 @@
 
       <div class="input-group">
         <%= form.label :landlord_email, "Or Enter Landlord's Email:" %>
-        <%= form.text_field :landlord_email, required: false, placeholder: "Enter landlord's email", id: "landlord-email" %>
+        <%= form.text_field :landlord_email, required: true, placeholder: "Enter landlord's email", id: "landlord-email" %>
       </div>
 
       <%= hidden_field_tag :format, "html" %>

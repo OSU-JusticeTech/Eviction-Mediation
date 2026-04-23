@@ -52,7 +52,7 @@
             <table class="info-table">
               <tr>
                 <th>Address</th>
-                <td><%= @mediation.tenant.TenantAddress.presence || "N/A" %></td>
+                <td><%= @mediation.tenant.formatted_tenant_address.presence || "N/A" %></td>
               </tr>
               <% if @user.Role == "Tenant" %>
                 <tr>

@@ -28,7 +28,7 @@ class UsersController < ApplicationController
 
   # Adjust the permitted parameters to match your Users table column names.
   def user_params
-    params.require(:user).permit(
+    permitted = params.require(:user).permit(
       :Email, 
       :password, 
       :password_confirmation, 
@@ -36,9 +36,23 @@ class UsersController < ApplicationController
       :LName, 
       :Role, 
       :CompanyName, 
-      :TenantAddress, 
       :PhoneNumber, 
-      :ProfileDisclaimer
+      :ProfileDisclaimer,
+      :AddressLine1,
+      :AddressLine2,
+      :City,
+      :State,
+      :ZipCode
     )
+
+    if permitted[:Role] == "Tenant"
+      permitted[:AddressLine1] = permitted[:AddressLine1].to_s.strip.presence
+      permitted[:AddressLine2] = permitted[:AddressLine2].to_s.strip.presence
+      permitted[:City] = permitted[:City].to_s.strip.presence
+      permitted[:State] = permitted[:State].to_s.strip.upcase.presence
+      permitted[:ZipCode] = permitted[:ZipCode].to_s.strip.presence
+    end
+
+    permitted
   end
 end

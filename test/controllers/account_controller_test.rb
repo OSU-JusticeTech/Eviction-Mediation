@@ -25,30 +25,80 @@ class AccountControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "tenant can update address" do
+  test "tenant can update split address fields" do
     log_in_as(@tenant)
+    follow_redirect!
 
-    patch "/account", params: {
-      user: { TenantAddress: "500 Updated Ave, Columbus, OH" },
-      commit: "Update Address"
+    patch account_path, params: {
+      commit: "Update Address",
+      user: {
+        AddressLine1: "500 Oak St",
+        AddressLine2: "Unit 2",
+        City: "Columbus",
+        State: "oh",
+        ZipCode: "43210-1111"
+      }
     }
 
     assert_redirected_to account_path
-    assert_equal "500 Updated Ave, Columbus, OH", @tenant.reload[:TenantAddress]
+    assert_equal "Address updated successfully.", flash[:notice]
+
+    @tenant.reload
+    assert_equal "500 Oak St", @tenant[:AddressLine1]
+    assert_equal "Unit 2", @tenant[:AddressLine2]
+    assert_equal "Columbus", @tenant[:City]
+    assert_equal "OH", @tenant[:State]
+    assert_equal "43210-1111", @tenant[:ZipCode]
+    assert_equal "500 Oak St, Unit 2, Columbus, OH 43210-1111", @tenant.formatted_tenant_address
   end
 
   test "blank address update does not change tenant address" do
     log_in_as(@tenant)
-    original_address = @tenant[:TenantAddress]
+    original_address = @tenant.formatted_tenant_address
 
     patch "/account", params: {
-      user: { TenantAddress: "" },
+      user: {
+        AddressLine1: "",
+        AddressLine2: "",
+        City: "",
+        State: "",
+        ZipCode: ""
+      },
       commit: "Update Address"
     }
 
     assert_redirected_to account_path
     assert_equal "No changes detected.", flash[:alert]
-    assert_equal original_address, @tenant.reload[:TenantAddress]
+    assert_equal original_address, @tenant.reload.formatted_tenant_address
+  end
+
+  test "invalid address update shows validation errors and preserves existing address" do
+    log_in_as(@tenant)
+    original_line_1 = @tenant[:AddressLine1]
+    original_city = @tenant[:City]
+    original_state = @tenant[:State]
+    original_zip = @tenant[:ZipCode]
+
+    patch "/account", params: {
+      user: {
+        AddressLine1: "900 Invalid Ave",
+        AddressLine2: "",
+        City: "Columbus",
+        State: "Ohio",
+        ZipCode: "43A10"
+      },
+      commit: "Update Address"
+    }
+
+    assert_redirected_to account_path
+    assert_match(/State must be a 2-letter state code/i, flash[:alert])
+    assert_match(/Zipcode must be a valid ZIP code/i, flash[:alert])
+
+    @tenant.reload
+    assert_equal original_line_1, @tenant[:AddressLine1]
+    assert_equal original_city, @tenant[:City]
+    assert_equal original_state, @tenant[:State]
+    assert_equal original_zip, @tenant[:ZipCode]
   end
 
   test "disable 2fa updates user flags" do

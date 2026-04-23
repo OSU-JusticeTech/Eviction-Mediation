@@ -69,7 +69,7 @@
       <div class="form-section">
         <%= f.label :MoneyOwed, "How much money do you currently owe in rent?", class: "required-label" %>
         <p>Please check your online rental portal or any place where your rent balance is shown.</p>
-        <%= f.number_field :MoneyOwed, step: 0.01, class: "form-control", required: true, placeholder: "e.g. 1200.00" %>
+        <%= f.number_field :MoneyOwed, step: 0.01, min: 0, inputmode: "decimal", class: "form-control", required: true, placeholder: "e.g. 1200.00" %>
       </div>
 
       <div class="form-section">
@@ -83,7 +83,7 @@
         
         <div id="monthly-rent-section" style="display: none; margin-top: 12px;">
           <%= f.label :MonthlyRent, "What is the total rent you pay each month?" %>
-          <%= f.number_field :MonthlyRent, step: 0.01, class: "form-control", placeholder: "e.g. 800.00", id: "monthly_rent_field" %>
+          <%= f.number_field :MonthlyRent, step: 0.01, min: 0, inputmode: "decimal", class: "form-control", placeholder: "e.g. 800.00", id: "monthly_rent_field" %>
         </div>
       </div>
 
@@ -95,7 +95,7 @@
       <div class="form-section">
         <%= f.label :PayableToday, "How much money could you pay today?", class: "required-label" %>
         <p>It's okay to type “0” if you cannot pay any of the rent due today.</p>
-        <%= f.number_field :PayableToday, step: 0.01, class: "form-control", required: true, placeholder: "e.g. 0.00" %>
+        <%= f.number_field :PayableToday, step: 0.01, min: 0, inputmode: "decimal", class: "form-control", required: true, placeholder: "e.g. 0.00" %>
       </div>
 
       <div class="form-footer">

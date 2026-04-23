@@ -15,8 +15,12 @@ CREATE TABLE Users (
     LName NVARCHAR(100) NOT NULL,
     Role VARCHAR(20) CHECK (Role IN ('Admin', 'Mediator', 'Tenant', 'Landlord')),
     CreatedAt DATETIME DEFAULT GETDATE(),
-    CompanyName NVARCHAR(255) NULL,  
-    TenantAddress NVARCHAR(255) NULL 
+    CompanyName NVARCHAR(255) NULL,
+    AddressLine1 NVARCHAR(255) NULL,
+    AddressLine2 NVARCHAR(255) NULL,
+    City NVARCHAR(100) NULL,
+    State NVARCHAR(2) NULL,
+    ZipCode NVARCHAR(10) NULL
 );
 GO
 

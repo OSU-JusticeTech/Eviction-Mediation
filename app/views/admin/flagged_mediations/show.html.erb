@@ -103,7 +103,7 @@
           </div>
           <div class="info-row">
             <span class="label">Address</span>
-            <span class="value"><%= @tenant.TenantAddress.presence || "N/A" %></span>
+            <span class="value"><%= @tenant.formatted_tenant_address.presence || "N/A" %></span>
           </div>
 
           <!-- Intake Data (New) -->

@@ -44,6 +44,18 @@ class MediationsController < ApplicationController
   # Create a new mediation - tenants can select landlords, landlords can select tenants
   def create
     if @user.Role == "Tenant"
+      landlord_email = params[:landlord_email].to_s.strip
+
+      if params[:landlord_id].blank? && params[:landlord_email].to_s.strip.blank?
+        redirect_to new_mediation_path, alert: "Please select a landlord or enter a landlord email."
+        return
+      end
+
+      if params[:landlord_id].blank? && !valid_email_format?(landlord_email)
+        redirect_to new_mediation_path, alert: "Please enter a valid landlord email."
+        return
+      end
+
       landlord = find_existing_landlord
 
       unless landlord
@@ -60,6 +72,13 @@ class MediationsController < ApplicationController
         redirect_to messages_path, alert: "An unexpected error occurred. Please try again."
       end
     elsif @user.Role == "Landlord"
+      tenant_email = params[:tenant_email].to_s.strip
+
+      unless valid_email_format?(tenant_email)
+        redirect_to new_mediation_path, alert: "Please enter a valid tenant email."
+        return
+      end
+
       tenant = find_existing_tenant
 
       if tenant&.persisted?
@@ -262,7 +281,7 @@ class MediationsController < ApplicationController
         accepted_by_tenant: true
       )
 
-      redirect_to mediation_path(mediation), notice: "Negotiation created with #{landlord.CompanyName || landlord.Email}."
+      redirect_to mediation_path(mediation), notice: "Negotiation requested with #{landlord.CompanyName || landlord.Email}."
     end
   end
 
@@ -292,8 +311,9 @@ class MediationsController < ApplicationController
   def send_landlord_invitation(email)
     LandlordMailer.invitation_email(email, @user).deliver_now
     redirect_to messages_path, notice: "Invitation email sent to #{email}. If they have an account, they can accept your request. Otherwise, they'll be invited to join the site."
-  rescue
-    redirect_to messages_path, notice: "Invitation email sent to #{email}. If they have an account, they can accept your request. Otherwise, they'll be invited to join the site."
+  rescue => e
+    Rails.logger.error "Failed to send invitation email: #{e.message}"
+    redirect_to messages_path, alert: "Failed to send invitation email. Please try again."
   end
 
   def send_tenant_invitation(email)
@@ -343,5 +363,9 @@ class MediationsController < ApplicationController
       :should_improve,
       :device_used
     )
+  end
+
+  def valid_email_format?(email)
+    email.present? && URI::MailTo::EMAIL_REGEXP.match?(email)
   end
 end

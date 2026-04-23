@@ -34,13 +34,16 @@ class AccountController < ApplicationController
     end
 
     # Address Update
-    if @user.Role == "Tenant" && params[:user][:TenantAddress].present? && params[:commit] == "Update Address"
-      if @user.update(address_params)
+    if @user.Role == "Tenant" && params[:commit] == "Update Address"
+      address_update_params = address_params
+
+      if address_update_params.values.all?(&:blank?)
+      elsif @user.update(address_update_params)
         flash[:notice] ||= "Address updated successfully."
         updated = true
       else
-        flash.now[:alert] = "Address update failed."
-        render :show and return
+        flash[:alert] = @user.errors.full_messages.to_sentence
+        redirect_to account_path and return
       end
     end
 
@@ -174,7 +177,11 @@ class AccountController < ApplicationController
   private
 
   def address_params
-    params.require(:user).permit(:TenantAddress)
+    permitted = params.require(:user).permit(:AddressLine1, :AddressLine2, :City, :State, :ZipCode).to_h
+
+    permitted.transform_values! { |value| value.to_s.strip.presence }
+    permitted[:State] = permitted[:State].to_s.upcase.presence
+    permitted.symbolize_keys
   end
 
   def password_params
