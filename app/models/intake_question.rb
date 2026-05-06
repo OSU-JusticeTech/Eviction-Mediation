@@ -4,16 +4,22 @@ class IntakeQuestion < ApplicationRecord
 
     belongs_to :user, foreign_key: "UserID"
 
+    REASONS = [
+      "Failure to Pay Rent",
+      "Violation of Lease Terms",
+      "Damage to Property",
+      "Illegal Activity",
+      "Nuisance or Disturbance",
+      "Expiration of Lease",
+      "Unlivable",
+      "Unsafe",
+      "Failure to Repair",
+      "My Rent Will be Late",
+      "Unknown"
+    ]
+
     validates :Reason, inclusion: {
-      in: [
-        "Failure to Pay Rent",
-        "Violation of Lease Terms",
-        "Damage to Property",
-        "Illegal Activity",
-        "Nuisance or Disturbance",
-        "Expiration of Lease",
-        "Unknown"
-      ]
+      in: REASONS
     }
 
     validates :BestOption, inclusion: {
