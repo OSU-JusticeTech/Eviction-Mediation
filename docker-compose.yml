@@ -59,7 +59,7 @@ services:
       SELENIUM_REMOTE_URL: http://chrome:4444
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: docker.io/axllent/mailpit:latest
     restart: unless-stopped
     ports:
       - '${MAILPIT_WEB_PORT:-8025}:8025'  # Web UI
@@ -69,7 +69,7 @@ services:
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
 
   chrome:
-    image: selenium/standalone-chrome:latest
+    image: docker.io/selenium/standalone-chrome:latest
     shm_size: 2gb
     ports:
       - '4444:4444'
