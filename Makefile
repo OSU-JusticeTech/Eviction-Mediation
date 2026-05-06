@@ -6,7 +6,8 @@ export DB_HOST := localhost
 export DB_INIT_FILE := DBInitTest.sql
 export DB_SOURCE_NAME := EVICTION_TEST
 export DB_TARGET_NAME := EVICTION_DEVELOPMENT
-export COMPOSE_CMD := docker compose
+export DOCKER_CMD := docker
+export COMPOSE_CMD := $(DOCKER_CMD) compose
 export WEB_SERVICE := web
 export DB_SERVICE := db
 export WEB_PORT := 3000
@@ -32,7 +33,7 @@ dev-setup: down-clean
 	$(COMPOSE_CMD) up -d --wait --remove-orphans
 	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:create
 	sed 's/$(DB_SOURCE_NAME)/$(DB_TARGET_NAME)/g' $(DB_INIT_FILE) > setup_temp.sql
-	$(COMPOSE_CMD) cp setup_temp.sql $(DB_SERVICE):/tmp/setup.sql
+	$(DOCKER_CMD) cp setup_temp.sql $$($(DOCKER_CMD) ps -q --filter label=com.docker.compose.project.working_dir=$(pwd) --filter label=com.docker.compose.service=$(DB_SERVICE)):/tmp/setup.sql
 	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -i /tmp/setup.sql
 	rm setup_temp.sql
 	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:schema:dump
