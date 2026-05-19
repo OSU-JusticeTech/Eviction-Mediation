@@ -31,7 +31,7 @@
         <div class="form-group">
           <%= label_tag :address, "Property Address", class: "form-label required-label" %>
           <%= text_field_tag :address, 
-              @tenant&.TenantAddress || @user.TenantAddress || "", 
+              @tenant&.formatted_tenant_address || @user.formatted_tenant_address || "", 
               class: "form-input", 
               required: true, 
               placeholder: "Enter full property address" %>

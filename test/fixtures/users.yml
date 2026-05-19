@@ -8,7 +8,11 @@ landlord1:
   Role: Landlord
   CreatedAt: 2025-01-01 00:00:00
   CompanyName: company1
-  TenantAddress:
+  AddressLine1:
+  AddressLine2:
+  City:
+  State:
+  ZipCode:
 
 landlord2:
   UserID: 3
@@ -19,7 +23,11 @@ landlord2:
   Role: Landlord
   CreatedAt: 2025-04-01 13:00:00
   CompanyName: company3
-  TenantAddress:
+  AddressLine1:
+  AddressLine2:
+  City:
+  State:
+  ZipCode:
 
 tenant1:
   UserID: 2
@@ -30,7 +38,11 @@ tenant1:
   Role: Tenant
   CreatedAt: 2025-02-01 05:00:00
   CompanyName:
-  TenantAddress: 121 road, columbus oh
+  AddressLine1: 121 Road
+  AddressLine2:
+  City: Columbus
+  State: OH
+  ZipCode: 43210
 
 tenant2:
   UserID: 9
@@ -41,7 +53,11 @@ tenant2:
   Role: Tenant
   CreatedAt: 2025-02-01 05:00:00
   CompanyName:
-  TenantAddress: 121 road, columbus oh
+  AddressLine1: 121 Road
+  AddressLine2:
+  City: Columbus
+  State: OH
+  ZipCode: 43210
 
 tenant3:
   UserID: 10
@@ -52,7 +68,11 @@ tenant3:
   Role: Tenant
   CreatedAt: 2025-02-01 05:00:00
   CompanyName:
-  TenantAddress: 121 road, columbus oh
+  AddressLine1: 121 Road
+  AddressLine2:
+  City: Columbus
+  State: OH
+  ZipCode: 43210
 
 tenant4:
   UserID: 11
@@ -63,7 +83,11 @@ tenant4:
   Role: Tenant
   CreatedAt: 2025-02-01 05:00:00
   CompanyName:
-  TenantAddress: 121 road, columbus oh
+  AddressLine1: 121 Road
+  AddressLine2:
+  City: Columbus
+  State: OH
+  ZipCode: 43210
 
 mediator1:
   UserID: 4
@@ -74,7 +98,11 @@ mediator1:
   Role: Mediator
   CreatedAt: 2025-02-01 16:20:00
   CompanyName:
-  TenantAddress:
+  AddressLine1:
+  AddressLine2:
+  City:
+  State:
+  ZipCode:
 
 mediator2:
   UserID: 8
@@ -85,7 +113,11 @@ mediator2:
   Role: Mediator
   CreatedAt: 2025-01-01 16:24:00
   CompanyName:
-  TenantAddress:
+  AddressLine1:
+  AddressLine2:
+  City:
+  State:
+  ZipCode:
 
 admin1:
   UserID: 5
@@ -96,7 +128,11 @@ admin1:
   Role: Admin
   CreatedAt: 2025-02-01 19:26:12
   CompanyName:
-  TenantAddress:
+  AddressLine1:
+  AddressLine2:
+  City:
+  State:
+  ZipCode:
 
 invalid1:
   UserID: 6
@@ -107,7 +143,11 @@ invalid1:
   Role: 
   CreatedAt: 2026-02-01 19:26:12
   CompanyName: Apple
-  TenantAddress: 231 road columbus oh
+  AddressLine1:
+  AddressLine2:
+  City:
+  State:
+  ZipCode:
 
 random1:
   UserID: 7
@@ -118,7 +158,11 @@ random1:
   Role: 
   CreatedAt: 2025-02-01 19:26:12
   CompanyName:
-  TenantAddress:
+  AddressLine1:
+  AddressLine2:
+  City:
+  State:
+  ZipCode:
 
 one:
   UserID: 100
@@ -129,4 +173,8 @@ one:
   Role: Tenant
   CreatedAt: 2025-01-01 00:00:00
   CompanyName:
-  TenantAddress: 123 Test St
+  AddressLine1: 123 Test St
+  AddressLine2:
+  City: Columbus
+  State: OH
+  ZipCode: 43210

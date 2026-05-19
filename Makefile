@@ -29,15 +29,15 @@ export EXPORT_FILE := db_export.bak
 dev-setup: down-clean
 	@test -f config/database.yml || cp config/database.yml.docker config/database.yml
 	$(COMPOSE_CMD) build
-	$(COMPOSE_CMD) up -d --wait
-	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails db:create
+	$(COMPOSE_CMD) up -d --wait --remove-orphans
+	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:create
 	sed 's/$(DB_SOURCE_NAME)/$(DB_TARGET_NAME)/g' $(DB_INIT_FILE) > setup_temp.sql
 	$(COMPOSE_CMD) cp setup_temp.sql $(DB_SERVICE):/tmp/setup.sql
 	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -i /tmp/setup.sql
 	rm setup_temp.sql
-	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails db:schema:dump
-	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails db:migrate
-	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails db:seed
+	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:schema:dump
+	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:migrate
+	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:seed
 	@echo "🎉 Setup complete! Your app is running at http://localhost:3000"
 
 up:

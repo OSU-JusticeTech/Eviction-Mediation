@@ -24,7 +24,7 @@
                 <% @mediation.each do |mediation| %>
                     <tr>
                         <td data-label="Tenant"><%= mediation.tenant.FName %> <%= mediation.tenant.LName %></td>
-                        <td data-label="Address"> <%= mediation.tenant.TenantAddress %> </td>
+                        <td data-label="Address"> <%= mediation.tenant.formatted_tenant_address %> </td>
                         <td data-label="Actions">
                             <% if mediation.accepted_by_landlord && mediation.accepted_by_tenant %>
                                   <% if mediation.IntakeID.present? %>

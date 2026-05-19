@@ -27,7 +27,7 @@
 
       <div class="form-section">
         <%= label_tag :tenant_address, "Tenant Address", class: "required-label" %>
-        <%= text_field_tag :address, (@tenant&.TenantAddress || ""), class: "form-control" %>
+        <%= text_field_tag :address, (@tenant&.formatted_tenant_address || ""), class: "form-control" %>
       </div>
 
       <div class="form-section">

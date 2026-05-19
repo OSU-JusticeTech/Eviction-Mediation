@@ -47,6 +47,7 @@ services:
         condition: service_started
     environment:
       RAILS_ENV: development
+      SKIP_DB_PREPARE_ON_BOOT: '1'
       DB_ADAPTER: sqlserver
       DB_HOST: ${DB_SERVICE:-db}
       DB_PORT: ${DB_PORT:-1433}

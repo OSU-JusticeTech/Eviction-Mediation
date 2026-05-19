@@ -56,7 +56,7 @@ class MediationsCreationTest < ApplicationSystemTestCase
     select @landlord.CompanyName, from: "landlord-select"
     click_button "Request Negotiation"
 
-    assert_text "Negotiation created"
+    assert_text "Negotiation requested with #{@landlord.CompanyName}"
   end
 
   private

@@ -47,12 +47,15 @@ class UserTest < ActiveSupport::TestCase
     assert_equal "123", u3.format_phone_for_display
   end
 
-  test "tenant role requires TenantAddress" do
+  test "tenant role requires split address fields" do
     u = User.new
     u[:Role] = "Tenant"
     u[:Email] = "tenant@example.com"
     u.validate
-    assert_includes u.errors.attribute_names.map(&:to_s), "TenantAddress"
+    assert_includes u.errors.attribute_names.map(&:to_s), "AddressLine1"
+    assert_includes u.errors.attribute_names.map(&:to_s), "City"
+    assert_includes u.errors.attribute_names.map(&:to_s), "State"
+    assert_includes u.errors.attribute_names.map(&:to_s), "ZipCode"
   end
 
   test "profile disclaimer acceptance validation" do

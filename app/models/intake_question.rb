@@ -21,6 +21,21 @@ class IntakeQuestion < ApplicationRecord
     }
 
     validates :Section8, :TotalCostOrMonthly, inclusion: { in: [ true, false ] }
-    validates :MoneyOwed, presence: true
+    validates :MoneyOwed,
+          presence: true,
+          numericality: { greater_than_or_equal_to: 0 }
+
+    validates :PayableToday,
+          presence: true,
+          numericality: { greater_than_or_equal_to: 0 }
+
+    validates :MonthlyRent,
+          presence: true,
+          numericality: { greater_than_or_equal_to: 0 },
+          if: -> { self[:TotalCostOrMonthly] == false }
+
+    validates :MonthlyRent,
+          absence: true,
+          unless: -> { self[:TotalCostOrMonthly] == false }
     has_one :primary_message_group, foreign_key: "IntakeID"
 end
