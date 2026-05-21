@@ -12,15 +12,7 @@
         <%= f.label :Reason, "What is the reason for the dispute?", class: "required-label" %>
 
         <div class="custom-select-wrapper">
-          <%= f.select :Reason, [
-            "Failure to Pay Rent",
-            "Violation of Lease Terms",
-            "Damage to Property",
-            "Illegal Activity",
-            "Nuisance or Disturbance",
-            "Expiration of Lease",
-            "Unknown"
-          ], { prompt: "Select a reason" }, { class: "form-control", required: true } %>
+          <%= f.select :Reason, IntakeQuestion::REASONS, { prompt: "Select a reason" }, { class: "form-control", required: true } %>
 
           <i class="arrow down"></i>
         </div>
