@@ -24,9 +24,6 @@ gem "bcrypt", "~> 3.1.7"
 # Twilio for SMS-based 2FA
 gem "twilio-ruby", "~> 7.3"
 
-# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
-gem "tzinfo-data", platforms: %i[ windows jruby ]
-
 # Use the database-backed adapters for Rails.cache, Active Job, and Action Cable
 gem "solid_cache"
 gem "solid_queue"
@@ -38,9 +35,6 @@ gem "sidekiq", "~> 7.2"
 
 # Reduces boot times through caching; required in config/boot.rb
 gem "bootsnap", require: false
-
-# Deploy this application anywhere as a Docker container [https://kamal-deploy.org]
-gem "kamal", require: false
 
 # Add HTTP asset caching/compression and X-Sendfile acceleration to Puma [https://github.com/basecamp/thruster/]
 gem "thruster", require: false
@@ -72,27 +66,6 @@ group :test do
   gem "rails-controller-testing"
 end
 
-# Hello! This is where you manage which Jekyll version is used to run.
-# When you want to use a different version, change it below, save the
-# file and run `bundle install`. Run Jekyll with `bundle exec`, like so:
-#
-#     bundle exec jekyll serve
-#
-# This will help ensure the proper Jekyll version is running.
-# Happy Jekylling!
-# This is the default theme for new Jekyll sites. You may change this to anything you like.
-gem "minima", "~> 2.5"
-# If you have any plugins, put them here!
-group :jekyll_plugins do
-  gem "jekyll-feed", "~> 0.12"
-end
-
-# Windows and JRuby does not include zoneinfo files, so bundle the tzinfo-data gem
-# and associated library.
-platforms :mingw, :x64_mingw, :mswin, :jruby do
-  gem "tzinfo", ">= 1", "< 3"
-end
-
 # Performance-booster for watching directories on Windows
 # gem "wdm", "~> 0.1", :platforms => [:mingw, :x64_mingw, :mswin]
 
@@ -106,12 +79,7 @@ gem "dotenv-rails"
 # for frontend to add icons
 gem "font-awesome-sass", "~> 6.4.2"
 
-# For document generation
-gem "docx_templater"
-
-# For docx into pdf conversion
-gem "docsplit"
-
+# Table support used by Prawn-based PDF generation
 gem "prawn"
 
 gem "prawn-table"
