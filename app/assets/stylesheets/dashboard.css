@@ -124,6 +124,16 @@
     transform: translateY(-2px);
 }
 
+/* Hover color treatment moved from inline JS to CSS */
+.action-card:hover {
+    border-color: #3498db;
+}
+
+.action-card:hover .card-btn {
+    background: #3498db;
+    color: white;
+}
+
 .action-card.primary {
     border-color: #3498db;
     background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);

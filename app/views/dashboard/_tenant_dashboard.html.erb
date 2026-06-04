@@ -1,48 +1,48 @@
 <!-- Quick Actions -->
 <div class="action-cards-grid">
-  <div class="action-card primary">
+  <%= link_to messages_path, class: "action-card", style: "display: block; color: inherit; text-decoration: none;" do %>
     <div class="card-icon">
       <i class="fas fa-comments"></i>
     </div>
     <div class="card-content">
       <h3>Messages</h3>
       <p>Start or continue negotiations with your landlord</p>
-      <%= link_to "View Messages", messages_path, class: "card-btn messages-btn", style: "background: #3498db; color: white;", onmouseover: "this.style.background='#2980b9'", onmouseout: "this.style.background='#3498db'" %>
+      <span class="card-btn">View Messages</span>
     </div>
-  </div>
+  <% end %>
 
-  <div class="action-card">
+  <%= link_to resources_path, class: "action-card", style: "display: block; color: inherit; text-decoration: none;" do %>
     <div class="card-icon">
       <i class="fas fa-book-open"></i>
     </div>
     <div class="card-content">
       <h3>Resources</h3>
       <p>Learn about mediation, your rights, and get help</p>
-      <%= link_to "Explore Resources", resources_path, class: "card-btn" %>
+      <span class="card-btn">Explore Resources</span>
     </div>
-  </div>
+  <% end %>
 
-  <div class="action-card">
+  <%= link_to documents_path, class: "action-card", style: "display: block; color: inherit; text-decoration: none;" do %>
     <div class="card-icon">
       <i class="fas fa-file-alt"></i>
     </div>
     <div class="card-content">
       <h3>Documents</h3>
       <p>Manage your agreements and important files</p>
-      <%= link_to "View Documents", documents_path, class: "card-btn" %>
+      <span class="card-btn">View Documents</span>
     </div>
-  </div>
+  <% end %>
 
-  <div class="action-card">
+  <%= link_to account_path, class: "action-card", style: "display: block; color: inherit; text-decoration: none;" do %>
     <div class="card-icon">
       <i class="fas fa-user-cog"></i>
     </div>
     <div class="card-content">
       <h3>Account</h3>
       <p>Update your profile and settings</p>
-      <%= link_to "Manage Account", account_path, class: "card-btn" %>
+      <span class="card-btn">Manage Account</span>
     </div>
-  </div>
+  <% end %>
 </div>
 
 <!-- Getting Started Guide -->
