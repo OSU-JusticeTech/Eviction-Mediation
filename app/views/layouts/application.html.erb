@@ -58,19 +58,21 @@
       <% end %>
     <% end %>
     
-    <% if flash[:alert] %>
-      <div class="flash-message flash-alert" data-controller="flash" data-flash-timeout-value="4500">
-        <%= flash[:alert] %>
-      </div>
-    <% end %>
-    
-    <% if flash[:notice] %>
-      <div class="flash-message flash-notice" data-controller="flash" data-flash-timeout-value="4500">
-        <%= flash[:notice] %>
-      </div>
-    <% end %>
-    
-    <%= yield %>
+    <main id="main-content">
+      <% if flash[:alert] %>
+        <div class="flash-message flash-alert" data-controller="flash" data-flash-timeout-value="4500">
+          <%= flash[:alert] %>
+        </div>
+      <% end %>
+      
+      <% if flash[:notice] %>
+        <div class="flash-message flash-notice" data-controller="flash" data-flash-timeout-value="4500">
+          <%= flash[:notice] %>
+        </div>
+      <% end %>
+      
+      <%= yield %>
+    </main>
 
     <% if current_user && (current_user.Role == "Tenant" || current_user.Role == "Landlord") %>
       <!-- Terms of Use Modal -->

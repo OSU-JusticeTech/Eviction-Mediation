@@ -1,9 +1,9 @@
-<nav class="navbar">
+<nav class="navbar" aria-label="Mediator primary navigation">
     <div class="navbar-left">
         <span class="navbar-title">Eviction Mediation</span>
     </div>
 
-    <ul class="navbar-menu">
+    <ul class="navbar-menu" id="navbar-menu">
     <li><a href="/dashboard" title="Home" class="<%= active_nav_class('/dashboard') %>"><i class="fas fa-home"></i> Home</a></li>
     <li><a href="/third_party_mediations" title="Mediations" class="<%= active_nav_class('/third_party_mediations') %>"><i class="fas fa-scale-balanced"></i> Mediations</a></li>
         <%# No Need For this atm: <li><a href="/documents" title="Documents"><i class="fas fa-file-alt"></i> Documents</a></li> #%>
@@ -15,8 +15,8 @@
 
     <div class="navbar-right">
         <%= link_to "Log Out", logout_path, method: :delete, class: "logout-btn navbar-logout" %>
-        <div class="navbar-toggle" id="navbar-toggle">
+        <button type="button" class="navbar-toggle" id="navbar-toggle" aria-label="Toggle navigation menu" aria-controls="navbar-menu" aria-expanded="false">
             <i class="fas fa-bars"></i>
-        </div>
+        </button>
     </div>
 </nav>
