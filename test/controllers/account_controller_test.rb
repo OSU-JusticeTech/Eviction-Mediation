@@ -35,7 +35,7 @@ class AccountControllerTest < ActionDispatch::IntegrationTest
         AddressLine1: "500 Oak St",
         AddressLine2: "Unit 2",
         City: "Columbus",
-        State: "oh",
+        State: "Ohio",
         ZipCode: "43210-1111"
       }
     }
@@ -47,9 +47,9 @@ class AccountControllerTest < ActionDispatch::IntegrationTest
     assert_equal "500 Oak St", @tenant[:AddressLine1]
     assert_equal "Unit 2", @tenant[:AddressLine2]
     assert_equal "Columbus", @tenant[:City]
-    assert_equal "OH", @tenant[:State]
+    assert_equal "Ohio", @tenant[:State]
     assert_equal "43210-1111", @tenant[:ZipCode]
-    assert_equal "500 Oak St, Unit 2, Columbus, OH 43210-1111", @tenant.formatted_tenant_address
+    assert_equal "500 Oak St, Unit 2, Columbus, Ohio 43210-1111", @tenant.formatted_tenant_address
   end
 
   test "blank address update does not change tenant address" do
@@ -84,14 +84,14 @@ class AccountControllerTest < ActionDispatch::IntegrationTest
         AddressLine1: "900 Invalid Ave",
         AddressLine2: "",
         City: "Columbus",
-        State: "Ohio",
+        State: "NotAState",
         ZipCode: "43A10"
       },
       commit: "Update Address"
     }
 
     assert_redirected_to account_path
-    assert_match(/State must be a 2-letter state code/i, flash[:alert])
+    assert_match(/State must be a valid US state/i, flash[:alert])
     assert_match(/Zipcode must be a valid ZIP code/i, flash[:alert])
 
     @tenant.reload

@@ -25,7 +25,7 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       AddressLine1: "123 Main St",
       AddressLine2: "Apt 4B",
       City: "Columbus",
-      State: "oh",
+      State: "Ohio",
       ZipCode: "43215-1234",
       ProfileDisclaimer: "yes"
     }
@@ -43,9 +43,9 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "123 Main St", created_user[:AddressLine1]
     assert_equal "Apt 4B", created_user[:AddressLine2]
     assert_equal "Columbus", created_user[:City]
-    assert_equal "OH", created_user[:State]
+    assert_equal "Ohio", created_user[:State]
     assert_equal "43215-1234", created_user[:ZipCode]
-    assert_equal "123 Main St, Apt 4B, Columbus, OH 43215-1234", created_user.formatted_tenant_address
+    assert_equal "123 Main St, Apt 4B, Columbus, Ohio 43215-1234", created_user.formatted_tenant_address
   end
 
   test "does not create a user with invalid data" do
@@ -58,7 +58,7 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       Role: "Tenant",
       AddressLine1: "123 Main St",
       City: "Columbus",
-      State: "OH",
+      State: "Ohio",
       ZipCode: "43215",
       ProfileDisclaimer: "no"
     }
@@ -87,7 +87,7 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       Role: "Tenant",
       AddressLine1: "456 Broad St",
       City: "Columbus",
-      State: "OH",
+      State: "Ohio",
       ZipCode: "43215",
       ProfileDisclaimer: "yes"
     }
@@ -115,7 +115,7 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
       Role: "Tenant",
       AddressLine1: "789 Elm St",
       City: "Columbus",
-      State: "Ohio",
+      State: "NotAState",
       ZipCode: "43A15",
       ProfileDisclaimer: "yes"
     }
@@ -127,7 +127,7 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_select ".error-summary", text: /state must be a 2-letter state code/i
+    assert_select ".error-summary", text: /state must be a valid us state/i
     assert_select ".error-summary", text: /zipcode must be a valid ZIP code/i
   end
 end

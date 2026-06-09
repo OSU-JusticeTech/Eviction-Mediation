@@ -41,7 +41,7 @@ tenant1:
   AddressLine1: 121 Road
   AddressLine2:
   City: Columbus
-  State: OH
+  State: Ohio
   ZipCode: 43210
 
 tenant2:
@@ -56,7 +56,7 @@ tenant2:
   AddressLine1: 121 Road
   AddressLine2:
   City: Columbus
-  State: OH
+  State: Ohio
   ZipCode: 43210
 
 tenant3:
@@ -71,7 +71,7 @@ tenant3:
   AddressLine1: 121 Road
   AddressLine2:
   City: Columbus
-  State: OH
+  State: Ohio
   ZipCode: 43210
 
 tenant4:
@@ -86,7 +86,7 @@ tenant4:
   AddressLine1: 121 Road
   AddressLine2:
   City: Columbus
-  State: OH
+  State: Ohio
   ZipCode: 43210
 
 mediator1:
@@ -176,5 +176,5 @@ one:
   AddressLine1: 123 Test St
   AddressLine2:
   City: Columbus
-  State: OH
+  State: Ohio
   ZipCode: 43210

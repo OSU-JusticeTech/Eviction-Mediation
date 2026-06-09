@@ -80,8 +80,20 @@ class User < ApplicationRecord
       errors.add(:State, "can't be blank for tenants") if self[:State].blank?
       errors.add(:ZipCode, "can't be blank for tenants") if self[:ZipCode].blank?
 
-      if self[:State].present? && self[:State].to_s !~ /\A[A-Za-z]{2}\z/
-        errors.add(:State, "must be a 2-letter state code")
+      valid_states = [
+        "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
+        "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
+        "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
+        "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
+        "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
+        "New Hampshire", "New Jersey", "New Mexico", "New York",
+        "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
+        "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
+        "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
+        "West Virginia", "Wisconsin", "Wyoming"
+      ]
+      if self[:State].present? && !valid_states.include?(self[:State].to_s)
+        errors.add(:State, "must be a valid US state")
       end
 
       if self[:ZipCode].present? && self[:ZipCode].to_s !~ /\A\d{5}(-\d{4})?\z/

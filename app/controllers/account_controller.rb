@@ -180,7 +180,7 @@ class AccountController < ApplicationController
     permitted = params.require(:user).permit(:AddressLine1, :AddressLine2, :City, :State, :ZipCode).to_h
 
     permitted.transform_values! { |value| value.to_s.strip.presence }
-    permitted[:State] = permitted[:State].to_s.upcase.presence
+    permitted[:State] = permitted[:State].to_s.strip.presence
     permitted.symbolize_keys
   end
 
