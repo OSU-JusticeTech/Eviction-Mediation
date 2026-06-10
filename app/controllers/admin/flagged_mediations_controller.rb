@@ -148,7 +148,8 @@ class Admin::FlaggedMediationsController < ApplicationController
           SenderID: new_mediator_id,
           MessageDate: Time.current,
           Contents: content,
-          recipientID: nil # Broadcast to all
+          recipientID: nil, # Broadcast to all
+          is_system: true
         )
 
         ActionCable.server.broadcast(
@@ -158,11 +159,13 @@ class Admin::FlaggedMediationsController < ApplicationController
             contents: message.Contents,
             sender_id: message.SenderID,
             recipient_id: nil,
-            message_date: message.MessageDate.strftime("%B %d, %Y %I:%M %p"),
+            message_date: message.MessageDate.strftime("%-I:%M %p"),
+            message_timestamp: message.MessageDate.to_i,
             sender_role: "Mediator",
             sender_name: "#{mediator_user.FName} #{mediator_user.LName}",
             attachments: [],
-            broadcast: true
+            broadcast: true,
+            is_system: true
           }
         )
 

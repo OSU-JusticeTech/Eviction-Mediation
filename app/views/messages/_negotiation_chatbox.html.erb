@@ -13,7 +13,31 @@
          data-broadcast-enabled="<%= broadcast_enabled %>">
 
       <% if @messages.any? %>
-        <% @messages.each do |message| %>
+        <% last_rendered_date = nil %>
+        <% today = Date.today %>
+        <% yesterday = Date.today - 1 %>
+        <% @messages.each_with_index do |message, index| %>
+          <% message_date = message.MessageDate.to_date %>
+          <% if message_date != last_rendered_date %>
+            <% last_rendered_date = message_date %>
+            <% date_label = if message_date == today then "Today"
+                             elsif message_date == yesterday then "Yesterday"
+                             else message_date.strftime("%B %-d, %Y")
+                             end %>
+            <div class="date-separator" aria-label="<%= date_label %>">
+              <span class="date-separator__label"><%= date_label %></span>
+            </div>
+          <% end %>
+          <% prev_message = index > 0 ? @messages[index - 1] : nil %>
+          <% next_message = @messages[index + 1] %>
+          <% grouped = prev_message &&
+                       !prev_message.is_system? &&
+                       !message.is_system? &&
+                       prev_message.SenderID == message.SenderID &&
+                       (message.MessageDate - prev_message.MessageDate).abs <= 300 %>
+          <% last_in_group = next_message.nil? ||
+                             next_message.SenderID != message.SenderID ||
+                             (next_message.MessageDate - message.MessageDate).abs > 300 %>
           <% sender = participants[message.SenderID] %>
           <% attachments = if message.association(:file_attachments).loaded?
                              message.file_attachments
@@ -25,7 +49,9 @@
                 current_user: current_user,
                 sender: sender,
                 participants: participants,
-                attachments: attachments
+                attachments: attachments,
+                grouped: grouped,
+                last_in_group: last_in_group
               } %>
         <% end %>
       <% else %>

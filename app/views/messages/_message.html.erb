@@ -1,36 +1,13 @@
 <% attachments ||= [] %>
-<% sender_role = sender&.Role || "Unknown" %>
-<% formatted_sender_role = sender_role.to_s.titleize %>
-<% sender_name =
-      if sender&.UserID == current_user.UserID
-        "You"
-      else
-        name = [sender&.FName, sender&.LName].compact.join(" ").squeeze(" ").strip
-        name = sender&.CompanyName if name.blank? && sender&.respond_to?(:CompanyName)
-        name.presence || sender&.Email || "Unknown user"
-      end %>
-<% message_role_for_css = formatted_sender_role.presence || "Unknown" %>
+<% grouped = local_assigns.fetch(:grouped, false) %>
+<% last_in_group = local_assigns.fetch(:last_in_group, true) %>
+<% is_system = message.is_system? %>
 
-<div class="chat-message <%= message.SenderID == current_user.UserID ? 'sent' : 'received' %>"
-  data-message-id="<%= message.id %>"
-  data-sender-id="<%= message.SenderID %>"
-  data-recipient-id="<%= message.recipientID %>"
-  data-current-user-id="<%= current_user.UserID %>"
-  data-sender-role="<%= message_role_for_css %>"
-  data-broadcast="<%= message.recipientID.nil? %>">
-  <div class="message-bubble">
-    <div class="message-meta">
-      <span class="message-author"><%= sender_name %></span>
-      <% if formatted_sender_role.present? %>
-        <span class="message-role"><%= formatted_sender_role %></span>
-      <% end %>
-    </div>
-    <% if message.Contents.present? %>
-      <p class="message-content"><%= simple_format(message.Contents, {}, sanitize: true, wrapper_tag: "span") %></p>
-    <% end %>
-
+<% if is_system %>
+  <div class="system-message" data-message-id="<%= message.id %>" data-message-timestamp="<%= message.MessageDate.to_i %>">
+    <span class="system-message__text"><%= message.Contents %></span>
     <% if attachments.any? %>
-      <div class="message-attachments">
+      <div class="system-message__attachments">
         <% attachments.each do |attachment| %>
           <% file = attachment.file_draft %>
           <% next unless file %>
@@ -45,7 +22,6 @@
                 <%= link_to "View", view_file_path(file.FileID, view_mode: 'simple'), class: "attachment-link" %>
                 <span aria-hidden="true" class="attachment-dot">·</span>
                 <%= link_to "Download", download_file_path(file.FileID), class: "attachment-link" %>
-
                 <% if file.FileTypes == "html" %>
                   <% if current_user.Role == "Tenant" && file.TenantSignature == false %>
                     <span aria-hidden="true" class="attachment-dot">·</span>
@@ -61,6 +37,74 @@
         <% end %>
       </div>
     <% end %>
-    <small class="message-timestamp"><%= message.MessageDate.strftime("%B %d, %Y %I:%M %p") %></small>
   </div>
-</div>
+<% else %>
+  <% sender_role = sender&.Role || "Unknown" %>
+  <% formatted_sender_role = sender_role.to_s.titleize %>
+  <% sender_name =
+        if sender&.UserID == current_user.UserID
+          "You"
+        else
+          name = [sender&.FName, sender&.LName].compact.join(" ").squeeze(" ").strip
+          name = sender&.CompanyName if name.blank? && sender&.respond_to?(:CompanyName)
+          name.presence || sender&.Email || "Unknown user"
+        end %>
+  <% message_role_for_css = formatted_sender_role.presence || "Unknown" %>
+
+  <div class="chat-message <%= message.SenderID == current_user.UserID ? 'sent' : 'received' %>"
+    data-message-id="<%= message.id %>"
+    data-sender-id="<%= message.SenderID %>"
+    data-recipient-id="<%= message.recipientID %>"
+    data-current-user-id="<%= current_user.UserID %>"
+    data-sender-role="<%= message_role_for_css %>"
+    data-broadcast="<%= message.recipientID.nil? %>"
+    data-grouped="<%= grouped %>"
+    data-last-in-group="<%= last_in_group %>"
+    data-message-timestamp="<%= message.MessageDate.to_i %>">
+    <div class="message-bubble">
+      <div class="message-meta">
+        <span class="message-author"><%= sender_name %></span>
+        <% if formatted_sender_role.present? %>
+          <span class="message-role"><%= formatted_sender_role %></span>
+        <% end %>
+      </div>
+      <% if message.Contents.present? %>
+        <p class="message-content"><%= simple_format(message.Contents, {}, sanitize: true, wrapper_tag: "span") %></p>
+      <% end %>
+
+      <% if attachments.any? %>
+        <div class="message-attachments">
+          <% attachments.each do |attachment| %>
+            <% file = attachment.file_draft %>
+            <% next unless file %>
+            <% extension = File.extname(file.FileURLPath.to_s).delete('.').presence || file.FileTypes %>
+            <div class="message-attachment" data-attachment-id="<%= file.FileID %>" data-attachment-type="<%= extension %>">
+              <div class="attachment-icon" aria-hidden="true">
+                <i class="fa-solid fa-file-lines"></i>
+              </div>
+              <div class="attachment-body">
+                <div class="attachment-name"><%= file.FileName.presence || "Untitled document" %></div>
+                <div class="attachment-actions">
+                  <%= link_to "View", view_file_path(file.FileID, view_mode: 'simple'), class: "attachment-link" %>
+                  <span aria-hidden="true" class="attachment-dot">·</span>
+                  <%= link_to "Download", download_file_path(file.FileID), class: "attachment-link" %>
+
+                  <% if file.FileTypes == "html" %>
+                    <% if current_user.Role == "Tenant" && file.TenantSignature == false %>
+                      <span aria-hidden="true" class="attachment-dot">·</span>
+                      <%= link_to "Sign Document", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                    <% elsif current_user.Role == "Landlord" && file.LandlordSignature == false %>
+                      <span aria-hidden="true" class="attachment-dot">·</span>
+                      <%= link_to "Sign Document", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                    <% end %>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      <small class="message-timestamp"><%= message.MessageDate.strftime("%-I:%M %p") %></small>
+    </div>
+  </div>
+<% end %>
