@@ -6,16 +6,7 @@
   <!-- Status and Workload Grid -->
   <div class="mediator-status-grid">
     <!-- Availability Status -->
-    <div class="availability-status-card">
-      <div class="status-indicator <%= available ? 'available' : 'unavailable' %>">
-        <i class="fas <%= available ? 'fa-check-circle' : 'fa-pause-circle' %>"></i>
-      </div>
-      <div class="status-content">
-        <h3>Current Status: <%= available ? "Available" : "Unavailable" %></h3>
-        <p>You can update your availability in your account settings</p>
-        <%= link_to "Update Status", account_path, class: "status-btn" %>
-      </div>
-    </div>
+    <%= render "availability_status_card", user: @user %>
 
     <!-- Workload Overview -->
     <div class="workload-card">

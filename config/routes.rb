@@ -35,6 +35,9 @@ Rails.application.routes.draw do
   get "/account/verify_phone", to: "account#verify_phone", as: "verify_phone_account"
   post "/account/confirm_phone", to: "account#confirm_phone", as: "confirm_phone_account"
 
+  # Mediator availability toggle from dashboard
+  patch "/mediator/availability", to: "mediator_availability#update", as: "mediator_availability"
+
   get "messages/tenant_show/:conversation_id", to: "messages#show", as: "tenant_show"
   get "messages/landlord_show/:conversation_id", to: "messages#show", as: "landlord_show"
 
