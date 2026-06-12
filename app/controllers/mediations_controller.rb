@@ -97,13 +97,7 @@ class MediationsController < ApplicationController
 
   # Display the form to start a new mediation
   def new
-    if @user.Role == "Tenant"
-      # Load all landlords ordered by CompanyName
-      @landlords = User.where(Role: "Landlord").order(:CompanyName)
-    elsif @user.Role == "Landlord"
-      # Landlords use email input only (no tenant list for privacy)
-      # No need to load @tenants
-    else
+    unless [ "Tenant", "Landlord" ].include?(@user.Role)
       redirect_to mediations_path, alert: "You are not authorized to start a negotiation."
     end
   end

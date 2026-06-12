@@ -20,8 +20,8 @@ class MediationsCreationTest < ApplicationSystemTestCase
     dismiss_terms_modal_if_present
 
     assert_selector "h1", text: "Request New Negotiation"
-    assert_text "Select a landlord from the dropdown"
-    assert_selector "select#landlord-select"
+    assert_text "Landlord's Email:"
+    assert_selector "input#landlord_email"
     assert_button "Request Negotiation"
   end
 
@@ -53,7 +53,7 @@ class MediationsCreationTest < ApplicationSystemTestCase
     visit new_mediation_path
     dismiss_terms_modal_if_present
 
-    select @landlord.CompanyName, from: "landlord-select"
+    fill_in "landlord_email", with: @landlord.Email
     click_button "Request Negotiation"
 
     assert_text "Negotiation requested with #{@landlord.CompanyName}"

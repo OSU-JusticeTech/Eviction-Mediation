@@ -24,7 +24,7 @@ export EXPORT_FILE := db_export.bak
 -include env.mk
 
 # Ensures make ignores file/directory name collisions for these targets
-.PHONY: test test-all test-system-headed
+.PHONY: test test-all test-system test-system-headed
 
 dev-setup: down-clean
 	@test -f config/database.yml || cp config/database.yml.docker config/database.yml
@@ -70,6 +70,14 @@ test:
 #Test unit tests and system tests
 test-all:
 	$(MAKE) test TEST=test:all
+
+#Test system tests only (headless)
+test-system:
+	$(COMPOSE_CMD) up -d db
+	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:create
+	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:prepare
+	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) sh -lc 'rm -f coverage/.resultset.json coverage/.last_run.json'
+	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test test/system
 
 #Test with a headed version of Chrome to witness tests live on port 7900
 test-system-headed:

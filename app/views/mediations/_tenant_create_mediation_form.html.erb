@@ -3,50 +3,11 @@
 
     <%= form_with url: mediations_path, method: :post, local: true do |form| %>
       <div class="input-group">
-        <%= form.label :landlord_id, "Select a Landlord:" %>
-        <%= form.select :landlord_id, 
-                        options_from_collection_for_select(@landlords, "UserID", "CompanyName"), 
-                        { prompt: "Choose a Landlord" }, 
-                        { id: "landlord-select" } %>
-      </div>
-
-      <div class="input-group">
-        <%= form.label :landlord_email, "Or Enter Landlord's Email:" %>
-        <%= form.text_field :landlord_email, required: true, placeholder: "Enter landlord's email", id: "landlord-email" %>
+        <%= form.label :landlord_email, "Landlord's Email:" %>
+        <%= form.text_field :landlord_email, required: true, placeholder: "Enter landlord's email" %>
       </div>
 
       <%= hidden_field_tag :format, "html" %>
       <%= form.submit "Request Negotiation", class: "mediation-btn" %>
   <% end %>
 </div>
-
-<script>
-  document.addEventListener("turbo:load", function () {
-    const landlordSelect = document.getElementById("landlord-select");
-    const emailField = document.getElementById("landlord-email");
-
-    function toggleEmailField() {
-      // Check if elements exist before trying to access them
-      if (!landlordSelect || !emailField) {
-        return;
-      }
-      
-      if (landlordSelect.value) {
-        emailField.disabled = true;
-        emailField.placeholder = "Disabled while landlord is selected";
-      } else {
-        emailField.disabled = false;
-        emailField.placeholder = "Enter landlord's email";
-      }
-    }
-
-    // Only run if elements exist on the page
-    if (landlordSelect && emailField) {
-      // Run once on page load in case a landlord is already selected
-      toggleEmailField();
-
-      // Also run when user changes the selection
-      landlordSelect.addEventListener("change", toggleEmailField);
-    }
-  });
-</script>
