@@ -302,7 +302,8 @@
             <%= link_to "I want to negotiate with my landlord",
                         messages_path,
                         class: "resx-btn resx-btn-primary" %>
-            <button type="button" class="resx-btn resx-btn-ghost" onclick="if(window.activateResxPanel){window.activateResxPanel('tenant-eviction');document.getElementById('panel-tenant-eviction')?.scrollIntoView({behavior:'smooth',block:'start'});}">              I want to learn more about the eviction process
+            <button type="button" class="resx-btn resx-btn-ghost" onclick="if(window.activateResxPanel){window.activateResxPanel('tenant-eviction');}">
+              I want to learn more about the eviction process
             </button>
           </div>
 
@@ -312,7 +313,8 @@
             <%= link_to "I want to talk with my landlord",
                         messages_path,
                         class: "resx-btn resx-btn-primary" %>
-            <button type="button" class="resx-btn resx-btn-ghost" onclick="if(window.activateResxPanel){window.activateResxPanel('tenant-eviction');document.getElementById('panel-tenant-eviction')?.scrollIntoView({behavior:'smooth',block:'start'});}">              I want to learn more about the eviction process
+            <button type="button" class="resx-btn resx-btn-ghost" onclick="if(window.activateResxPanel){window.activateResxPanel('tenant-eviction');}">
+              I want to learn more about the eviction process
             </button>
           </div>
 
@@ -577,14 +579,7 @@
       activate(firstKey);
 
       cards.forEach(card => {
-        card.addEventListener("click", () => {
-          const key = card.dataset.panel;
-          activate(key);
-          const activePanel = document.getElementById("panel-" + key);
-          if (activePanel) {
-            activePanel.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
-        });
+        card.addEventListener("click", () => activate(card.dataset.panel));
       });
     }
 
@@ -593,14 +588,633 @@
   </script>
 
 <% else %>
-  <%# not logged in %>
-  <div class="resx">
-    <div class="resx-header">
-      <i class="fas fa-circle-info"></i>
-      <h1 class="resx-title">Resources</h1>
+  <%# not logged in — public landing page %>
+  <style>
+    /* ---- Hero ---- */
+    .lp-hero {
+      background: linear-gradient(135deg, #0a1f3d 0%, #102a4d 50%, #1a3a5f 100%);
+      padding: 72px 24px 64px;
+      text-align: center;
+    }
+    .lp-hero-eyebrow {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #93c5fd;
+      margin-bottom: 16px;
+    }
+    .lp-hero h1 {
+      font-family: 'Poppins', 'Segoe UI', sans-serif;
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 700;
+      color: #ffffff;
+      margin: 0 0 16px;
+      line-height: 1.15;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    .lp-hero p {
+      font-size: clamp(15px, 2vw, 18px);
+      color: #cbd5e1;
+      max-width: 560px;
+      margin: 0 auto 36px;
+      line-height: 1.6;
+    }
+    .lp-hero-btns {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .lp-btn-primary {
+      background: #ffffff;
+      color: #0b2b4b;
+      border: none;
+      border-radius: 999px;
+      padding: 14px 32px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .lp-btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    }
+    .lp-btn-outline {
+      background: transparent;
+      color: #ffffff;
+      border: 2px solid rgba(255,255,255,0.55);
+      border-radius: 999px;
+      padding: 13px 32px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .lp-btn-outline:hover {
+      border-color: #ffffff;
+      background: rgba(255,255,255,0.08);
+    }
+
+    /* ---- Resources section ---- */
+    .lp-resources {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 56px 24px 48px;
+    }
+    .lp-section-label {
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 10px;
+    }
+    .lp-section-title {
+      text-align: center;
+      font-family: 'Poppins', 'Segoe UI', sans-serif;
+      font-size: clamp(20px, 3vw, 28px);
+      font-weight: 700;
+      color: #0b2b4b;
+      margin: 0 0 8px;
+    }
+    .lp-section-sub {
+      text-align: center;
+      font-size: 15px;
+      color: #64748b;
+      margin: 0 auto 32px;
+      max-width: 520px;
+      line-height: 1.6;
+    }
+
+    /* ---- Role selector ---- */
+    .lp-role-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      max-width: 640px;
+      margin: 0 auto 36px;
+    }
+    .lp-role-btn {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 20px;
+      border-radius: 16px;
+      border: 2px solid #e2e8f0;
+      background: #ffffff;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+    }
+    .lp-role-btn:hover {
+      border-color: #0b2b4b;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(11,43,75,0.10);
+    }
+    .lp-role-btn.is-active {
+      border-color: #0b2b4b;
+      box-shadow: 0 8px 24px rgba(11,43,75,0.14);
+    }
+    .lp-role-btn-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: #eff6ff;
+      color: #0b2b4b;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .lp-role-btn.is-active .lp-role-btn-icon {
+      background: #0b2b4b;
+      color: #ffffff;
+    }
+    .lp-role-btn-label {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .lp-role-btn-sub {
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    /* ---- Role content panels ---- */
+    .lp-role-content {
+      display: none;
+    }
+    .lp-role-content.is-active {
+      display: block;
+    }
+
+    /* ---- resx card/panel system (needed for public view) ---- */
+    .resx-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+    .resx-card {
+      border-radius: 16px;
+      background: #ffffff;
+      border: 2px solid #e2e8f0;
+      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 4px 14px rgba(15,23,42,0.05);
+      cursor: pointer;
+      transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+    }
+    .resx-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 14px 26px rgba(15,23,42,0.10);
+      border-color: #0b2b4b;
+    }
+    .resx-card.is-active {
+      border-color: #0b2b4b;
+      box-shadow: 0 14px 26px rgba(15,23,42,0.14);
+    }
+    .resx-card-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #eff6ff;
+      color: #0b2b4b;
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+    .resx-card.is-active .resx-card-icon {
+      background: #0b2b4b;
+      color: #ffffff;
+    }
+    .resx-card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .resx-card-text {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+    .resx-panel {
+      display: none;
+      margin-bottom: 24px;
+      padding: 24px 26px 20px;
+      border-radius: 16px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 10px 22px rgba(15,23,42,0.06);
+      animation: resxFadeIn 0.18s ease-out;
+    }
+    .resx-panel.is-active { display: block; }
+    .resx-panel h2 {
+      font-size: 19px;
+      font-weight: 700;
+      color: #0b2b4b;
+      margin: 0 0 10px;
+    }
+    .resx-panel p {
+      font-size: 15px;
+      color: #475569;
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+    .resx-steps {
+      margin-left: 20px;
+      margin-bottom: 10px;
+      font-size: 15px;
+      color: #475569;
+      line-height: 1.6;
+    }
+    .resx-steps li { margin-bottom: 6px; }
+    .resx-steps ul { margin-top: 4px; margin-left: 16px; list-style: disc; }
+    .resx-btn {
+      border-radius: 999px;
+      border: none;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .resx-btn-primary {
+      background: #0b2b4b;
+      color: #ffffff;
+      box-shadow: 0 6px 16px rgba(15,23,42,0.25);
+    }
+    .resx-btn-primary:hover { background: #0d3460; }
+    .resx-panel-cta { margin-top: 16px; }
+    @keyframes resxFadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ---- More resources links ---- */
+    .lp-more-tabs {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 28px 0 0;
+      border-top: 1px solid #e2e8f0;
+      margin-top: 12px;
+    }
+    .lp-more-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #0b2b4b;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .lp-more-tab:hover {
+      background: #e2e8f0;
+      border-color: #0b2b4b;
+    }
+
+    /* ---- Disclaimer ---- */
+    .lp-disclaimer {
+      background: #f1f5f9;
+      border-top: 1px solid #e2e8f0;
+      padding: 14px 24px;
+      text-align: center;
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.6;
+    }
+    .lp-disclaimer a { color: #0b2b4b; }
+
+    @media (max-width: 520px) {
+      .lp-role-selector { grid-template-columns: 1fr; }
+    }
+  </style>
+
+  <!-- Hero -->
+  <div class="lp-hero">
+    <span class="lp-hero-eyebrow">Eviction Mediation</span>
+    <h1>Resolve rental disputes<br>before they reach court.</h1>
+    <p>A text-based mediation tool for tenants and landlords. Avoid the stress of an eviction filing.</p>
+    <div class="lp-hero-btns">
+      <%= link_to login_path, class: "lp-btn-primary" do %>
+        <i class="fas fa-right-to-bracket"></i> Log In
+      <% end %>
+      <%= link_to signup_path, class: "lp-btn-outline" do %>
+        <i class="fas fa-user-plus"></i> Create a Free Account
+      <% end %>
     </div>
-    <p class="resx-subtitle">
-      Please log in or sign up to see resources tailored to you as a tenant or landlord.
-    </p>
   </div>
+
+  <!-- Resources -->
+  <div class="lp-resources">
+    <p class="lp-section-label">Free Resources</p>
+    <h2 class="lp-section-title">Understand your rights and options</h2>
+    <p class="lp-section-sub">Select your role to see guides tailored to your situation.</p>
+
+    <!-- Role selector -->
+    <div class="lp-role-selector">
+      <button class="lp-role-btn is-active" data-role="tenant" type="button">
+        <div class="lp-role-btn-icon"><i class="fas fa-user"></i></div>
+        <div>
+          <span class="lp-role-btn-label">I'm a Tenant</span>
+          <span class="lp-role-btn-sub">Facing or concerned about eviction</span>
+        </div>
+      </button>
+      <button class="lp-role-btn" data-role="landlord" type="button">
+        <div class="lp-role-btn-icon"><i class="fas fa-building-user"></i></div>
+        <div>
+          <span class="lp-role-btn-label">I'm a Landlord</span>
+          <span class="lp-role-btn-sub">Managing a property or tenant dispute</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- Tenant resources -->
+    <div class="lp-role-content is-active" data-role="tenant">
+      <div class="resx-cards" id="tenant-cards">
+        <div class="resx-card" data-panel="pub-t-eviction">
+          <div class="resx-card-icon"><i class="fas fa-scale-balanced"></i></div>
+          <div class="resx-card-title">Learn the eviction process</div>
+          <div class="resx-card-text">Steps, timing &amp; what to expect.</div>
+        </div>
+        <div class="resx-card" data-panel="pub-t-facing">
+          <div class="resx-card-icon"><i class="fas fa-triangle-exclamation"></i></div>
+          <div class="resx-card-title">I'm facing eviction</div>
+          <div class="resx-card-text">Know your options and next steps.</div>
+        </div>
+        <div class="resx-card" data-panel="pub-t-other">
+          <div class="resx-card-icon"><i class="fas fa-house-chimney"></i></div>
+          <div class="resx-card-title">Other housing issues</div>
+          <div class="resx-card-text">Repairs, deposits, utilities &amp; more.</div>
+        </div>
+        <div class="resx-card" data-panel="pub-t-options">
+          <div class="resx-card-icon"><i class="fas fa-list-check"></i></div>
+          <div class="resx-card-title">Learn about your options</div>
+          <div class="resx-card-text">Compare mediation, court, or doing nothing.</div>
+        </div>
+      </div>
+      <div class="resx-panels" id="tenant-panels">
+        <div id="panel-pub-t-eviction" class="resx-panel">
+          <h2>Eviction process – overview</h2>
+          <p>The eviction process usually has four steps: <strong>notice, filing of an eviction, a court hearing, and a judgment.</strong></p>
+          <ol class="resx-steps">
+            <li><strong>Notice</strong>
+              <ul>
+                <li>Your landlord must give you a written "Notice to Leave the Premises".</li>
+                <li>It explains why you are being asked to leave and gives a few days to fix the issue or move out.</li>
+                <li>Common notices include a 3-day notice for not paying rent or a notice for violating the lease.</li>
+              </ul>
+            </li>
+            <li><strong>Filing the eviction case</strong>
+              <ul>
+                <li>If the problem is not fixed and you do not move out, your landlord can file an eviction in court.</li>
+                <li>You will receive a summons with the date of your hearing.</li>
+              </ul>
+            </li>
+            <li><strong>Court hearing</strong>
+              <ul>
+                <li>The hearing usually happens 2–3 weeks after filing.</li>
+                <li>You and your landlord can explain your positions, bring documents, and bring witnesses.</li>
+              </ul>
+            </li>
+            <li><strong>Judgment</strong>
+              <ul>
+                <li>If the landlord wins, they receive a Writ of Restitution allowing them to retake the property.</li>
+                <li>If you win, you may stay or be awarded money for certain issues.</li>
+              </ul>
+            </li>
+          </ol>
+          <p>For step-by-step housing help, visit <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>.</p>
+          <div style="margin-top:16px;">
+            <%= link_to "Create a free account to use the mediation tool", signup_path, class: "resx-btn resx-btn-primary" %>
+          </div>
+        </div>
+
+        <div id="panel-pub-t-facing" class="resx-panel">
+          <h2>I'm facing eviction</h2>
+          <p><strong>Are you behind on rent or did you get a notice from your landlord?</strong></p>
+          <p><strong>Yes.</strong> You may be in the early stages of the eviction process. Our text-based mediation tool lets you communicate with your landlord and try to solve the dispute before an eviction is filed.</p>
+          <p><strong>No.</strong> If you think you may fall behind soon, you can still use the mediation tool to talk with your landlord before an issue turns into a case.</p>
+          <div style="margin-top:16px;">
+            <%= link_to "Create a free account to talk with your landlord", signup_path, class: "resx-btn resx-btn-primary" %>
+          </div>
+        </div>
+
+        <div id="panel-pub-t-other" class="resx-panel">
+          <h2>Other housing issues</h2>
+          <p>If your issue is not about eviction, you can find step-by-step help at <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>. They can assist with:</p>
+          <ul class="resx-steps">
+            <li>Problems with repairs</li>
+            <li>Security deposits</li>
+            <li>Discrimination and fair housing</li>
+            <li>Rent increases</li>
+            <li>Utility shutoffs</li>
+            <li>Issues with neighbors and more</li>
+          </ul>
+        </div>
+
+        <div id="panel-pub-t-options" class="resx-panel">
+          <h2>Learn about your options</h2>
+          <p>Before deciding what to do next, it's important to understand the different paths available — mediation, going to court, or taking no action.</p>
+          <p>For a full breakdown including pros, risks, and what to expect, download the PDF below.</p>
+          <div class="resx-panel-cta">
+            <a href="/mediation_options.pdf" target="_blank" class="resx-btn resx-btn-primary">
+              📄 View PDF – Mediation vs. Court vs. Doing Nothing
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Landlord resources -->
+    <div class="lp-role-content" data-role="landlord">
+      <div class="resx-cards" id="landlord-cards">
+        <div class="resx-card" data-panel="pub-l-eviction">
+          <div class="resx-card-icon"><i class="fas fa-scale-balanced"></i></div>
+          <div class="resx-card-title">Learn the eviction process</div>
+          <div class="resx-card-text">Notice, filing, hearing, judgment.</div>
+        </div>
+        <div class="resx-card" data-panel="pub-l-convo">
+          <div class="resx-card-icon"><i class="fas fa-comments"></i></div>
+          <div class="resx-card-title">Start a conversation</div>
+          <div class="resx-card-text">Use the messaging tool before filing.</div>
+        </div>
+        <div class="resx-card" data-panel="pub-l-other">
+          <div class="resx-card-icon"><i class="fas fa-warehouse"></i></div>
+          <div class="resx-card-title">Other property issues</div>
+          <div class="resx-card-text">Fair housing, repairs, deposits, etc.</div>
+        </div>
+        <div class="resx-card" data-panel="pub-l-options">
+          <div class="resx-card-icon"><i class="fas fa-list-check"></i></div>
+          <div class="resx-card-title">Learn about your options</div>
+          <div class="resx-card-text">Compare mediation, court, or doing nothing.</div>
+        </div>
+      </div>
+      <div class="resx-panels" id="landlord-panels">
+        <div id="panel-pub-l-eviction" class="resx-panel">
+          <h2>Eviction process – overview</h2>
+          <p>The eviction process usually has four steps: <strong>notice, filing of an eviction, a court hearing, and a judgment.</strong></p>
+          <ol class="resx-steps">
+            <li><strong>Notice</strong>
+              <ul>
+                <li>You must give the tenant written notice called a "Notice to Leave the Premises".</li>
+                <li>It explains why the tenant is being asked to leave and gives them a few days to fix the issue or move out.</li>
+                <li>Most notices are 3-day notices for non-payment of rent.</li>
+              </ul>
+            </li>
+            <li><strong>Filing the eviction case</strong>
+              <ul>
+                <li>If the issue is not fixed or the tenant does not move out, you may file an eviction case with the court.</li>
+                <li>The court schedules a hearing and sends a summons to the tenant.</li>
+              </ul>
+            </li>
+            <li><strong>Court hearing</strong>
+              <ul>
+                <li>At the hearing, both you and the tenant can explain what happened.</li>
+                <li>You may bring documents, witnesses, or other information.</li>
+              </ul>
+            </li>
+            <li><strong>Judgment</strong>
+              <ul>
+                <li>If the eviction is granted, the court issues a Writ of Restitution allowing you to retake the property.</li>
+                <li>If the tenant wins, they can stay and may be awarded money for certain issues.</li>
+              </ul>
+            </li>
+          </ol>
+          <p>For more information, visit <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>.</p>
+          <div style="margin-top:16px;">
+            <%= link_to "Create a free account to use the mediation tool", signup_path, class: "resx-btn resx-btn-primary" %>
+          </div>
+        </div>
+
+        <div id="panel-pub-l-convo" class="resx-panel">
+          <h2>Start a conversation with your tenant</h2>
+          <p>Our online mediation tool allows landlords and tenants to communicate <strong>before</strong> filing an eviction. You can use it to:</p>
+          <ul class="resx-steps">
+            <li>Talk with a tenant about late rent</li>
+            <li>Clarify misunderstandings about the lease</li>
+            <li>Try to reach a payment plan or other resolution</li>
+            <li>Avoid the cost and stress of filing an eviction</li>
+          </ul>
+          <div style="margin-top:16px;">
+            <%= link_to "Create a free account to start a conversation", signup_path, class: "resx-btn resx-btn-primary" %>
+          </div>
+        </div>
+
+        <div id="panel-pub-l-other" class="resx-panel">
+          <h2>Other housing or property issues</h2>
+          <p>If your issue is not mainly about eviction or mediation — for example: repairs, fair housing, security deposits, neighbor disputes, or housing vouchers — you can find clear information at <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>.</p>
+        </div>
+
+        <div id="panel-pub-l-options" class="resx-panel">
+          <h2>Learn about your options</h2>
+          <p>Before deciding what to do next, it's important to understand the different paths available — mediation, going to court, or taking no action.</p>
+          <p>For a full breakdown including pros, risks, and what to expect, download the PDF below.</p>
+          <div class="resx-panel-cta">
+            <a href="/mediation_options.pdf" target="_blank" class="resx-btn resx-btn-primary">
+              📄 View PDF – Mediation vs. Court vs. Doing Nothing
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Links to other resource tabs -->
+    <div class="lp-more-tabs">
+      <%= link_to resources_path(tab: "faqs"), class: "lp-more-tab" do %>
+        <i class="fas fa-circle-question"></i> FAQs
+      <% end %>
+      <%= link_to resources_path(tab: "negotiation"), class: "lp-more-tab" do %>
+        <i class="fas fa-handshake"></i> Negotiation &amp; Mediation Guide
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Disclaimer -->
+  <div class="lp-disclaimer">
+    <strong>Disclaimer:</strong> This page provides general information only and is not legal advice.
+    For legal help, please consult a lawyer or visit <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>.
+  </div>
+
+  <script>
+    function initLandingPage() {
+      // ---- Role selector ----
+      const roleButtons = document.querySelectorAll(".lp-role-btn");
+      const roleContents = document.querySelectorAll(".lp-role-content");
+
+      roleButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+          const role = btn.dataset.role;
+          roleButtons.forEach(b => b.classList.toggle("is-active", b.dataset.role === role));
+          roleContents.forEach(c => c.classList.toggle("is-active", c.dataset.role === role));
+          // Re-init cards for the newly visible section
+          initRoleCards(role);
+        });
+      });
+
+      // ---- Card/panel init per role ----
+      function initRoleCards(role) {
+        const container = document.querySelector(`.lp-role-content[data-role="${role}"]`);
+        if (!container) return;
+
+        const cards  = container.querySelectorAll(".resx-card");
+        const panels = container.querySelectorAll(".resx-panel");
+        if (!cards.length || !panels.length) return;
+
+        if (cards[0].dataset.initialized) return;
+        cards[0].dataset.initialized = "true";
+
+        function activate(panelKey) {
+          cards.forEach(c => c.classList.toggle("is-active", c.dataset.panel === panelKey));
+          panels.forEach(p => p.classList.toggle("is-active", p.id === "panel-" + panelKey));
+        }
+
+        activate(cards[0].dataset.panel);
+
+        cards.forEach(card => {
+          card.addEventListener("click", () => activate(card.dataset.panel));
+        });
+      }
+
+      // Init the default active role (tenant)
+      initRoleCards("tenant");
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initLandingPage);
+    } else {
+      initLandingPage();
+    }
+    document.addEventListener("turbo:load", initLandingPage);
+  </script>
 <% end %>

@@ -45,6 +45,7 @@ class AccountTest < ApplicationSystemTestCase
     visit logout_path
     assert_current_path root_path
 
+    visit login_path
     assert_selector "input[name='email']", wait: 5
     fill_in "email", with: @tenant.Email
     fill_in "password", with: "NewPassword123!"

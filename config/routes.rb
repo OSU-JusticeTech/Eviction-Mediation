@@ -2,7 +2,7 @@ Rails.application.routes.draw do
   get "mediator_cases/show"
   get "third_party_mediations/index"
   get "manage_cases/index"
-  root "sessions#new"  # Home Page
+  root "resources#index"  # Home Page
 
   # Authentication
   get "/login", to: "sessions#new"
