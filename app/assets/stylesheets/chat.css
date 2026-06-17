@@ -45,10 +45,14 @@
   .chat-page-wrapper {
     max-width: 1800px;
     margin: 0 auto;
-    padding: 0 1rem clamp(1.25rem, 2vw, 2rem);
+    /* Top padding gives the toolbar's hover-lift (translateY(-2px)) and shadow
+       room to render. Note: overflow-x: hidden below forces overflow-y to
+       compute to `auto`, making this a clipping container, so a 0 top padding
+       would clip the lifted buttons' top border. */
+    padding: 0.75rem 1rem clamp(1.25rem, 2vw, 2rem);
     width: 100%;
     box-sizing: border-box;
-    
+
     /* Add these properties */
     display: flex;
     flex-direction: column;
@@ -90,6 +94,83 @@
     margin-top: clamp(0.75rem, 1.5vw, 1.75rem);
     width: 100%;
     box-sizing: border-box;
+  }
+
+  /* Top toolbar: Conversation details + mediation actions on one row */
+  .conversation-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: clamp(0.5rem, 1.2vw, 0.85rem);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .conversation-toolbar__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: clamp(0.5rem, 1.2vw, 0.85rem);
+    margin-left: auto;
+  }
+
+  /* Buttons sit inline and size to content inside the toolbar */
+  .conversation-toolbar .conversation-cta {
+    width: auto;
+    flex: 0 1 auto;
+    gap: 0.55rem;
+    padding: clamp(0.5rem, 0.8vw, 0.7rem) clamp(0.95rem, 1.5vw, 1.3rem);
+    border-radius: 14px;
+    font-size: 0.95rem;
+    box-shadow: 0 4px 10px rgba(16, 42, 77, 0.08);
+  }
+
+  .conversation-toolbar .conversation-cta__label {
+    flex: 0 0 auto;
+    text-align: center;
+  }
+
+  /* Inline status indicator that replaces the request button once requested */
+  .conversation-status-pill-wrap {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .conversation-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: clamp(0.5rem, 0.8vw, 0.7rem) clamp(0.85rem, 1.4vw, 1.15rem);
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+
+  .conversation-status-pill i {
+    font-size: 1rem;
+  }
+
+  .conversation-status-pill--info {
+    background: #eaf2ff;
+    border-color: rgba(26, 117, 255, 0.25);
+    color: #1e3a8a;
+  }
+
+  .conversation-status-pill--info i {
+    color: #1a75ff;
+  }
+
+  .conversation-status-pill--success {
+    background: #e6fcf5;
+    border-color: rgba(16, 185, 129, 0.25);
+    color: #065f46;
+  }
+
+  .conversation-status-pill--success i {
+    color: #059669;
   }
 
 
@@ -1446,40 +1527,44 @@
 
   /* Standard Desktops & Laptops */
   @media (min-width: 1101px) {
+    .mediation-container.chat-page {
+      max-height: 92vh;
+      /* Override the global .mediation-container padding (20px 15px 80px) that
+         otherwise leaves ~80px of dead space below the chat on desktop. */
+      padding: clamp(0.5rem, 1vw, 0.9rem) clamp(0.75rem, 1.5vw, 1.5rem) clamp(0.75rem, 1.2vw, 1.1rem);
+    }
+
+    /* flex-basis: 0 (not auto) means the item starts at zero height and
+       grows purely from flex-grow: 1, reliably filling the leftover space
+       after the toolbar row takes its natural height. */
     .message-page-container.chat-layout {
-      flex-direction: row;
-      align-items: stretch;
-      gap: clamp(0.9rem, 1.4vw, 1.6rem);
-      max-width: calc(900px + clamp(220px, 18vw, 260px) + clamp(1.5rem, 2vw, 2.5rem));
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 0;
+      min-height: 0;
+      max-width: min(1100px, 100%);
       width: 100%;
       margin: 0 auto;
-      max-height: 950px;
     }
 
     .chat-panel-wrapper {
       flex: 1 1 0;
+      min-height: 0;
       min-width: 0;
-      max-width: 900px;
+      max-width: 100%;
+      display: flex;
+      flex-direction: column;
     }
 
-    .chat-actions-column {
-      flex: 0 0 clamp(220px, 18vw, 260px);
-      padding: clamp(0.5rem, 1vw, 1.25rem) 0 clamp(1.75rem, 2.5vw, 3rem);
-      margin-top: 0;
-      align-self: flex-start;
-    }
-
-    .conversation-info-trigger {
-      max-width: calc(900px + clamp(220px, 18vw, 260px) + clamp(1.5rem, 2vw, 2.5rem));
+    /* Keep toolbar aligned with the centered chat column */
+    .conversation-toolbar {
+      max-width: min(1100px, 100%);
       width: 100%;
-      margin: 0 auto clamp(0.6rem, 1.3vw, 1.1rem);
+      margin-left: auto;
+      margin-right: auto;
       padding-left: clamp(0.75rem, 1.4vw, 1.5rem);
       padding-right: clamp(0.75rem, 1.4vw, 1.5rem);
-      
-    }
-
-    .mediation-container.chat-page {
-      max-height: 90vh;
+      box-sizing: border-box;
     }
   }
 
@@ -2227,5 +2312,83 @@
 
     .conversation-banner i {
       font-size: 0.95rem;
+    }
+  }
+
+  /* Phone toolbar: fully stack details + actions, each full width on its own row.
+     flex: 0 0 auto keeps the toolbar from being squeezed into / over the chat box,
+     and the compact sizing keeps all three rows + chat within the viewport. */
+  @media (max-width: 640px) {
+    /* The chat sits below the stacked toolbar with a comfortable minimum height.
+       If a particular phone is too short to fit toolbar + chat, the region
+       scrolls instead of overlapping. */
+    .mediation-container.chat-page {
+      overflow-y: auto;
+    }
+
+    .chat-page-wrapper {
+      overflow: visible;
+    }
+
+    .message-page-container.chat-layout {
+      height: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .chat-panel-wrapper {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .chat-panel {
+      flex: 1 1 auto;
+      min-height: clamp(360px, 60vh, 560px);
+    }
+
+    .conversation-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.4rem;
+      flex: 0 0 auto;
+      /* Match the gap below the End button (the chat-page-wrapper gap) so the
+         space above "Conversation details" mirrors the space below the toolbar. */
+      margin-top: clamp(0.65rem, 1.2vw, 1.1rem);
+    }
+
+    .conversation-toolbar > .conversation-cta {
+      width: 100%;
+    }
+
+    .conversation-toolbar__actions {
+      margin-left: 0;
+      width: 100%;
+      gap: 0.4rem;
+      flex-direction: column;
+      align-items: stretch;
+      flex-wrap: nowrap;
+    }
+
+    .conversation-toolbar .conversation-cta {
+      width: 100%;
+      flex: 0 0 auto;
+      padding: 0.55rem 0.85rem;
+      border-radius: 12px;
+      box-shadow: 0 3px 8px rgba(16, 42, 77, 0.08);
+    }
+
+    .conversation-toolbar .conversation-cta__label {
+      font-size: 0.92rem;
+    }
+
+    .conversation-status-pill-wrap {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .conversation-status-pill {
+      width: 100%;
+      justify-content: center;
+      padding: 0.5rem 0.85rem;
     }
   }
