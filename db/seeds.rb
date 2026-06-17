@@ -37,7 +37,7 @@ tenant = User.create!(
   AddressLine1: '456 Elm St',
   AddressLine2: nil,
   City: 'Columbus',
-  State: 'OH',
+  State: 'Ohio',
   ZipCode: '43215',
   PhoneNumber: '555-555-5678'
 )
@@ -107,7 +107,7 @@ tenant2 = User.create!(
   AddressLine1: '456 Elm St 2',
   AddressLine2: nil,
   City: 'Cleveland',
-  State: 'OH',
+  State: 'Ohio',
   ZipCode: '44114',
   PhoneNumber: '111-555-4321'
 )
@@ -185,5 +185,3 @@ mediator_user4 = Mediator.create!(
   ActiveMediations: 0,
   MediationCap: 5
 )
-
-puts "Extra 2 mediators created"

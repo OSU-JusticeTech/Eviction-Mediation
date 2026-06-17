@@ -117,10 +117,62 @@
         </div>
 
         <div class="input-group">
-          <label for="State">State (2-letter code)</label>
+          <label for="State">State</label>
           <div class="input-field">
             <i class="fa-solid fa-flag-usa"></i>
-            <%= f.text_field :State, placeholder: "OH", class: "signup-input", id: "state", maxlength: 2, pattern: "[A-Za-z]{2}", title: "Use a 2-letter US state code, e.g., OH", autocomplete: "address-level1" %>
+            <%= f.select :State, options_for_select([
+              ["Select a state", ""],
+              ["Alabama", "Alabama"],
+              ["Alaska", "Alaska"],
+              ["Arizona", "Arizona"],
+              ["Arkansas", "Arkansas"],
+              ["California", "California"],
+              ["Colorado", "Colorado"],
+              ["Connecticut", "Connecticut"],
+              ["Delaware", "Delaware"],
+              ["Florida", "Florida"],
+              ["Georgia", "Georgia"],
+              ["Hawaii", "Hawaii"],
+              ["Idaho", "Idaho"],
+              ["Illinois", "Illinois"],
+              ["Indiana", "Indiana"],
+              ["Iowa", "Iowa"],
+              ["Kansas", "Kansas"],
+              ["Kentucky", "Kentucky"],
+              ["Louisiana", "Louisiana"],
+              ["Maine", "Maine"],
+              ["Maryland", "Maryland"],
+              ["Massachusetts", "Massachusetts"],
+              ["Michigan", "Michigan"],
+              ["Minnesota", "Minnesota"],
+              ["Mississippi", "Mississippi"],
+              ["Missouri", "Missouri"],
+              ["Montana", "Montana"],
+              ["Nebraska", "Nebraska"],
+              ["Nevada", "Nevada"],
+              ["New Hampshire", "New Hampshire"],
+              ["New Jersey", "New Jersey"],
+              ["New Mexico", "New Mexico"],
+              ["New York", "New York"],
+              ["North Carolina", "North Carolina"],
+              ["North Dakota", "North Dakota"],
+              ["Ohio", "Ohio"],
+              ["Oklahoma", "Oklahoma"],
+              ["Oregon", "Oregon"],
+              ["Pennsylvania", "Pennsylvania"],
+              ["Rhode Island", "Rhode Island"],
+              ["South Carolina", "South Carolina"],
+              ["South Dakota", "South Dakota"],
+              ["Tennessee", "Tennessee"],
+              ["Texas", "Texas"],
+              ["Utah", "Utah"],
+              ["Vermont", "Vermont"],
+              ["Virginia", "Virginia"],
+              ["Washington", "Washington"],
+              ["West Virginia", "West Virginia"],
+              ["Wisconsin", "Wisconsin"],
+              ["Wyoming", "Wyoming"]
+            ], @user.State), {}, class: "signup-input", id: "state", autocomplete: "address-level1" %>
           </div>
         </div>
 
@@ -316,14 +368,6 @@
   function setupAddressFormatting() {
     const stateInput = document.getElementById("state");
     const zipInput = document.getElementById("zip-code");
-
-    if (stateInput && stateInput.dataset.addressMaskBound !== "true") {
-      stateInput.dataset.addressMaskBound = "true";
-      stateInput.addEventListener("input", function() {
-        this.value = this.value.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
-      });
-      stateInput.value = stateInput.value.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
-    }
 
     if (zipInput && zipInput.dataset.addressMaskBound !== "true") {
       zipInput.dataset.addressMaskBound = "true";

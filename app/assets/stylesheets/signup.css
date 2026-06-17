@@ -349,6 +349,7 @@
     left: 10px;
     color: #555;
     font-size: 16px;
+    z-index: 2;
 }
 
 /* Input Styling with Focus */

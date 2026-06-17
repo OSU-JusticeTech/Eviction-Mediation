@@ -28,7 +28,7 @@ class UsersTest < ApplicationSystemTestCase
       assert_selector "#address-line-1", visible: true
       find("#address-line-1").set("123 Main St")
       find("#city").set("Columbus")
-      find("#state").set("OH")
+      select "Ohio", from: "state"
       find("#zip-code").set("43215")
       find("#phone-number").set("614-555-0100")
 
@@ -81,7 +81,7 @@ class UsersTest < ApplicationSystemTestCase
       choose "role_tenant"
       find("#address-line-1").set("101 Error St")
       find("#city").set("Columbus")
-      find("#state").set("OH")
+      select "Ohio", from: "state"
       find("#zip-code").set("43215")
       find("#phone-number").set("614-555-0300")
       page.execute_script("document.getElementById('user_ProfileDisclaimer').checked = true;")

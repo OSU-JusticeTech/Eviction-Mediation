@@ -14,7 +14,10 @@ import "chat/mediator_chats";
     if (toggle) {
       e.preventDefault();
       const menu = document.querySelector('.navbar-menu');
-      if (menu) menu.classList.toggle('active');
+      if (menu) {
+        menu.classList.toggle('active');
+        toggle.setAttribute('aria-expanded', String(menu.classList.contains('active')));
+      }
       return;
     }
 
@@ -22,7 +25,11 @@ import "chat/mediator_chats";
     const menuLink = e.target.closest('.navbar-menu a');
     if (menuLink) {
       const menu = document.querySelector('.navbar-menu');
-      if (menu) menu.classList.remove('active');
+      if (menu) {
+        menu.classList.remove('active');
+        const navToggle = document.querySelector('#navbar-toggle');
+        if (navToggle) navToggle.setAttribute('aria-expanded', 'false');
+      }
       return;
     }
 
@@ -31,6 +38,8 @@ import "chat/mediator_chats";
     if (menu && menu.classList.contains('active')) {
       if (!e.target.closest('.navbar-menu') && !e.target.closest('#navbar-toggle')) {
         menu.classList.remove('active');
+        const navToggle = document.querySelector('#navbar-toggle');
+        if (navToggle) navToggle.setAttribute('aria-expanded', 'false');
       }
     }
   }

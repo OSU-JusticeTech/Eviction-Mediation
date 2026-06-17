@@ -38,7 +38,7 @@ dev-setup: down-clean
 	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:schema:dump
 	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:migrate
 	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:seed
-	@echo "🎉 Setup complete! Your app is running at http://localhost:3000"
+	@echo "Setup complete! Your app is running at http://localhost:3000"
 
 up:
 	$(COMPOSE_CMD) up -d

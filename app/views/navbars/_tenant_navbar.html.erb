@@ -1,4 +1,4 @@
-<nav class="navbar">
+<nav class="navbar" aria-label="App navigation">
     <div class="navbar-left">
         <span class="navbar-title">Eviction Mediation</span>
     </div>
@@ -14,8 +14,8 @@
 
     <div class="navbar-right">
         <%= link_to "Log Out", logout_path, method: :delete, class: "logout-btn navbar-logout" %>
-        <div class="navbar-toggle" id="navbar-toggle">
+        <button type="button" class="navbar-toggle" id="navbar-toggle" aria-label="Toggle navigation menu" aria-controls="navbar-menu" aria-expanded="false">
             <i class="fas fa-bars"></i>
-        </div>
+        </button>
     </div>
 </nav>
