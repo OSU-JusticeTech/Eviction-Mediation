@@ -39,13 +39,6 @@
         <span class="conversation-cta__icon"><i class="fa-solid fa-handshake"></i></span>
         <span class="conversation-cta__label">Request a mediator</span>
       </button>
-    <% else %>
-      <button type="button"
-              class="conversation-cta conversation-cta--primary is-disabled"
-              disabled>
-        <span class="conversation-cta__icon"><i class="fa-solid fa-handshake-angle"></i></span>
-        <span class="conversation-cta__label"><%= mediation_assigned ? "Mediator assigned" : "Mediator requested" %></span>
-      </button>
     <% end %>
 
     <button type="button"
