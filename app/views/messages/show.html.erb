@@ -18,6 +18,14 @@
           <span class="conversation-cta__chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
         </button>
 
+        <% if @user.Role == "Mediator" %>
+          <%= link_to mediator_case_path(@mediation.id), class: "conversation-cta conversation-cta--info" do %>
+            <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-folder-open"></i></span>
+            <span class="conversation-cta__label">Case overview</span>
+            <span class="conversation-cta__chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+          <% end %>
+        <% end %>
+
         <%= render 'actions' %>
       </div>
 
