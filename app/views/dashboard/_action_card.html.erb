@@ -1,0 +1,17 @@
+<%# Renders a single dashboard action card.
+    Locals:
+      path        - link target for the whole card
+      icon        - Font Awesome icon class (e.g. "fa-comments")
+      title       - card heading
+      description - supporting text
+      label       - button label %>
+<%= link_to path, class: "action-card" do %>
+  <div class="card-icon">
+    <i class="fas <%= icon %>"></i>
+  </div>
+  <div class="card-content">
+    <h3><%= title %></h3>
+    <p><%= description %></p>
+    <span class="card-btn"><%= label %></span>
+  </div>
+<% end %>

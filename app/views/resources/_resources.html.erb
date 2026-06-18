@@ -298,16 +298,8 @@
             You can use the text-based mediation tool to communicate with your landlord and try to solve the dispute
             before an eviction is filed.
           </p>
-          <div class="resx-actions">
-            <%= link_to "I want to negotiate with my landlord",
-                        messages_path,
-                        class: "resx-btn resx-btn-primary" %>
-            <button type="button" class="resx-btn resx-btn-ghost" onclick="if(window.activateResxPanel){window.activateResxPanel('tenant-eviction');}">
-              I want to learn more about the eviction process
-            </button>
-          </div>
 
-          <p style="margin-top:14px;"><strong>No.</strong> If you think you may fall behind soon, you can still use the
+          <p><strong>No.</strong> If you think you may fall behind soon, you can still use the
             mediation tool to talk with your landlord before an issue turns into a case.</p>
           <div class="resx-actions">
             <%= link_to "I want to talk with my landlord",
@@ -592,7 +584,7 @@
   <style>
     /* ---- Hero ---- */
     .lp-hero {
-      background: linear-gradient(135deg, #0a1f3d 0%, #102a4d 50%, #1a3a5f 100%);
+      background: #102a4d;
       padding: 72px 24px 64px;
       text-align: center;
     }
@@ -869,6 +861,22 @@
     }
     .resx-btn-primary:hover { background: #0d3460; }
     .resx-panel-cta { margin-top: 16px; }
+    .resx-cta-row {
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+    }
+    .lp-login-link {
+      font-size: 14px;
+      color: #475569;
+    }
+    .lp-login-link a {
+      color: #0b2b4b;
+      font-weight: 600;
+      text-decoration: underline;
+    }
     @keyframes resxFadeIn {
       from { opacity: 0; transform: translateY(4px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -937,7 +945,7 @@
 
   <!-- Resources -->
   <div class="lp-resources">
-    <p class="lp-section-label">Free Resources</p>
+    <p class="lp-section-label">Resources</p>
     <h2 class="lp-section-title">Understand your rights and options</h2>
     <p class="lp-section-sub">Select your role to see guides tailored to your situation.</p>
 
@@ -1015,8 +1023,9 @@
             </li>
           </ol>
           <p>For step-by-step housing help, visit <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>.</p>
-          <div style="margin-top:16px;">
+          <div class="resx-cta-row">
             <%= link_to "Create a free account to use the mediation tool", signup_path, class: "resx-btn resx-btn-primary" %>
+            <span class="lp-login-link">Have an account? <%= link_to "Log In", login_path %></span>
           </div>
         </div>
 
@@ -1025,8 +1034,9 @@
           <p><strong>Are you behind on rent or did you get a notice from your landlord?</strong></p>
           <p><strong>Yes.</strong> You may be in the early stages of the eviction process. Our text-based mediation tool lets you communicate with your landlord and try to solve the dispute before an eviction is filed.</p>
           <p><strong>No.</strong> If you think you may fall behind soon, you can still use the mediation tool to talk with your landlord before an issue turns into a case.</p>
-          <div style="margin-top:16px;">
+          <div class="resx-cta-row">
             <%= link_to "Create a free account to talk with your landlord", signup_path, class: "resx-btn resx-btn-primary" %>
+            <span class="lp-login-link">Have an account? <%= link_to "Log In", login_path %></span>
           </div>
         </div>
 
@@ -1112,8 +1122,9 @@
             </li>
           </ol>
           <p>For more information, visit <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>.</p>
-          <div style="margin-top:16px;">
+          <div class="resx-cta-row">
             <%= link_to "Create a free account to use the mediation tool", signup_path, class: "resx-btn resx-btn-primary" %>
+            <span class="lp-login-link">Have an account? <%= link_to "Log In", login_path %></span>
           </div>
         </div>
 
@@ -1126,8 +1137,9 @@
             <li>Try to reach a payment plan or other resolution</li>
             <li>Avoid the cost and stress of filing an eviction</li>
           </ul>
-          <div style="margin-top:16px;">
+          <div class="resx-cta-row">
             <%= link_to "Create a free account to start a conversation", signup_path, class: "resx-btn resx-btn-primary" %>
+            <span class="lp-login-link">Have an account? <%= link_to "Log In", login_path %></span>
           </div>
         </div>
 

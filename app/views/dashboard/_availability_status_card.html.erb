@@ -22,12 +22,12 @@
     <% end %>
 
     <% if at_capacity %>
-      <button class="status-btn disabled" disabled>At Capacity</button>
+      <button class="card-btn" disabled>At Capacity</button>
     <% else %>
       <%= form_with model: user, url: mediator_availability_path, method: :patch, local: true, class: "availability-form" do |f| %>
         <%= f.fields_for :mediator do |m| %>
           <%= m.hidden_field :Available, value: !available %>
-          <%= f.submit (available ? "Disable" : "Enable"), class: "status-btn" %>
+          <%= f.submit (available ? "Disable" : "Enable"), class: "card-btn" %>
         <% end %>
       <% end %>
     <% end %>

@@ -1,26 +1,12 @@
 <!-- Admin Actions -->
 <div class="action-cards-grid">
-  <div class="action-card primary">
-    <div class="card-icon">
-      <i class="fas fa-gavel"></i>
-    </div>
-    <div class="card-content">
-      <h3>Mediations</h3>
-      <p>Monitor flagged cases and ongoing mediations</p>
-      <%= link_to "Manage Mediations", admin_mediations_path, class: "card-btn", style: "background: #3498db; color: white;", onmouseover: "this.style.background='#2980b9'", onmouseout: "this.style.background='#3498db'" %>
-    </div>
-  </div>
+  <%= render "action_card", path: admin_mediations_path, icon: "fa-gavel",
+        title: "Mediations", description: "Monitor flagged cases and ongoing mediations",
+        label: "Manage Mediations" %>
 
-  <div class="action-card">
-    <div class="card-icon">
-      <i class="fas fa-users-cog"></i>
-    </div>
-    <div class="card-content">
-      <h3>Account Management</h3>
-      <p>Update mediator accounts and user settings</p>
-      <%= link_to "Manage Accounts", admin_accounts_path, class: "card-btn" %>
-    </div>
-  </div>
+  <%= render "action_card", path: admin_accounts_path, icon: "fa-users-cog",
+        title: "Account Management", description: "Update mediator accounts and user settings",
+        label: "Manage Accounts" %>
 </div>
 
 <!-- System Overview -->
