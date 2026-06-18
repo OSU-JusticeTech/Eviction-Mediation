@@ -27,6 +27,38 @@
     <p class="mediation-status">No unassigned mediations.</p>
   <% end %>
 
+  <h2>Active Mediations</h2>
+  <% if @active_mediations.any? %>
+    <table class="mediation-table">
+      <thead>
+        <tr>
+          <th>Tenant</th>
+          <th>Landlord</th>
+          <th>Mediator</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @active_mediations.each do |mediation| %>
+          <tr>
+            <td data-label="Tenant"><%= mediation.tenant.FName %> <%= mediation.tenant.LName %></td>
+            <td data-label="Landlord"><%= mediation.landlord.FName %> <%= mediation.landlord.LName %></td>
+            <td data-label="Mediator">
+              <% if (mediator = mediation.mediator) %>
+                <%= mediator.FName %> <%= mediator.LName %>
+              <% else %>
+                <span class="mediation-status">Unassigned</span>
+              <% end %>
+            </td>
+            <td data-label="Action"><%= link_to "View Case", mediator_case_path(mediation.id), class: "view-link" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <p class="mediation-status">No active mediations.</p>
+  <% end %>
+
   <h2>Completed Mediations</h2>
   <% if @completed_mediations.any? %>
     <table class="mediation-table">

@@ -4,11 +4,18 @@
   <% tenant_screening = ScreeningQuestion.find_by(ScreeningID: @mediation.TenantScreeningID) %>
   <% landlord_screening = ScreeningQuestion.find_by(ScreeningID: @mediation.LandlordScreeningID) %>
   <% flagged = tenant_screening&.flagged || landlord_screening&.flagged %>
+  <% is_admin = @user.Role == "Admin" %>
 
   <!-- Header -->
   <div class="page-header">
-    <%= link_to third_party_mediations_path, class: "back-link" do %>
-      <i class="fa-solid fa-arrow-left"></i> Back to My Cases
+    <% if is_admin %>
+      <%= link_to admin_mediations_path, class: "back-link" do %>
+        <i class="fa-solid fa-arrow-left"></i> Back to Mediations
+      <% end %>
+    <% else %>
+      <%= link_to third_party_mediations_path, class: "back-link" do %>
+        <i class="fa-solid fa-arrow-left"></i> Back to My Cases
+      <% end %>
     <% end %>
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <h1>Mediation Case Details</h1>
@@ -52,25 +59,27 @@
             </div>
           </div>
 
-          <!-- Actions Card -->
-          <div class="info-card">
-            <div class="card-header">
-              <h2><i class="fa-solid fa-gavel"></i> Actions</h2>
+          <!-- Actions Card (mediators only; admins have read-only oversight) -->
+          <% unless is_admin %>
+            <div class="info-card">
+              <div class="card-header">
+                <h2><i class="fa-solid fa-gavel"></i> Actions</h2>
+              </div>
+              <div class="card-body">
+                <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1rem;">
+                  End the mediation if an agreement has been reached or if mediation is no longer viable.
+                </p>
+                <%= button_to end_mediation_path(@mediation.ConversationID),
+                    method: :patch,
+                    data: { turbo: false },
+                    onclick: "return confirm('Are you sure you want to end this mediation? This action cannot be undone.');",
+                    class: "btn btn-outline-danger",
+                    style: "width: 100%; justify-content: center;" do %>
+                  <i class="fa-solid fa-ban"></i> Terminate Mediation
+                <% end %>
+              </div>
             </div>
-            <div class="card-body">
-              <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1rem;">
-                End the mediation if an agreement has been reached or if mediation is no longer viable.
-              </p>
-              <%= button_to end_mediation_path(@mediation.ConversationID),
-                  method: :patch,
-                  data: { turbo: false },
-                  onclick: "return confirm('Are you sure you want to end this mediation? This action cannot be undone.');",
-                  class: "btn btn-outline-danger",
-                  style: "width: 100%; justify-content: center;" do %>
-                <i class="fa-solid fa-ban"></i> Terminate Mediation
-              <% end %>
-            </div>
-          </div>
+          <% end %>
         </div>
 
         <!-- Right Column: Tenant Info & Intake -->

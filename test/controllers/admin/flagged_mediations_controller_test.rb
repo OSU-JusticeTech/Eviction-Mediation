@@ -35,6 +35,22 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "td", text: /#{@completed.tenant.FName}/
   end
 
+  test "lists active mediations with a view case link for admins" do
+    active = primary_message_groups(:one)
+    active.update!(
+      MediatorRequested: true,
+      MediatorAssigned: true,
+      MediatorID: users(:mediator1).UserID,
+      deleted_at: nil
+    )
+
+    get admin_mediations_url
+
+    assert_response :success
+    assert_select "h2", "Active Mediations"
+    assert_select "a.view-link[href=?]", mediator_case_path(active.id), text: "View Case"
+  end
+
   test "shows a specific mediation" do
     get admin_flagged_mediation_url(@unassigned)
 

@@ -10,6 +10,15 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     @mediation = primary_message_groups(:one)
   end
 
+  test "admin cannot generate documents from intake" do
+    log_in_as(users(:admin1))
+
+    post generate_from_intake_path(template: "a"), params: { conversation_id: @mediation.ConversationID }
+
+    assert_redirected_to admin_mediations_path
+    assert_equal "Administrators have read-only access and cannot generate documents.", flash[:alert]
+  end
+
   test "redirects to login when not authenticated" do
     get documents_path
     assert_redirected_to login_path

@@ -6,6 +6,7 @@
   <% if @mediation&.deleted_at.nil? && @message_string&.deleted_at.nil? %>
     <% mediator_assigned = @mediation&.MediatorRequested && @mediation&.MediatorAssigned %>
     <% screenings_flagged = tenant_screening&.flagged == true || landlord_screening&.flagged == true %>
+    <% is_admin = @user.Role == "Admin" %>
 
     <% if mediator_assigned && !screenings_flagged %>
       <%# Moved to conversation details panel %>
@@ -18,7 +19,7 @@
           <span class="conversation-cta__chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
         </button>
 
-        <% if @user.Role == "Mediator" %>
+        <% if @user.Role == "Mediator" || is_admin %>
           <%= link_to mediator_case_path(@mediation.id), class: "conversation-cta conversation-cta--info" do %>
             <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-folder-open"></i></span>
             <span class="conversation-cta__label">Case overview</span>
@@ -26,7 +27,10 @@
           <% end %>
         <% end %>
 
-        <%= render 'actions' %>
+        <%# Admins have read-only access: no mediator-request / end-mediation actions %>
+        <% unless is_admin %>
+          <%= render 'actions' %>
+        <% end %>
       </div>
 
       <div class="conversation-info-panel" data-conversation-info-panel hidden role="dialog" aria-modal="true">
@@ -38,12 +42,17 @@
             </button>
           </div>
           <div class="conversation-info-card__body">
-            <% 
-               other_party_role = @user.Role == "Tenant" ? "Landlord" : "Tenant" 
+            <%
+               other_party_role = @user.Role == "Tenant" ? "Landlord" : "Tenant"
                is_mediator = @user.Role == "Mediator"
             %>
-            
-            <% if mediator_assigned && !screenings_flagged %>
+
+            <% if is_admin %>
+              <div class="info-box info-box--info">
+                <h4>Administrator View</h4>
+                <p>You are viewing this conversation in read-only mode. The tenant, landlord, and mediator are not notified of your access.</p>
+              </div>
+            <% elsif mediator_assigned && !screenings_flagged %>
               <div class="info-box info-box--mediator">
                 <h4>Mediation Active</h4>
                 <% if is_mediator %>
@@ -102,7 +111,7 @@
                     <td><%= mediator.Email %></td>
                   </tr>
                 <% end %>
-              <% elsif @user.Role == "Mediator" %>
+              <% elsif @user.Role == "Mediator" || is_admin %>
                 <tr>
                   <th>Tenant Name</th>
                   <td><%= @mediation.tenant.FName %> <%= @mediation.tenant.LName %></td>
@@ -130,7 +139,7 @@
               <% end %>
             </table>
             
-            <% if !is_mediator %>
+            <% if !is_mediator && !is_admin %>
               <div class="info-box info-box--disclaimer">
                 <h4>Chat Terms</h4>
                 <p>Messages shared in this chat box are used for mediation and negotiation purposes only.</p>
@@ -154,6 +163,19 @@
                 placeholder_text: @message_placeholder,
                 composer_enabled: false,
                 composer_disabled_reason: composer_disabled_reason %>
+        </section>
+      </div>
+    <% elsif is_admin %>
+      <!-- Admin read-only view: chat pane is visible but the composer is disabled -->
+      <div class="message-page-container chat-layout">
+        <section class="chat-panel-wrapper">
+          <%= render 'negotiation_chatbox',
+                participants: @conversation_participants,
+                current_user: @user,
+                broadcast_enabled: @broadcast_enabled,
+                placeholder_text: @message_placeholder,
+                composer_enabled: false,
+                composer_disabled_reason: "You are viewing this conversation in read-only mode." %>
         </section>
       </div>
     <% else %>

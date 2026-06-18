@@ -241,4 +241,31 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
   end
+
+  test "show renders read-only chat for admin without composer or actions" do
+    log_in_as(users(:admin1))
+
+    get message_path(@mediation.ConversationID)
+
+    assert_response :success
+    # Composer is disabled (no message form) for read-only admin access
+    assert_select "[data-composer-enabled='false']"
+    assert_select ".composer-disabled"
+    # Admin-only banner replaces participant-facing copy
+    assert_select "h4", text: "Administrator View"
+    # No end-mediation / request-mediator actions are offered to admins
+    assert_select ".conversation-cta--danger", count: 0
+  end
+
+  test "create denies admin posting a message" do
+    log_in_as(users(:admin1))
+
+    assert_no_difference("Message.count") do
+      post messages_path,
+        params: { ConversationID: @mediation.ConversationID, Contents: "admin should not post" },
+        as: :json
+    end
+
+    assert_response :forbidden
+  end
 end
