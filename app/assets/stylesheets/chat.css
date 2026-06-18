@@ -325,6 +325,29 @@
     padding: 2rem 0;
   }
 
+  .date-separator {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.5rem 0;
+    user-select: none;
+  }
+
+  .date-separator::before,
+  .date-separator::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(16, 42, 77, 0.1);
+  }
+
+  .date-separator__label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(16, 42, 77, 0.4);
+    white-space: nowrap;
+  }
+
   /* Scrollbar Styles */
   .message-list-container::-webkit-scrollbar {
     width: 8px;
@@ -430,6 +453,15 @@
     text-align: right;
   }
 
+  /* Grouped messages: hide author header and reduce vertical gap */
+  .chat-message[data-grouped="true"] .message-meta {
+    display: none;
+  }
+
+  .chat-message[data-grouped="true"] {
+    margin-top: -0.6rem;
+  }
+
   /* Message Role Variants */
   .chat-message[data-sender-role="Tenant"] .message-bubble {
     background: linear-gradient(135deg, #0b5ed7 0%, #1a75ff 100%);
@@ -481,7 +513,46 @@
 
 
   /* ==========================================================================
-    6. Message Attachments
+    6. System Messages
+    ========================================================================== */
+
+  .system-message {
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    max-width: 80%;
+    text-align: center;
+  }
+
+  .system-message__text {
+    display: inline-block;
+    background: rgba(16, 42, 77, 0.06);
+    border: 1px solid rgba(16, 42, 77, 0.09);
+    border-radius: 999px;
+    padding: 0.3rem 0.9rem;
+    font-size: 0.78rem;
+    color: rgba(16, 42, 77, 0.55);
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .system-message__attachments {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .system-message__attachments .message-attachment {
+    background: rgba(16, 42, 77, 0.04);
+    border-color: rgba(16, 42, 77, 0.1);
+    text-align: left;
+  }
+
+  /* ==========================================================================
+    7. Message Attachments
     ========================================================================== */
 
   .message-attachments {
@@ -605,7 +676,7 @@
 
 
   /* ==========================================================================
-    7. Message Composer
+    8. Message Composer
     ========================================================================== */
 
   .message-composer {

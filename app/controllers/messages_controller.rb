@@ -133,7 +133,8 @@ class MessagesController < ApplicationController
         SenderID: @user.UserID,
         MessageDate: Time.current,
         Contents: content,
-        recipientID: determine_recipient(@mediation)
+        recipientID: determine_recipient(@mediation),
+        is_system: true
       )
 
       # Broadcast to ActionCable
@@ -144,11 +145,13 @@ class MessagesController < ApplicationController
           contents: message.Contents,
           sender_id: message.SenderID,
           recipient_id: message.recipientID,
-          message_date: message.MessageDate.strftime("%B %d, %Y %I:%M %p"),
+          message_date: message.MessageDate.strftime("%-I:%M %p"),
+          message_timestamp: message.MessageDate.to_i,
           sender_role: @user.Role,
           sender_name: sender_name,
           attachments: [],
-          broadcast: false
+          broadcast: false,
+          is_system: true
         }
       )
 
@@ -268,7 +271,8 @@ class MessagesController < ApplicationController
             contents: @message.Contents,
             sender_id: @message.SenderID,
             recipient_id: @message.recipientID,
-            message_date: @message.MessageDate.strftime("%B %d, %Y %I:%M %p"),
+            message_date: @message.MessageDate.strftime("%-I:%M %p"),
+            message_timestamp: @message.MessageDate.to_i,
             sender_role: @user.Role,
             sender_name: sender_name,
             attachments: attachments_payload,

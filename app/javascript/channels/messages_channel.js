@@ -37,6 +37,20 @@ const formatMessageContents = (contents) => {
   return sanitized.replace(/(\r\n|\n|\r)/g, "<br>");
 };
 
+const formatDateLabel = (timestamp) => {
+  const date = new Date(timestamp * 1000);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
+
+const isSameDay = (ts1, ts2) => {
+  return new Date(ts1 * 1000).toDateString() === new Date(ts2 * 1000).toDateString();
+};
+
 const placeholderForRole = (role) => {
   switch (role) {
     case "Tenant":
@@ -206,33 +220,74 @@ const initializeMessagesChannel = () => {
         noMessagesPlaceholder.remove();
       }
 
-      const messageClass = isSender ? 'sent' : 'received';
-      const formattedRole = titleize(data.sender_role);
-      const senderName = isSender ? 'You' : escapeHtml(data.sender_name || formattedRole || 'Participant');
       const messageContents = formatMessageContents(data.contents);
       const attachments = Array.isArray(data.attachments) ? data.attachments : [];
-
       const attachmentsHtml = attachments
         .map((attachment) => buildAttachmentHtml(attachment, currentUserRole))
         .filter(Boolean)
         .join('');
 
-      const broadcastAttr = isBroadcast ? 'true' : 'false';
-      const recipientAttr = recipientId || '';
+      const currTimestamp = data.message_timestamp || Math.floor(Date.now() / 1000);
 
-      const messageHtml = `
-        <div class="chat-message ${messageClass}" data-message-id="${escapeAttribute(data.message_id)}" data-sender-role="${escapeAttribute(formattedRole)}" data-sender-id="${escapeAttribute(data.sender_id)}" data-recipient-id="${escapeAttribute(recipientAttr)}" data-current-user-id="${escapeAttribute(currentUserId)}" data-broadcast="${broadcastAttr}">
-          <div class="message-bubble">
-            <div class="message-meta">
-              <span class="message-author">${senderName}</span>
-              ${formattedRole ? `<span class="message-role">${escapeHtml(formattedRole)}</span>` : ''}
-            </div>
-            ${messageContents ? `<p class="message-content">${messageContents}</p>` : ''}
-            ${attachmentsHtml ? `<div class="message-attachments">${attachmentsHtml}</div>` : ''}
-            <small class="message-timestamp">${escapeHtml(data.message_date)}</small>
+      // Insert date separator if the day has changed
+      const allChatMessages = messagesList.querySelectorAll('.chat-message, .system-message');
+      const prevAnyMessage = allChatMessages.length > 0 ? allChatMessages[allChatMessages.length - 1] : null;
+      if (prevAnyMessage) {
+        const prevTimestamp = parseInt(prevAnyMessage.dataset.messageTimestamp || '0', 10);
+        if (prevTimestamp && !isSameDay(prevTimestamp, currTimestamp)) {
+          const label = escapeHtml(formatDateLabel(currTimestamp));
+          messagesList.insertAdjacentHTML('beforeend', `<div class="date-separator" aria-label="${label}"><span class="date-separator__label">${label}</span></div>`);
+        }
+      }
+
+      let messageHtml;
+
+      if (data.is_system) {
+        const attachmentsBlock = attachmentsHtml ? `<div class="system-message__attachments">${attachmentsHtml}</div>` : '';
+        messageHtml = `
+          <div class="system-message" data-message-id="${escapeAttribute(data.message_id)}" data-message-timestamp="${escapeAttribute(data.message_timestamp || '')}">
+            <span class="system-message__text">${messageContents}</span>
+            ${attachmentsBlock}
           </div>
-        </div>
-      `;
+        `;
+      } else {
+        const messageClass = isSender ? 'sent' : 'received';
+        const formattedRole = titleize(data.sender_role);
+        const senderName = isSender ? 'You' : escapeHtml(data.sender_name || formattedRole || 'Participant');
+        const broadcastAttr = isBroadcast ? 'true' : 'false';
+        const recipientAttr = recipientId || '';
+
+        // Determine grouping with the previous chat message.
+        // A system message between two chat messages always breaks the group.
+        const prevIsSystemMessage = prevAnyMessage && prevAnyMessage.classList.contains('system-message');
+        const prevChatMessages = messagesList.querySelectorAll('.chat-message');
+        const prevChatMessage = prevChatMessages.length > 0 ? prevChatMessages[prevChatMessages.length - 1] : null;
+        let isGrouped = false;
+
+        if (!prevIsSystemMessage && prevChatMessage) {
+          const prevTimestamp = parseInt(prevChatMessage.dataset.messageTimestamp || '0', 10);
+          const prevSenderId = prevChatMessage.dataset.senderId;
+          if (prevTimestamp && isSameDay(prevTimestamp, currTimestamp) &&
+              String(prevSenderId) === String(data.sender_id) && (currTimestamp - prevTimestamp) <= 300) {
+            isGrouped = true;
+            prevChatMessage.dataset.lastInGroup = 'false';
+          }
+        }
+
+        messageHtml = `
+          <div class="chat-message ${messageClass}" data-message-id="${escapeAttribute(data.message_id)}" data-sender-role="${escapeAttribute(formattedRole)}" data-sender-id="${escapeAttribute(data.sender_id)}" data-recipient-id="${escapeAttribute(recipientAttr)}" data-current-user-id="${escapeAttribute(currentUserId)}" data-broadcast="${broadcastAttr}" data-grouped="${isGrouped}" data-last-in-group="true" data-message-timestamp="${escapeAttribute(data.message_timestamp || '')}">
+            <div class="message-bubble">
+              <div class="message-meta">
+                <span class="message-author">${senderName}</span>
+                ${formattedRole ? `<span class="message-role">${escapeHtml(formattedRole)}</span>` : ''}
+              </div>
+              ${messageContents ? `<p class="message-content">${messageContents}</p>` : ''}
+              ${attachmentsHtml ? `<div class="message-attachments">${attachmentsHtml}</div>` : ''}
+              <small class="message-timestamp">${escapeHtml(data.message_date)}</small>
+            </div>
+          </div>
+        `;
+      }
 
       messagesList.insertAdjacentHTML('beforeend', messageHtml);
 

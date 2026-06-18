@@ -178,7 +178,8 @@ class DocumentsController < ApplicationController
         SenderID: @user[:UserID],
         Contents: message_body,
         MessageDate: Time.current,
-        recipientID: nil
+        recipientID: nil,
+        is_system: true
       )
 
 
@@ -211,11 +212,13 @@ class DocumentsController < ApplicationController
           contents: message.Contents,
           sender_id: message.SenderID,
           recipient_id: message.recipientID,
-          message_date: message.MessageDate.strftime("%B %d, %Y %I:%M %p"),
+          message_date: message.MessageDate.strftime("%-I:%M %p"),
+          message_timestamp: message.MessageDate.to_i,
           sender_role: @user[:Role],
           sender_name: sender_name,
           attachments: attachments_payload,
-          broadcast: true
+          broadcast: true,
+          is_system: true
         }
       )
 
@@ -443,7 +446,8 @@ class DocumentsController < ApplicationController
         ConversationID: conversation.ConversationID,
         SenderID: @user.UserID,
         Contents: message_content,
-        MessageDate: Time.current
+        MessageDate: Time.current,
+        is_system: true
       )
 
       # Broadcast signature update via Action Cable
@@ -471,7 +475,8 @@ class DocumentsController < ApplicationController
           ConversationID: conversation.ConversationID,
           SenderID: @user.UserID,
           Contents: "✓ Document fully executed: #{@file.FileName} - All parties have signed.",
-          MessageDate: Time.current
+          MessageDate: Time.current,
+          is_system: true
         )
       else
         flash[:success] = "Document signed successfully! Waiting for the other party to sign."

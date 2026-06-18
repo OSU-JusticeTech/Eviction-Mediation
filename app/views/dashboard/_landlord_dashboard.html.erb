@@ -1,48 +1,48 @@
 <!-- Quick Actions -->
 <div class="action-cards-grid">
-  <div class="action-card primary">
+  <%= link_to messages_path, class: "action-card" do %>
     <div class="card-icon">
       <i class="fas fa-envelope-open-text"></i>
     </div>
     <div class="card-content">
       <h3>Messages</h3>
       <p>Respond to tenant requests and manage negotiations</p>
-      <%= link_to "View Messages", messages_path, class: "card-btn messages-btn", style: "background: #3498db; color: white;", onmouseover: "this.style.background='#2980b9'", onmouseout: "this.style.background='#3498db'" %>
+      <span class="card-btn">View Messages</span>
     </div>
-  </div>
+  <% end %>
 
-  <div class="action-card">
+  <%= link_to documents_path, class: "action-card" do %>
     <div class="card-icon">
       <i class="fas fa-file-contract"></i>
     </div>
     <div class="card-content">
       <h3>Documents</h3>
       <p>Access agreements and important documentation</p>
-      <%= link_to "View Documents", documents_path, class: "card-btn" %>
+      <span class="card-btn">View Documents</span>
     </div>
-  </div>
+  <% end %>
 
-  <div class="action-card">
+  <%= link_to resources_path, class: "action-card" do %>
     <div class="card-icon">
       <i class="fas fa-book-open"></i>
     </div>
     <div class="card-content">
       <h3>Resources</h3>
       <p>Learn about mediation best practices and legal guidance</p>
-      <%= link_to "Explore Resources", resources_path, class: "card-btn" %>
+      <span class="card-btn">Explore Resources</span>
     </div>
-  </div>
+  <% end %>
 
-  <div class="action-card">
+  <%= link_to account_path, class: "action-card" do %>
     <div class="card-icon">
       <i class="fas fa-user-tie"></i>
     </div>
     <div class="card-content">
       <h3>Account</h3>
       <p>Update your profile and company information</p>
-      <%= link_to "Manage Account", account_path, class: "card-btn" %>
+      <span class="card-btn">Manage Account</span>
     </div>
-  </div>
+  <% end %>
 </div>
 
 <!-- Property Management Guide -->
