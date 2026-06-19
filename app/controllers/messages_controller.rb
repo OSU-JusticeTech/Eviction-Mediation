@@ -3,36 +3,20 @@ class MessagesController < ApplicationController
   before_action :set_user
 
   def index
+    # Load every mediation for the current user as a single sorted list (active
+    # first, pending in the middle, past at the bottom), then group it. The view
+    # renders this list grouped by default and the filter UI flattens/paginates
+    # it client-side, so we deliberately avoid one-query-per-status.
     case @user.Role
     when "Tenant"
-      @mediation = PrimaryMessageGroup
-                     .includes(:landlord)
-                     .find_by(TenantID: @user.UserID, deleted_at: nil)
-
-      @past_mediations = PrimaryMessageGroup
-                           .includes(:landlord)
-                           .where(TenantID: @user.UserID)
-                           .where.not(deleted_at: nil)
-                           .order(deleted_at: :desc)
-
-      @show_mediation_view = @mediation.present?
+      load_user_mediations(:TenantID, includes: :landlord)
 
       respond_to do |format|
         format.html { render "messages/tenant_index" }
       end
 
     when "Landlord"
-      @mediation = PrimaryMessageGroup
-                     .includes(:tenant)
-                     .where(LandlordID: @user.UserID, deleted_at: nil)
-
-      @past_mediations = PrimaryMessageGroup
-                           .includes(:tenant)
-                           .where(LandlordID: @user.UserID)
-                           .where.not(deleted_at: nil)
-                           .order(deleted_at: :desc)
-
-      @show_mediation_view = @mediation.any?
+      load_user_mediations(:LandlordID, includes: :tenant)
 
       respond_to do |format|
         format.html { render "messages/landlord_index" }
@@ -364,43 +348,40 @@ class MessagesController < ApplicationController
     render "messages/summary"
   end
 
-  def past_mediations
-    # Only allow tenants to access this page
-    if @user.Role != "Tenant"
-      redirect_to messages_path, alert: "Access Denied"
-      return
-    end
-
-    @past_mediations = PrimaryMessageGroup
-                         .includes(:landlord)
-                         .where(TenantID: @user.UserID)
-                         .where.not(deleted_at: nil)
-                         .order(deleted_at: :desc)
-
-    respond_to do |format|
-      format.html { render "messages/past_mediations" }
-    end
-  end
-
-  def landlord_past_mediations
-    # Only allow landlords to access this page
-    if @user.Role != "Landlord"
-      redirect_to messages_path, alert: "Access Denied"
-      return
-    end
-
-    @past_mediations = PrimaryMessageGroup
-                         .includes(:tenant)
-                         .where(LandlordID: @user.UserID)
-                         .where.not(deleted_at: nil)
-                         .order(deleted_at: :desc)
-
-    respond_to do |format|
-      format.html { render "messages/landlord_past_mediations" }
-    end
-  end
-
   private
+
+  # Loads, sorts, and groups every mediation belonging to the current user on
+  # the given foreign key (TenantID or LandlordID), populating the instance
+  # variables the shared board view expects.
+  def load_user_mediations(foreign_key, includes:)
+    @mediations = PrimaryMessageGroup
+                    .includes(includes)
+                    .where(foreign_key => @user.UserID)
+                    .to_a
+                    .sort_by { |m| mediation_sort_key(m) }
+
+    @grouped_mediations = @mediations.group_by(&:status_category)
+    @has_past_mediations = @grouped_mediations[:past].present?
+    @show_mediation_view = @mediations.any?
+  end
+
+  # Sort key for the single mediation list. Orders by coarse status
+  # (active -> pending -> past), then by pending sub-stage so the earliest
+  # outstanding requests surface first, then most-recent-activity first.
+  CATEGORY_ORDER = { active: 0, pending: 1, past: 2 }.freeze
+  PENDING_STAGE_ORDER = {
+    awaiting_landlord_acceptance: 0,
+    awaiting_tenant_acceptance: 1,
+    awaiting_tenant_intake: 2
+  }.freeze
+
+  def mediation_sort_key(mediation)
+    [
+      CATEGORY_ORDER.fetch(mediation.status_category, 99),
+      PENDING_STAGE_ORDER[mediation.pending_stage] || 0,
+      -mediation.last_activity_at.to_i
+    ]
+  end
 
   def determine_recipient(primary_group)
     return nil unless primary_group

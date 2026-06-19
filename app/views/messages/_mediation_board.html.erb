@@ -1,0 +1,83 @@
+<%#
+  Shared mediation board for tenants and landlords.
+  Locals:
+    grouped_mediations - Hash of status_category => [PrimaryMessageGroup]
+    has_past           - whether a Past filter chip should be offered
+    role               - "Tenant" or "Landlord" (drives card wording/actions)
+
+  Headers and cards are rendered as flat siblings (not nested sections) so the
+  Stimulus controller can window an arbitrary slice of them for pagination.
+%>
+<div class="mediation-board" data-controller="mediation-filter" data-mediation-filter-per-page-value="10">
+  <div class="mediation-filter-bar">
+    <div class="filter-chips" role="group" aria-label="Filter negotiations by status">
+      <button type="button" class="filter-chip is-active" data-status="all"
+              data-mediation-filter-target="chip"
+              data-action="mediation-filter#filterByStatus">All</button>
+      <button type="button" class="filter-chip" data-status="active"
+              data-mediation-filter-target="chip"
+              data-action="mediation-filter#filterByStatus">Active</button>
+      <button type="button" class="filter-chip" data-status="pending"
+              data-mediation-filter-target="chip"
+              data-action="mediation-filter#filterByStatus">Pending</button>
+      <% if has_past %>
+        <button type="button" class="filter-chip" data-status="past"
+                data-mediation-filter-target="chip"
+                data-action="mediation-filter#filterByStatus">Past</button>
+      <% end %>
+    </div>
+
+    <div class="filter-controls">
+      <div class="filter-search">
+        <i class="fas fa-search" aria-hidden="true"></i>
+        <%= search_field_tag :mediation_search, nil,
+              placeholder: "Search by name, email, or address",
+              autocomplete: "off",
+              "aria-label": "Search negotiations",
+              data: { "mediation-filter-target": "search", action: "input->mediation-filter#filterBySearch" } %>
+      </div>
+
+      <div class="filter-dates">
+        <label class="filter-date">
+          <span>From</span>
+          <%= date_field_tag :mediation_date_from, nil,
+                "aria-label": "Filter from date",
+                data: { "mediation-filter-target": "dateFrom", action: "change->mediation-filter#filterByDate" } %>
+        </label>
+        <label class="filter-date">
+          <span>To</span>
+          <%= date_field_tag :mediation_date_to, nil,
+                "aria-label": "Filter to date",
+                data: { "mediation-filter-target": "dateTo", action: "change->mediation-filter#filterByDate" } %>
+        </label>
+      </div>
+
+      <button type="button" class="filter-clear" hidden
+              data-mediation-filter-target="clear"
+              data-action="mediation-filter#clearFilters">Clear filters</button>
+    </div>
+  </div>
+
+  <div class="mediation-groups" data-mediation-filter-target="groups">
+    <% MessagesHelper::GROUP_TITLES.each do |category, title| %>
+      <% items = grouped_mediations[category] %>
+      <% next if items.blank? %>
+      <h2 class="mediation-group__title" data-mediation-filter-target="header" data-group="<%= category %>"><%= title %></h2>
+      <% items.each do |mediation| %>
+        <%= render "messages/mediation_card", mediation: mediation, role: role %>
+      <% end %>
+    <% end %>
+  </div>
+
+  <p class="mediation-empty" data-mediation-filter-target="empty" hidden>
+    No negotiations match your filter.
+  </p>
+
+  <div class="mediation-pagination" data-mediation-filter-target="pagination" hidden>
+    <button type="button" class="pagination-link" data-mediation-filter-target="prev"
+            data-action="mediation-filter#prevPage">Previous</button>
+    <span class="page-info" data-mediation-filter-target="pageInfo"></span>
+    <button type="button" class="pagination-link" data-mediation-filter-target="next"
+            data-action="mediation-filter#nextPage">Next</button>
+  </div>
+</div>

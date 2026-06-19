@@ -27,9 +27,9 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", "Tenant Negotiation & Messages"
   end
 
-  test "tenant without mediation should see landlords list" do
-    @mediation.update!(deleted_at: Time.current)
-    log_in_as(@tenant)
+  test "tenant with no mediations sees the empty state" do
+    tenant_without_mediations = users(:tenant3)
+    log_in_as(tenant_without_mediations)
     get messages_path
     assert_response :success
     assert_select "p.mediation-status", text: /No negotiations exist/i
@@ -140,24 +140,6 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "past mediations denies non tenant" do
-    log_in_as(@landlord)
-
-    get past_mediations_path
-
-    assert_redirected_to messages_path
-    assert_equal "Access Denied", flash[:alert]
-  end
-
-  test "landlord past mediations denies non landlord" do
-    log_in_as(@tenant)
-
-    get landlord_past_mediations_path
-
-    assert_redirected_to messages_path
-    assert_equal "Access Denied", flash[:alert]
-  end
-
   test "show renders conversation for tenant participant" do
     log_in_as(@tenant)
 
@@ -224,22 +206,62 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
-  test "past mediations renders for tenant" do
-    @mediation.update!(deleted_at: Time.current)
-    log_in_as(@tenant)
-
-    get past_mediations_path
-
-    assert_response :success
-  end
-
-  test "landlord past mediations renders for landlord" do
+  test "landlord index shows ended mediation in the past group" do
     @mediation.update!(deleted_at: Time.current)
     log_in_as(@landlord)
 
-    get landlord_past_mediations_path
+    get messages_path
 
     assert_response :success
+    assert_select ".status-badge--past"
+  end
+
+  test "landlord index shows accept controls for a request awaiting the landlord" do
+    @mediation.update!(accepted_by_landlord: false, accepted_by_tenant: false, deleted_at: nil)
+    log_in_as(@landlord)
+
+    get messages_path
+
+    assert_response :success
+    assert_select ".status-badge--pending"
+    assert_select "form[action=?]", accept_mediation_path(@mediation)
+  end
+
+  test "landlord index renders an active mediation card with a view link" do
+    activate_mediation(@mediation)
+    log_in_as(@landlord)
+
+    get messages_path
+
+    assert_response :success
+    assert_select ".status-badge--active"
+    assert_select "a", text: "View Negotiation"
+  end
+
+  test "tenant index renders an active mediation card with an access link" do
+    activate_mediation(@mediation)
+    log_in_as(@tenant)
+
+    get messages_path
+
+    assert_response :success
+    assert_select ".status-badge--active"
+    assert_select "a", text: "Access Negotiation"
+  end
+
+  private
+
+  def activate_mediation(mediation)
+    intake = IntakeQuestion.create!(
+      UserID: mediation.TenantID,
+      Reason: "Failure to Pay Rent",
+      BestOption: "Pay Missed Rent",
+      Section8: false,
+      MoneyOwed: 100,
+      TotalCostOrMonthly: true,
+      PayableToday: 50
+    )
+    mediation.update!(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: intake.IntakeID, deleted_at: nil)
   end
 
   test "show renders read-only chat for admin without composer or actions" do

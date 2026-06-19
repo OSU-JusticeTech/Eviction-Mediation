@@ -47,8 +47,6 @@ Rails.application.routes.draw do
 
   get "messages/tenant_index", to: "messages#tenant_index", as: "tenant_index"
   get "messages/landlord_index", to: "messages#landlord_index", as: "landlord_index"
-  get "messages/past_mediations", to: "messages#past_mediations", as: "past_mediations"
-  get "messages/landlord_past_mediations", to: "messages#landlord_past_mediations", as: "landlord_past_mediations"
 
   get "documents/download/:id", to: "documents#download_or_view", as: "download_file"
   get "documents/:id/view", to: "documents#show", as: "view_file"

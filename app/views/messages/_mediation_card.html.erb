@@ -1,0 +1,30 @@
+<%# locals: mediation, role %>
+<% party = mediation_counterparty(mediation, role) %>
+<article class="mediation-card-item mediation-card-item--<%= mediation.status_category %>"
+         data-mediation-filter-target="card"
+         data-group="<%= mediation.status_category %>"
+         data-status="<%= mediation.status_category %>"
+         data-date="<%= mediation.last_activity_at&.strftime("%Y-%m-%d") %>"
+         data-search="<%= mediation_search_terms(mediation, role) %>">
+  <div class="mediation-card-item__main">
+    <div class="mediation-card-item__header">
+      <h3 class="mediation-card-item__name"><%= mediation_counterparty_name(mediation, role) %></h3>
+      <span class="status-badge status-badge--<%= mediation.status_category %>">
+        <%= mediation_status_label(mediation) %>
+      </span>
+    </div>
+
+    <ul class="mediation-card-item__meta">
+      <% if role == "Landlord" && party.formatted_tenant_address.present? %>
+        <li><i class="fas fa-location-dot" aria-hidden="true"></i> <%= party.formatted_tenant_address %></li>
+      <% end %>
+      <li><i class="fas fa-envelope" aria-hidden="true"></i> <%= party.Email %></li>
+    </ul>
+
+    <p class="mediation-card-item__substatus"><%= mediation_substatus(mediation, role) %></p>
+  </div>
+
+  <div class="mediation-card-item__actions">
+    <%= render "messages/#{role.downcase}_card_actions", mediation: mediation %>
+  </div>
+</article>

@@ -14,5 +14,51 @@ class PrimaryMessageGroupTest < ActiveSupport::TestCase
     assert_includes pmg.errors.attribute_names.map(&:to_s), "LandlordID"
   end
 
-  
+  # --- Status classification ---------------------------------------
+
+  test "pending and awaiting landlord acceptance when nothing accepted" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: false, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+
+    assert_equal :pending, pmg.status_category
+    assert_equal :awaiting_landlord_acceptance, pmg.pending_stage
+    assert pmg.pending?
+    assert_not pmg.active?
+    assert_not pmg.past?
+  end
+
+  test "awaiting tenant acceptance when only the landlord has accepted" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+
+    assert_equal :pending, pmg.status_category
+    assert_equal :awaiting_tenant_acceptance, pmg.pending_stage
+  end
+
+  test "awaiting tenant intake when both accepted but no intake on file" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, deleted_at: nil)
+
+    assert_equal :pending, pmg.status_category
+    assert_equal :awaiting_tenant_intake, pmg.pending_stage
+  end
+
+  test "active once both parties accepted and intake is complete" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: nil)
+
+    assert_equal :active, pmg.status_category
+    assert pmg.active?
+    assert_nil pmg.pending_stage
+  end
+
+  test "past once ended regardless of other flags" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: Time.current)
+
+    assert_equal :past, pmg.status_category
+    assert pmg.past?
+    assert_not pmg.active?
+    assert_nil pmg.pending_stage
+  end
 end

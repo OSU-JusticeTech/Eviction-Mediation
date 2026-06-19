@@ -1,0 +1,26 @@
+<%# locals: mediation %>
+<% case mediation.status_category %>
+<% when :active %>
+  <%= link_to "Access Negotiation", message_path(mediation.ConversationID), class: "card-btn card-btn--primary" %>
+
+<% when :pending %>
+  <% case mediation.pending_stage %>
+  <% when :awaiting_tenant_acceptance %>
+    <%= button_to "Accept", accept_mediation_path(mediation), method: :post, class: "card-btn card-btn--primary" %>
+    <%= button_to "Reject", reject_mediation_path(mediation), method: :post,
+          class: "card-btn card-btn--ghost",
+          form: { data: { turbo_confirm: "Reject this negotiation request?" } } %>
+  <% when :awaiting_tenant_intake %>
+    <%= link_to "Complete Intake Questions", new_intake_question_path, class: "card-btn card-btn--primary" %>
+  <% else %>
+    <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on landlord</span>
+  <% end %>
+
+<% when :past %>
+  <%= link_to "View Summary", mediation_summary_path(mediation.ConversationID), class: "card-btn card-btn--secondary" %>
+  <% if needs_good_faith_response?(mediation, @user) %>
+    <%= link_to "Complete Feedback", mediation_survey_path(mediation.ConversationID), class: "card-btn card-btn--feedback" %>
+  <% else %>
+    <span class="card-status-note"><i class="fas fa-check" aria-hidden="true"></i> Feedback submitted</span>
+  <% end %>
+<% end %>

@@ -32,7 +32,7 @@ class MediationsDecisionTest < ApplicationSystemTestCase
     visit messages_path
     dismiss_terms_modal_if_present
 
-    click_button "Accept Negotiation"
+    click_button "Accept"
 
     assert_current_path messages_path
     assert_text "Negotiation accepted. You can now view and respond to the negotiation."
@@ -47,7 +47,9 @@ class MediationsDecisionTest < ApplicationSystemTestCase
     visit messages_path
     dismiss_terms_modal_if_present
 
-    click_button "Reject Request"
+    accept_confirm do
+      click_button "Reject"
+    end
 
     assert_current_path messages_path
     assert_text "Negotiation request rejected."

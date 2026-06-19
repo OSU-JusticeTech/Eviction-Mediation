@@ -1,53 +1,21 @@
 <div style="min-height: 100vh; padding-bottom: 80px;">
-  <div class = "mediation-container">
+  <div class="mediation-container">
     <h1>Landlord Negotiation & Messages</h1>
     <p>Welcome, <%= @user.FName %>! This is the landlord Negotiations page.</p>
 
-    <div style="display: flex; gap: 15px; justify-content: center; margin: 20px 0;">
-      <%= link_to "Request New Negotiation", new_mediation_path, class: "mediation-btn" %>
-      <% if @past_mediations.any? %>
-        <%= link_to "View Past Negotiations", landlord_past_mediations_path, class: "mediation-btn", style: "background-color: #6c757d;" %>
+    <div class="mediation-toolbar">
+      <%= link_to new_mediation_path, class: "mediation-btn" do %>
+        <i class="fas fa-plus" aria-hidden="true"></i> Request New Negotiation
       <% end %>
     </div>
 
     <% if @show_mediation_view %>
-        <h2>Mediations in Progress:</h2>
-        <table class="mediation-table">
-            <thead>
-                <tr>
-                    <th style="width: 35%;">Tenant</th>
-                    <th style="width: 35%;">Address</th>
-                    <th style="width: 30%;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <% @mediation.each do |mediation| %>
-                    <tr>
-                        <td data-label="Tenant"><%= mediation.tenant.FName %> <%= mediation.tenant.LName %></td>
-                        <td data-label="Address"> <%= mediation.tenant.formatted_tenant_address %> </td>
-                        <td data-label="Actions">
-                            <% if mediation.accepted_by_landlord && mediation.accepted_by_tenant %>
-                                  <% if mediation.IntakeID.present? %>
-                                      <%= link_to "View Negotiation", message_path(mediation.ConversationID), class: "view-link" %>
-                                  <% else %>
-                                      Waiting on Tenant to complete intake questions!
-                                  <% end %>
-                            <% elsif !mediation.accepted_by_landlord %>
-                                  <div style="display: flex; gap: 10px; justify-content: center;">
-                                    <%= button_to "Accept", accept_mediation_path(mediation), method: :post, class: "accept-btn" %>
-                                    <%= button_to "Reject", reject_mediation_path(mediation), method: :post, class: "accept-btn", style: "color: #dc3545; background: transparent; border: none;" %>
-                                  </div>
-                            <% elsif !mediation.accepted_by_tenant %>
-                                  Waiting for tenant to accept.
-                            <% end %>
-                        </td>
-                    </tr>
-                <% end %>
-            </tbody>
-        </table>
+      <%= render "messages/mediation_board",
+            grouped_mediations: @grouped_mediations,
+            has_past: @has_past_mediations,
+            role: "Landlord" %>
     <% else %>
-        <p class="mediation-status">No negotiations currently exist. Click "Request New Negotiation" above to get started.</p>
+      <p class="mediation-status">No negotiations currently exist. Click "Request New Negotiation" above to get started.</p>
     <% end %>
-
   </div>
 </div>
