@@ -12,7 +12,7 @@ export default class extends Controller {
   static targets = [
     "card", "groups", "empty", "header",
     "search", "chip", "dateFrom", "dateTo", "clear",
-    "pagination", "prev", "next", "pageInfo"
+    "pagination", "prev", "next", "pages"
   ]
 
   static values = { perPage: { type: Number, default: 10 } }
@@ -63,12 +63,23 @@ export default class extends Controller {
     if (this.page > 1) {
       this.page -= 1
       this.apply()
+      this.#scrollToTop()
     }
   }
 
   nextPage() {
     this.page += 1 // clamped to the last page inside apply()
     this.apply()
+    this.#scrollToTop()
+  }
+
+  goToPage(event) {
+    const target = Number(event.currentTarget.dataset.page)
+    if (!Number.isNaN(target)) {
+      this.page = target
+      this.apply()
+      this.#scrollToTop()
+    }
   }
 
   // A filter is active whenever the view should switch from grouped to flat.
@@ -118,12 +129,61 @@ export default class extends Controller {
     if (!this.hasPaginationTarget) return
 
     this.paginationTarget.hidden = total <= perPage
-    if (this.hasPageInfoTarget) this.pageInfoTarget.textContent = `Page ${this.page} of ${totalPages}`
     if (this.hasPrevTarget) this.prevTarget.disabled = this.page <= 1
     if (this.hasNextTarget) this.nextTarget.disabled = this.page >= totalPages
+
+    if (this.hasPagesTarget) {
+      this.pagesTarget.replaceChildren(...this.#pageWindow(this.page, totalPages).map((item) => this.#pageElement(item)))
+    }
+  }
+
+  // Build a compact, never-overflowing list of page tokens: always the first
+  // and last page, the current page and its immediate neighbours, and "…" to
+  // bridge any gaps. e.g. page 5 of 50 -> [1, "…", 4, 5, 6, "…", 50].
+  #pageWindow(current, total) {
+    const window = []
+    const left = Math.max(2, current - 1)
+    const right = Math.min(total - 1, current + 1)
+
+    window.push(1)
+    if (left > 2) window.push("ellipsis")
+    for (let page = left; page <= right; page += 1) window.push(page)
+    if (right < total - 1) window.push("ellipsis")
+    if (total > 1) window.push(total)
+
+    return window
+  }
+
+  #pageElement(item) {
+    if (item === "ellipsis") {
+      const span = document.createElement("span")
+      span.className = "pagination-ellipsis"
+      span.textContent = "…"
+      span.setAttribute("aria-hidden", "true")
+      return span
+    }
+
+    const button = document.createElement("button")
+    button.type = "button"
+    button.className = "pagination-page"
+    button.textContent = String(item)
+    button.dataset.page = String(item)
+    button.dataset.action = "mediation-filter#goToPage"
+    button.setAttribute("aria-label", `Go to page ${item}`)
+    if (item === this.page) {
+      button.classList.add("is-active")
+      button.setAttribute("aria-current", "page")
+    }
+    return button
   }
 
   #highlightChip(active) {
     this.chipTargets.forEach((chip) => chip.classList.toggle("is-active", chip === active))
+  }
+
+  // After a page change, bring the top of the board back into view so the new
+  // results start at the top instead of leaving the user at the pagination row.
+  #scrollToTop() {
+    this.element.scrollIntoView({ behavior: "smooth", block: "start" })
   }
 }

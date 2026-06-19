@@ -845,9 +845,10 @@
 /* --- Board pagination --- */
 .mediation-pagination {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    gap: 16px;
+    gap: 10px;
     margin-top: 24px;
 }
 
@@ -865,4 +866,45 @@
 
 .mediation-pagination .pagination-link:disabled:hover {
     background-color: #102a4d;
+}
+
+/* Numbered page buttons (windowed with "…") */
+.pagination-pages {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.pagination-page {
+    min-width: 38px;
+    padding: 8px 10px;
+    border: 1px solid #c7d2e0;
+    background: #fff;
+    color: #102a4d;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.pagination-page:hover {
+    background: #eef3fa;
+}
+
+.pagination-page.is-active {
+    background: #102a4d;
+    border-color: #102a4d;
+    color: #fff;
+    cursor: default;
+}
+
+.pagination-ellipsis {
+    padding: 0 2px;
+    color: #8a98aa;
+    font-weight: 700;
+    user-select: none;
 }

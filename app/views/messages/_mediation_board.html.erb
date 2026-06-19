@@ -73,11 +73,11 @@
     No negotiations match your filter.
   </p>
 
-  <div class="mediation-pagination" data-mediation-filter-target="pagination" hidden>
+  <nav class="mediation-pagination" data-mediation-filter-target="pagination" aria-label="Negotiations pagination" hidden>
     <button type="button" class="pagination-link" data-mediation-filter-target="prev"
             data-action="mediation-filter#prevPage">Previous</button>
-    <span class="page-info" data-mediation-filter-target="pageInfo"></span>
+    <div class="pagination-pages" data-mediation-filter-target="pages" role="group" aria-label="Page"></div>
     <button type="button" class="pagination-link" data-mediation-filter-target="next"
             data-action="mediation-filter#nextPage">Next</button>
-  </div>
+  </nav>
 </div>

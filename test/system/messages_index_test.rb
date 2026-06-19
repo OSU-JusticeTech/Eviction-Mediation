@@ -57,9 +57,19 @@ class MessagesIndexTest < ApplicationSystemTestCase
     assert_selector ".mediation-card-item", count: 10
     assert_no_selector ".status-badge--pending"
 
-    # The second page holds the two remaining past mediations.
-    click_button "Next"
+    # Numbered page buttons are rendered; jumping to page 2 shows the
+    # remaining two past mediations.
+    assert_selector ".pagination-page", text: "2"
+    within ".pagination-pages" do
+      click_button "2"
+    end
     assert_selector ".mediation-card-item", count: 2
+    assert_selector ".pagination-page.is-active", text: "2"
+
+    # Previous returns to the full first page.
+    click_button "Previous"
+    assert_selector ".mediation-card-item", count: 10
+    assert_selector ".pagination-page.is-active", text: "1"
   end
 
   private
