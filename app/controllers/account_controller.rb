@@ -1,6 +1,7 @@
 class AccountController < ApplicationController
   before_action :require_login
   before_action :set_user
+  before_action :set_mediator_case_count
 
   def show
   end
@@ -204,5 +205,13 @@ class AccountController < ApplicationController
 
   def set_user
     @user = User.find(session[:user_id])
+  end
+
+  def set_mediator_case_count
+    return unless @user&.Role == "Mediator"
+
+    @active_case_count = PrimaryMessageGroup
+      .where(MediatorID: @user.UserID, MediatorAssigned: true, deleted_at: nil)
+      .count
   end
 end

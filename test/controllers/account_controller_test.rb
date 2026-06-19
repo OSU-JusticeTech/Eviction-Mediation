@@ -170,6 +170,22 @@ class AccountControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, @mediator_user.mediator.reload[:Available]
   end
 
+  test "mediator account page shows current active case count" do
+    log_in_as(@mediator_user)
+
+    expected_count = PrimaryMessageGroup.where(
+      MediatorID: @mediator_user.UserID,
+      MediatorAssigned: true,
+      deleted_at: nil
+    ).count
+
+    get "/account"
+
+    assert_response :success
+    normalized_body = response.body.gsub(/\s+/, " ")
+    assert_match(/#{expected_count} active case/, normalized_body)
+  end
+
   test "password update succeeds with confirmation" do
     log_in_as(@tenant)
 
