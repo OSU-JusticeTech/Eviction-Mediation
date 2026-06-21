@@ -78,9 +78,9 @@
 }
 
 .landlord-badge {
-    background: rgba(231, 76, 60, 0.2);
-    border: 2px solid rgba(231, 76, 60, 0.5);
-    color: #e74c3c;
+    background: rgba(153, 107, 61, 0.2);
+    border: 2px solid rgba(153, 107, 61, 0.5);
+    color: #c2975c;
 }
 
 .admin-badge {
@@ -337,7 +337,7 @@ input[type="submit"].card-btn:disabled {
 }
 
 .landlord-highlight {
-    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    background: #996b3d;
 }
 
 .highlight-content {
