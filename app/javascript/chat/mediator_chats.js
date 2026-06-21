@@ -195,24 +195,15 @@ const initializeMediatorChat = () => {
   setupTextareaAutoExpand();
   setupMediatorForms();
 
-  // Show disclaimer modal with slight delay (tenants always, landlords once)
+  // Show disclaimer modal once per user (slight delay)
   const disclaimerModal = document.querySelector('[data-disclaimer-modal]');
   if (disclaimerModal) {
     const userRole = disclaimerModal.dataset.userRole;
     const disclaimerKey = `chatDisclaimerSeen_${userRole}`;
 
-    let shouldShowModal = true;
+    const hasSeenDisclaimer = localStorage.getItem(disclaimerKey);
 
-    // For landlords, check if they've seen it before
-    if (userRole === 'Landlord') {
-      const hasSeenDisclaimer = localStorage.getItem(disclaimerKey);
-      if (hasSeenDisclaimer) {
-        shouldShowModal = false; // Don't show modal again for landlords
-      }
-    }
-    // Tenants always see it (shouldShowModal stays true)
-
-    if (shouldShowModal) {
+    if (!hasSeenDisclaimer) {
       setTimeout(() => {
         disclaimerModal.hidden = false;
         requestAnimationFrame(() => {
@@ -233,12 +224,10 @@ const initializeMediatorChat = () => {
         modal.classList.remove('is-open');
         modal.hidden = true;
 
-        // Mark as seen for landlords
+        // Mark as seen so it doesn't show again for this user
         const userRole = modal.dataset.userRole;
-        if (userRole === 'Landlord') {
-          const disclaimerKey = `chatDisclaimerSeen_${userRole}`;
-          localStorage.setItem(disclaimerKey, 'true');
-        }
+        const disclaimerKey = `chatDisclaimerSeen_${userRole}`;
+        localStorage.setItem(disclaimerKey, 'true');
       }
     });
   });
@@ -251,10 +240,8 @@ const initializeMediatorChat = () => {
         disclaimerModal.hidden = true;
 
         const userRole = disclaimerModal.dataset.userRole;
-        if (userRole === 'Landlord') {
-          const disclaimerKey = `chatDisclaimerSeen_${userRole}`;
-          localStorage.setItem(disclaimerKey, 'true');
-        }
+        const disclaimerKey = `chatDisclaimerSeen_${userRole}`;
+        localStorage.setItem(disclaimerKey, 'true');
       }
     });
   }
