@@ -69,7 +69,8 @@
         <% end %>
       </div>
       <% if message.Contents.present? %>
-        <p class="message-content"><%= simple_format(message.Contents, {}, sanitize: true, wrapper_tag: "span") %></p>
+        <%# Auto-escaped raw text; whitespace/newlines preserved via white-space: pre-wrap (matches the live ActionCable render) %>
+        <p class="message-content"><%= message.Contents %></p>
       <% end %>
 
       <% if attachments.any? %>

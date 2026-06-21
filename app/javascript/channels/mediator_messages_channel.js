@@ -33,8 +33,9 @@ const titleize = (value) => {
 
 const formatMessageContents = (contents) => {
   if (!contents) return "";
-  const sanitized = escapeHtml(contents);
-  return sanitized.replace(/(\r\n|\n|\r)/g, "<br>");
+  // Escape only; whitespace and line breaks are preserved by CSS white-space: pre-wrap
+  // on .message-content, so this matches the server-rendered output exactly.
+  return escapeHtml(contents);
 };
 
 const buildAttachmentHtml = (attachment) => {

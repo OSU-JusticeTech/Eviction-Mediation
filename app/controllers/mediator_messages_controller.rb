@@ -10,7 +10,7 @@ class MediatorMessagesController < ApplicationController
         ConversationID: @message_string.ConversationID,
         Contents: params[:Contents]
       )
-      .where("MessageDate >= ?", 2.seconds.ago)
+      .where("MessageDate >= ?", 0.6.seconds.ago)
       .exists?
 
     if duplicate_exists
