@@ -10,11 +10,22 @@
 
       <div class="form-section">
         <%= f.label :Reason, "What is the reason for the dispute?", class: "required-label" %>
+        <p>Select all that apply.</p>
 
-        <div class="custom-select-wrapper">
-          <%= f.select :Reason, IntakeQuestion::REASONS, { prompt: "Select a reason" }, { class: "form-control", required: true } %>
-
+        <div class="custom-select-wrapper reason-multiselect" id="reason-checkboxes" data-placeholder="Select reason(s)">
+          <button type="button" class="form-control reason-multiselect__toggle" aria-haspopup="listbox" aria-expanded="false">
+            <span class="reason-multiselect__label">Select reason(s)</span>
+          </button>
           <i class="arrow down"></i>
+
+          <div class="reason-multiselect__panel" role="listbox">
+            <% IntakeQuestion::REASONS.each do |reason| %>
+              <label class="reason-checkbox-option">
+                <%= check_box_tag "intake_question[Reason][]", reason, @intake_question.reasons.include?(reason), id: "reason_#{reason.parameterize.underscore}" %>
+                <span><%= reason %></span>
+              </label>
+            <% end %>
+          </div>
         </div>
       </div>
 
@@ -124,6 +135,47 @@
     if (totalCostYes) totalCostYes.addEventListener('change', toggleMonthlyRent);
     if (totalCostNo) totalCostNo.addEventListener('change', toggleMonthlyRent);
 
+    // Multi-select "reason for dispute" dropdown
+    const reasonSelect = document.getElementById('reason-checkboxes');
+    if (reasonSelect) {
+      const reasonToggle = reasonSelect.querySelector('.reason-multiselect__toggle');
+      const reasonLabel = reasonSelect.querySelector('.reason-multiselect__label');
+      const reasonPlaceholder = reasonSelect.dataset.placeholder || 'Select...';
+
+      // Update the toggle text to reflect the current selection
+      function updateReasonLabel() {
+        const checked = [...reasonSelect.querySelectorAll('input[type="checkbox"]:checked')];
+        if (checked.length === 0) {
+          reasonLabel.textContent = reasonPlaceholder;
+          reasonSelect.classList.add('is-empty');
+        } else {
+          reasonLabel.textContent = checked.map(cb => cb.nextElementSibling.textContent).join(', ');
+          reasonSelect.classList.remove('is-empty');
+        }
+      }
+
+      // Open/close the dropdown
+      reasonToggle.addEventListener('click', function() {
+        const isOpen = reasonSelect.classList.toggle('open');
+        reasonToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+
+      // Keep label in sync as options are checked/unchecked
+      reasonSelect.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', updateReasonLabel);
+      });
+
+      // Close when clicking outside the dropdown
+      document.addEventListener('click', function(e) {
+        if (!reasonSelect.contains(e.target)) {
+          reasonSelect.classList.remove('open');
+          reasonToggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+
+      updateReasonLabel();
+    }
+
     // Form validation with visual feedback
     if (form) {
       form.addEventListener('submit', function(e) {
@@ -161,6 +213,21 @@
           }
         }
       });
+
+      // Require at least one "reason for the dispute" to be selected
+      const reasonGroup = document.getElementById('reason-checkboxes');
+      if (reasonGroup) {
+        const anyReasonChecked = reasonGroup.querySelectorAll('input[type="checkbox"]:checked').length > 0;
+        if (!anyReasonChecked) {
+          isValid = false;
+          const section = reasonGroup.closest('.form-section');
+          if (section) {
+            section.style.border = '2px solid #d32f2f';
+            section.style.background = '#fff3f3';
+            if (!firstInvalidField) firstInvalidField = section;
+          }
+        }
+      }
 
       if (!isValid) {
         e.preventDefault();

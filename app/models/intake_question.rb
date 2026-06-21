@@ -18,9 +18,20 @@ class IntakeQuestion < ApplicationRecord
       "Unknown"
     ]
 
-    validates :Reason, inclusion: {
-      in: REASONS
-    }
+    # Multiple reasons are stored as a comma-separated string in the Reason column.
+    REASON_SEPARATOR = ", "
+
+    validate :reasons_must_be_valid
+
+    # Returns the selected reasons as an array.
+    def reasons
+      self[:Reason].to_s.split(",").map(&:strip).reject(&:blank?)
+    end
+
+    # Accepts an array (or single value) of reasons and stores them joined.
+    def reasons=(values)
+      self[:Reason] = Array(values).map { |v| v.to_s.strip }.reject(&:blank?).join(REASON_SEPARATOR)
+    end
 
     validates :BestOption, inclusion: {
       in: [ "Pay Missed Rent", "Move Out" ]
@@ -44,4 +55,15 @@ class IntakeQuestion < ApplicationRecord
           absence: true,
           unless: -> { self[:TotalCostOrMonthly] == false }
     has_one :primary_message_group, foreign_key: "IntakeID"
+
+    private
+
+    def reasons_must_be_valid
+      selected = reasons
+      if selected.empty?
+        errors.add(:Reason, "must include at least one reason for the dispute")
+      elsif (selected - REASONS).any?
+        errors.add(:Reason, "contains an invalid selection")
+      end
+    end
 end

@@ -155,6 +155,87 @@
     color: #234b5f;
 }
 
+/* Multi-select "reason for dispute" dropdown */
+.reason-multiselect {
+    position: relative;
+    margin-top: 8px;
+}
+
+/* Toggle button is styled like a normal select control */
+.reason-multiselect__toggle {
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    padding-right: 44px; /* room for the arrow */
+    display: flex;
+    align-items: center;
+}
+
+.reason-multiselect__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Placeholder colour when nothing is selected yet */
+.reason-multiselect.is-empty .reason-multiselect__label {
+    color: #6b7785;
+}
+
+/* Rotate the chevron when the dropdown is open */
+.reason-multiselect.open .arrow.down {
+    transform: translateY(-25%) rotate(-135deg);
+}
+
+/* Dropdown panel holding the checkboxes */
+.reason-multiselect__panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: 260px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(7, 32, 58, 0.15);
+    padding: 6px;
+}
+
+.reason-multiselect.open .reason-multiselect__panel {
+    display: block;
+}
+
+.reason-checkbox-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    color: #102a4d;
+    transition: background 0.15s ease;
+}
+
+.reason-checkbox-option:hover {
+    background: #f0f7ff;
+}
+
+.reason-checkbox-option input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #007bff;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.reason-checkbox-option:has(input:checked) {
+    background: #e8f2ff;
+}
+
 .signup-container {
     flex: 1;
     display: flex;
