@@ -60,6 +60,7 @@ create-secrets.sh
 
 # Makefile
 env.mk
+env-targets.mk
 
 # DB Backups
 db_export*.bak
