@@ -1163,7 +1163,7 @@
     margin-bottom: 0;
   }
 
-  .chat-disclaimer-modal.is-open .conversation-modal__content {
+  .chat-disclaimer-modal[open] .conversation-modal__content {
     animation: slideDown 350ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -1288,6 +1288,34 @@
 
   .conversation-modal[hidden] {
     display: none;
+  }
+
+  /* The terms-of-use and chat-terms modals are native <dialog> elements opened
+     with showModal() so the browser enforces a focus trap. Reset the dialog UA
+     box defaults and let the shared .conversation-modal overlay styles drive the
+     appearance. */
+  dialog.conversation-modal {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    color: inherit;
+    outline: none;
+  }
+
+  dialog.conversation-modal:focus,
+  dialog.conversation-modal:focus-visible {
+    outline: none !important;
+  }
+
+  dialog.conversation-modal:not([open]) {
+    display: none;
+  }
+
+  dialog.conversation-modal::backdrop {
+    background: transparent;
   }
 
   .conversation-modal__content {

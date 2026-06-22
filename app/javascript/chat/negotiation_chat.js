@@ -1,3 +1,5 @@
+import { setupChatDisclaimer } from "chat/chat_disclaimer";
+
 const MIN_HEIGHT = '38px';
 let negotiationSubmitListenerBound = false;
 
@@ -206,56 +208,7 @@ const initializeNegotiationChat = () => {
     negotiationSubmitListenerBound = true;
   }
 
-  // Show disclaimer modal once per user (slight delay)
-  const disclaimerModal = document.querySelector('[data-disclaimer-modal]');
-  if (disclaimerModal) {
-    const userRole = disclaimerModal.dataset.userRole;
-    const disclaimerKey = `chatDisclaimerSeen_${userRole}`;
-
-    const hasSeenDisclaimer = localStorage.getItem(disclaimerKey);
-
-    if (!hasSeenDisclaimer) {
-      setTimeout(() => {
-        disclaimerModal.hidden = false;
-        requestAnimationFrame(() => {
-          disclaimerModal.classList.add('is-open');
-        });
-      }, 300);
-    }
-  }
-
-  // Disclaimer modal close handler
-  const disclaimerCloseButtons = document.querySelectorAll(
-    '[data-disclaimer-modal-close]',
-  );
-  disclaimerCloseButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      const modal = document.querySelector('[data-disclaimer-modal]');
-      if (modal) {
-        modal.classList.remove('is-open');
-        modal.hidden = true;
-
-        // Mark as seen so it doesn't show again for this user
-        const userRole = modal.dataset.userRole;
-        const disclaimerKey = `chatDisclaimerSeen_${userRole}`;
-        localStorage.setItem(disclaimerKey, 'true');
-      }
-    });
-  });
-
-  // Also mark as seen when clicking outside the modal
-  if (disclaimerModal) {
-    disclaimerModal.addEventListener('click', (e) => {
-      if (e.target === disclaimerModal) {
-        disclaimerModal.classList.remove('is-open');
-        disclaimerModal.hidden = true;
-
-        const userRole = disclaimerModal.dataset.userRole;
-        const disclaimerKey = `chatDisclaimerSeen_${userRole}`;
-        localStorage.setItem(disclaimerKey, 'true');
-      }
-    });
-  }
+  setupChatDisclaimer();
 };
 
 const eagerInitializeNegotiationChat = () => {
