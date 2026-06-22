@@ -85,17 +85,6 @@
     min-height: 0;
   }
 
-  .chat-actions-column {
-    align-self: stretch;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    padding: 0 clamp(0.75rem, 2vw, 1.5rem) clamp(1.25rem, 2vw, 2rem);
-    margin-top: clamp(0.75rem, 1.5vw, 1.75rem);
-    width: 100%;
-    box-sizing: border-box;
-  }
-
   /* Top toolbar: Conversation details + mediation actions on one row */
   .conversation-toolbar {
     display: flex;
@@ -104,6 +93,13 @@
     gap: clamp(0.5rem, 1.2vw, 0.85rem);
     width: 100%;
     box-sizing: border-box;
+    /* Never shrink: as a flex child of the height-bounded .chat-page-wrapper,
+       the toolbar must always reserve its full (possibly wrapped) height so the
+       chat panel fills only the remainder. Without this the growing chat panel
+       squeezes the toolbar and overlaps it when vertical space is tight — e.g.
+       on a zoomed-in window. The stacked breakpoints set flex: 0 0 auto, which
+       already includes this; here it protects the desktop inline row. */
+    flex-shrink: 0;
   }
 
   .conversation-toolbar__actions {
@@ -177,19 +173,6 @@
   /* ==========================================================================
     3. Conversation Details & Info Panel
     ========================================================================== */
-
-  .conversation-info-trigger {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    padding: 0 clamp(0.5rem, 1vw, 1.25rem);
-    margin: 0 0 clamp(0.75rem, 1.5vw, 1.25rem);
-    flex-shrink: 0;
-    box-sizing: border-box;
-    min-height: clamp(3.2rem, 7vw, 3.9rem);
-    align-items: stretch;
-    
-  }
 
   .conversation-info-panel {
     position: fixed;
@@ -1071,24 +1054,6 @@
     pointer-events: none;
   }
 
-  /* Action containers */
-  .conversation-actions {
-    display: flex;
-    flex-direction: column;
-    gap: clamp(1rem, 1.5vw, 1.5rem);
-    width: 100%;
-    max-width: none;
-    margin: 0;
-    box-sizing: border-box;
-    align-items: stretch;
-  }
-
-  .conversation-actions__button-stack {
-    display: flex;
-    flex-direction: column;
-    gap: clamp(0.65rem, 1.5vw, 1.25rem);
-  }
-
   /* Chat Disclaimer */
   .chat-disclaimer {
     background: #f8f9fa;
@@ -1117,49 +1082,13 @@
     animation: slideDown 350ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .conversation-actions__footer {
-    margin-top: 1.5rem;
-    display: flex;
-    justify-content: center;
-  }
-
-  .conversation-card {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), #f4f7fb 100%);
-    border-radius: 22px;
-    border: 1px solid rgba(16, 42, 77, 0.08);
-    box-shadow: 0 18px 36px rgba(16, 42, 77, 0.12);
-    padding: clamp(1rem, 1.5vw, 1.5rem);
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-    min-width: 0;
-  }
   @media (max-width: 900px) {
     .chat-layout {
       grid-template-columns: 1fr;
     }
-
-    .chat-actions-column {
-      position: static;
-      top: auto;
-      width: 100%;
-      margin-top: clamp(1.25rem, 3vw, 2rem);
-    }
   }
 
   @media (max-width: 520px) {
-    .conversation-card {
-      padding: clamp(0.85rem, 4vw, 1.1rem);
-      border-radius: 18px;
-      gap: 0.75rem;
-    }
-
-    .conversation-status {
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      font-size: 0.9rem;
-    }
-
     .mediator-card__header {
       align-items: flex-start;
     }
@@ -1167,22 +1096,6 @@
     .mediator-card__icon {
       border-radius: 12px;
     }
-  }
-
-  .conversation-card--mediator {
-    background: linear-gradient(135deg, rgba(223, 249, 237, 0.95), rgba(207, 244, 227, 0.98));
-    border-color: rgba(15, 157, 88, 0.32);
-    color: #0b2f1d;
-    gap: 0.5rem;
-  }
-
-  .conversation-card--mediator .conversation-status--success {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(210, 244, 226, 0.85));
-    color: #0b2f1d;
-  }
-
-  .conversation-card--mediator .conversation-card__details {
-    padding: 0.35rem 0 0;
   }
 
   .mediator-inline-details {
@@ -1204,15 +1117,6 @@
 
   .mediator-inline-details__value {
     overflow-wrap: anywhere;
-  }
-
-  .conversation-card--warning {
-    background: linear-gradient(135deg, #fff7e8 0%, #ffe9cd 100%);
-  }
-
-  .conversation-card__details {
-    display: block;
-    padding-top: 0.25rem;
   }
 
   @media (max-width: 640px) {
@@ -1260,33 +1164,6 @@
   /* ==========================================================================
     9. Status & Alerts
     ========================================================================== */
-
-  .conversation-status {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    background: rgba(16, 42, 77, 0.08);
-    border-radius: 14px;
-    padding: 0.85rem 1rem;
-    font-weight: 600;
-    color: #0f2142;
-  }
-
-  .conversation-status i {
-    font-size: 1.05rem;
-  }
-
-  .conversation-status--info {
-    background: linear-gradient(135deg, rgba(26, 117, 255, 0.18), rgba(75, 144, 255, 0.25));
-  }
-
-  .conversation-status--success {
-    background: linear-gradient(135deg, rgba(15, 157, 88, 0.18), rgba(52, 192, 122, 0.24));
-  }
-
-  .conversation-status--warning {
-    background: linear-gradient(135deg, rgba(255, 179, 0, 0.22), rgba(255, 214, 102, 0.32));
-  }
 
   .conversation-alert {
     margin-top: 0.5rem;
@@ -1533,23 +1410,50 @@
       /* Override the global .mediation-container padding (20px 15px 80px) that
          otherwise leaves ~80px of dead space below the chat on desktop. */
       padding: clamp(0.5rem, 1vw, 0.9rem) clamp(0.75rem, 1.5vw, 1.5rem) clamp(0.75rem, 1.2vw, 1.1rem);
+      /* Escape hatch: at 100% the chat fills the box exactly and nothing
+         overflows, so no scrollbar shows. But when content can't fit the locked
+         92vh box — heavy zoom or a short viewport — scroll instead of clipping
+         the toolbar / composer away (which the base `overflow: hidden` does).
+         Paired with the .chat-panel min-height floor below, which forces the
+         overflow rather than letting the panel collapse to nothing. */
+      overflow-y: auto;
     }
 
-    /* flex-basis: 0 (not auto) means the item starts at zero height and
-       grows purely from flex-grow: 1, reliably filling the leftover space
-       after the toolbar row takes its natural height. */
+    /* Don't let the chat panel collapse under the toolbar + composer when
+       vertical space is tight; below this it overflows and the container
+       (above) scrolls, keeping the composer and actions reachable. */
+    .chat-panel {
+      min-height: clamp(360px, 45vh, 560px);
+    }
+
+    /* Single scroll owner: the outer .mediation-container.chat-page (above)
+       scrolls; nothing between it and the content may clip. .chat-page-wrapper
+       is otherwise a clip context because overflow-x: hidden forces overflow-y
+       to compute to `auto` — visible here keeps it from clipping the End button
+       against the chat when content exceeds the viewport under zoom. */
+    .chat-page-wrapper {
+      overflow: visible;
+    }
+
+    /* flex: 1 1 auto (basis auto, not 0): grows to fill the leftover space at
+       100% just like basis 0 did, but takes its natural content height when the
+       viewport is too short (zoom), overflowing the outer container so it
+       scrolls — instead of being squeezed to fit and clipping the composer.
+       overflow: visible overrides the base `overflow: hidden` clip for the same
+       reason. */
     .message-page-container.chat-layout {
       display: flex;
       flex-direction: column;
-      flex: 1 1 0;
+      flex: 1 1 auto;
       min-height: 0;
+      overflow: visible;
       max-width: min(1100px, 100%);
       width: 100%;
       margin: 0 auto;
     }
 
     .chat-panel-wrapper {
-      flex: 1 1 0;
+      flex: 1 1 auto;
       min-height: 0;
       min-width: 0;
       max-width: 100%;
@@ -1571,15 +1475,13 @@
 
   /* Tablets & Small Desktops */
   @media (max-width: 1100px) {
+    /* Structural height/overflow/flex for these containers is owned by the
+       below-desktop block near the end of this file; only cosmetic rules live
+       here. */
     .message-page-container.chat-layout {
-      /* max-width rule removed from here */
       flex-direction: column;
       gap: clamp(0.6rem, 1.2vw, 1.1rem);
-      flex: 1 1 auto;
-      min-height: 0;
       width: 100%;
-      max-height: 100%;
-      overflow: hidden;
     }
 
     .chat-panel-wrapper {
@@ -1589,36 +1491,6 @@
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      max-height: 100%;
-      overflow: hidden;
-    }
-
-    .chat-actions-column {
-      width: 100%;
-      padding: 0 clamp(0.75rem, 2vw, 1.25rem) clamp(1.25rem, 2vw, 2rem);
-      margin-top: clamp(0.25rem, 0.8vw, 0.6rem);
-      order: 2;
-      align-items: stretch;
-      background: transparent;
-      flex: 0 0 auto;
-    }
-
-    .chat-actions-column .conversation-actions {
-      gap: clamp(0.35rem, 1vw, 0.6rem);
-    }
-
-    .chat-actions-column .conversation-actions__button-stack {
-      gap: clamp(0.35rem, 1vw, 0.6rem);
-    }
-
-    .chat-actions-column .conversation-banner {
-      margin: clamp(0.2rem, 0.6vw, 0.4rem) 0 clamp(0.25rem, 0.7vw, 0.45rem);
-    }
-
-    .conversation-info-trigger {
-      margin: 0 0 clamp(0.4rem, 0.8vw, 0.6rem);
     }
 
     .message-textarea {
@@ -1632,19 +1504,11 @@
     .chat-page-wrapper {
       padding: 0 clamp(0.75rem, 2vw, 1.75rem) clamp(1rem, 2vw, 1.75rem);
       max-width: 100%;
-      flex: 1 1 auto;
-      min-height: 0;
-      max-height: 100%;
     }
 
     .mediation-container.chat-page {
       padding: 0 clamp(0.75rem, 2vw, 1.75rem) clamp(1rem, 2vw, 1.75rem);
       max-width: 100%;
-      overflow-x: hidden;
-      height: 94vh;
-      height: 94dvh;
-      max-height: 94vh;
-      max-height: 94dvh;
     }
 
     .mediation-container.chat-page h1 {
@@ -1661,9 +1525,6 @@
     .chat-panel {
       border-radius: 18px;
       max-width: 100%;
-      min-height: 0;
-      height: auto;
-      max-height: 100%;
       box-shadow: 0 16px 32px rgba(16, 42, 77, 0.12);
     }
 
@@ -1710,17 +1571,6 @@
       min-height: clamp(3rem, 8vw, 4.2rem);
       padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(1.25rem, 3vw, 1.75rem);
       font-size: 1rem;
-    }
-
-    .conversation-actions,
-    .conversation-actions__button-stack {
-      gap: clamp(0.6rem, 1.8vw, 0.9rem);
-    }
-
-    .conversation-card {
-      border-radius: 18px;
-      padding: clamp(0.85rem, 2vw, 1.1rem);
-      box-shadow: 0 14px 32px rgba(16, 42, 77, 0.14);
     }
 
     .conversation-cta,
@@ -1774,11 +1624,6 @@
       margin: 0 auto;
     }
 
-    .conversation-info-trigger {
-      max-width: 850px;
-      margin: 0 auto clamp(0.6rem, 1.3vw, 1.1rem);
-    }
-
     .chat-page-wrapper {
       max-width: 850px;
       margin: 0 auto;
@@ -1792,18 +1637,14 @@
       padding: 0;
       max-width: 100vw;
       overflow-x: hidden;
-      flex: 1 1 auto;
-      min-height: 0;
       display: flex;
       flex-direction: column;
     }
-    
+
     .mediation-container.chat-page {
       padding: 0 12px 0.5rem;
       max-width: 100vw;
       overflow-x: hidden;
-      height: 94vh;
-      height: 94dvh;
     }
 
     .mediation-container.chat-page h1 {
@@ -1819,21 +1660,14 @@
       flex: 0 0 auto;
     }
 
-    .conversation-info-trigger {
-      padding: 0;
-      margin-bottom: 0.65rem;
-    }
 
     .message-page-container.chat-layout {
       gap: 0.5rem;
       max-width: 100%;
       overflow-x: hidden;
       padding-bottom: 0.5rem;
-      flex: 1 1 auto;
-      min-height: 0;
       display: flex;
       flex-direction: column;
-      height: 100%;
     }
 
     .chat-panel-wrapper {
@@ -1841,8 +1675,6 @@
       overflow-x: hidden;
       padding: 0;
       box-sizing: border-box;
-      flex: 1 1 auto;
-      min-height: 0;
       display: flex;
       flex-direction: column;
     }
@@ -1851,11 +1683,6 @@
       border-radius: 16px;
       max-width: 100%;
       overflow-x: hidden;
-      /* Resetting height constraints for mobile to let flexbox work */
-      min-height: 0;
-      height: auto !important;
-      max-height: none !important;
-      flex: 1 1 auto;
     }
 
     .message-list-container {
@@ -1924,30 +1751,6 @@
       order: 1;
     }
 
-    .chat-actions-column {
-      order: 2;
-      padding: 0;
-      margin-top: 0;
-      width: 100%;
-      align-items: stretch;
-      background: transparent;
-      flex: 0 0 auto;
-    }
-
-    .conversation-actions {
-      gap: 0.65rem;
-    }
-
-    .conversation-actions__button-stack {
-      gap: 0.65rem;
-    }
-
-    .conversation-card {
-      border-radius: 18px;
-      box-shadow: 0 12px 28px rgba(16, 42, 77, 0.16);
-      padding: 0.8rem;
-    }
-
     .conversation-cta,
     .conversation-action {
       padding: 0.8rem 0.9rem;
@@ -1991,33 +1794,6 @@
       gap: 0.5rem;
     }
 
-    .chat-actions-column .conversation-actions {
-      width: 100%;
-      max-width: 100%;
-      margin: 0;
-      padding: 0;
-      background: transparent;
-      border: none;
-      border-radius: 0;
-      box-shadow: none;
-      box-sizing: border-box;
-      gap: clamp(0.85rem, 3vw, 1.25rem);
-    }
-
-    .chat-actions-column .conversation-card {
-      border-radius: clamp(16px, 4vw, 20px);
-      box-shadow: 0 12px 28px rgba(16, 42, 77, 0.12);
-    }
-
-    .chat-actions-column .conversation-actions__button-stack {
-      gap: clamp(0.6rem, 3vw, 0.9rem);
-    }
-
-    .chat-actions-column .conversation-cta,
-    .chat-actions-column .conversation-action {
-      max-width: 100%;
-    }
-
     .mediation-container h1 {
       padding: 0 clamp(0.75rem, 3vw, 1.35rem);
     }
@@ -2041,10 +1817,6 @@
 
     .message-textarea {
       min-height: clamp(2.75rem, 10vw, 3.75rem);
-    }
-
-    .conversation-actions__card {
-      padding: 0.85rem 1rem;
     }
 
     .conversation-info-panel {
@@ -2169,10 +1941,6 @@
        /* This might need adjustment */
     }
 
-    .conversation-actions__card {
-      padding: 1rem;
-    }
-
     .conversation-action {
       padding: 0.7rem 1.1rem;
       font-size: 0.88rem;
@@ -2182,15 +1950,6 @@
 
     .conversation-action__icon {
       font-size: 1rem;
-    }
-
-    .conversation-actions__footer {
-      margin-top: 1rem;
-    }
-
-    .conversation-status {
-      padding: 0.65rem 0.85rem;
-      font-size: 0.85rem;
     }
 
     .conversation-alert {
@@ -2232,26 +1991,12 @@
       font-size: 0.95rem;
     }
 
-    .conversation-banner {
-      font-size: 0.85rem;
-      padding: 0.75rem 1rem;
-      margin-bottom: clamp(0.6rem, 3vw, 0.9rem);
-    }
-
-    .conversation-info-trigger {
-      margin-top: 0.15rem;
-    }
   }
 
   /* Very Small Mobile Devices */
   @media (max-width: 480px) {
     .chat-page-wrapper {
       padding: 0 0.35rem;
-    }
-
-    .conversation-info-trigger {
-      /* padding rule removed, margin-bottom is all it needs */
-      margin-bottom: 0.65rem;
     }
 
     .conversation-cta,
@@ -2277,74 +2022,53 @@
     }
   }
 
-    .conversation-banner {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.7rem 1.1rem;
-      border-radius: 12px;
-      font-size: 0.95rem;
-      line-height: 1.4;
-      font-weight: 500;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      margin: clamp(0.4rem, 1vw, 0.6rem) 0 clamp(0.5rem, 1.2vw, 0.75rem);
-    }
-
-  .conversation-banner--success {
-    background: linear-gradient(135deg, #e6fcf5, #d1fae5);
-    border: 1px solid rgba(16, 185, 129, 0.2);
-    color: #065f46;
-  }
-
-  .conversation-banner i {
-    font-size: 1.1rem;
-    color: #059669;
-  }
-
-  /* Mobile overrides for conversation banner - Must be after base styles */
-  @media (max-width: 540px) {
-    .conversation-banner {
-      font-size: 0.8rem;
-      padding: 0.55rem 0.75rem;
-      margin: 0.3rem 0 0.4rem;
-      gap: 0.5rem;
-      line-height: 1.35;
-    }
-
-    .conversation-banner i {
-      font-size: 0.95rem;
-    }
-  }
-
-  /* Phone toolbar: fully stack details + actions, each full width on its own row.
-     flex: 0 0 auto keeps the toolbar from being squeezed into / over the chat box,
-     and the compact sizing keeps all three rows + chat within the viewport. */
-  @media (max-width: 640px) {
-    /* The chat sits below the stacked toolbar with a comfortable minimum height.
-       If a particular phone is too short to fit toolbar + chat, the region
-       scrolls instead of overlapping. */
+  /* Below-desktop (phones through tablets/small laptops): fully stack the
+     toolbar so the buttons never get squeezed into / over the chat box, each
+     full width on its own row. The desktop inline-row layout only applies at
+     >=1101px, so everything under that shares this stacked treatment. */
+  @media (max-width: 1100px) {
+    /* Below desktop, let the document body be the SINGLE scroll owner (html/body
+       already scroll naturally — see base.css). Dropping the ~94vh lock and the
+       container's own overflow-y: auto removes the second scrollbar: the page
+       just flows and grows with its content. These rules deliberately and fully
+       override the older app-shell rules in the max-width: 1100px / 1024px
+       blocks above, which otherwise leave height: 94vh / height: 100% /
+       max-height: 100% / overflow: hidden on these wrappers — that combination
+       forces the chat panel to full height while capping + clipping it, sliding
+       it under the stacked toolbar and cutting off the composer. */
     .mediation-container.chat-page {
-      overflow-y: auto;
-    }
-
-    .chat-page-wrapper {
+      height: auto;
+      min-height: 0;
+      max-height: none;
       overflow: visible;
     }
 
-    .message-page-container.chat-layout {
-      height: auto;
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-
+    /* Natural-height stacking: no viewport-fill fight, no height caps, no inner
+       clipping, so the toolbar / chat / composer can never overlap. */
+    .chat-page-wrapper,
+    .message-page-container.chat-layout,
     .chat-panel-wrapper {
-      flex: 1 1 auto;
+      flex: 0 0 auto;
+      height: auto;
+      max-height: none;
       min-height: 0;
+      overflow: visible;
     }
 
     .chat-panel {
-      flex: 1 1 auto;
-      min-height: clamp(360px, 60vh, 560px);
+      flex: 0 0 auto;
+      height: auto;
+      max-height: none;
+      /* A usable, bounded chat area: the message list scrolls inside this (see
+         below), so the panel stays a sensible height and the *page* grows under
+         zoom rather than the panel itself ballooning. Keeps the base
+         overflow: hidden so the rounded panel clips its own content cleanly. */
+      min-height: clamp(320px, 55vh, 560px);
+    }
+
+    /* Internal scroll so the panel doesn't grow unbounded with message history. */
+    .message-list-container {
+      max-height: 60vh;
     }
 
     .conversation-toolbar {
