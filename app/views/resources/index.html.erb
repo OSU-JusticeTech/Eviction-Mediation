@@ -1,48 +1,92 @@
 <%# app/views/resources/index.html.erb %>
 <% current_tab = params[:tab].presence || "guide" %>
 
-<div class="resx-top">
-  <div class="resx-top-tabs">
-    <%= link_to "Resources",
-                resources_path(tab: "guide"),
-                class: "resx-top-tab #{'is-active' if current_tab == 'guide'}" %>
-    <%= link_to "FAQs",
-                resources_path(tab: "faqs"),
-                class: "resx-top-tab #{'is-active' if current_tab == 'faqs'}" %>
-    <%= link_to "Negotiation & Mediation",
-                resources_path(tab: "negotiation"),
-                class: "resx-top-tab #{'is-active' if current_tab == 'negotiation'}" %>
-  </div>
-</div>
-
-<div class="resx-top-body">
-  <%# Shared disclaimer bar %>
-  <div class="resx-banner">
-    <i class="fas fa-circle-info"></i>
-    <span>
-      <strong>Disclaimer:</strong>
-      This page gives general information only. It is not legal advice.
-      For legal help, please talk to a lawyer or visit
-      <%= link_to "Ohio Legal Help", "https://www.ohiolegalhelp.org/guide/housing", target: "_blank", rel: "noopener noreferrer" %>.
-    </span>
+<% if current_user %>
+  <%# ── Logged-in: full tab bar ── %>
+  <div class="resx-top">
+    <div class="resx-top-tabs">
+      <%= link_to "Resources",
+                  resources_path(tab: "guide"),
+                  class: "resx-top-tab #{'is-active' if current_tab == 'guide'}" %>
+      <%= link_to "FAQs",
+                  resources_path(tab: "faqs"),
+                  class: "resx-top-tab #{'is-active' if current_tab == 'faqs'}" %>
+      <%= link_to "Negotiation & Mediation",
+                  resources_path(tab: "negotiation"),
+                  class: "resx-top-tab #{'is-active' if current_tab == 'negotiation'}" %>
+    </div>
   </div>
 
-  <% if current_tab == "guide" %>
-    <%= render "resources" %>
-  <% elsif current_tab == "faqs" %>
-    <%= render "faqs" %>
-  <% elsif current_tab == "negotiation" %>
-    <%= render "negotiation" %>
-  <% end %>
-</div>
+  <div class="resx-top-body">
+    <div class="resx-banner">
+      <i class="fas fa-circle-info"></i>
+      <span>
+        <strong>Disclaimer:</strong>
+        This page gives general information only. It is not legal advice.
+        For legal help, please talk to a lawyer or visit
+        <%= link_to "Ohio Legal Help", "https://www.ohiolegalhelp.org/guide/housing", target: "_blank", rel: "noopener noreferrer" %>.
+      </span>
+    </div>
+
+    <% if current_tab == "guide" %>
+      <%= render "resources" %>
+    <% elsif current_tab == "faqs" %>
+      <%= render "faqs" %>
+    <% elsif current_tab == "negotiation" %>
+      <%= render "negotiation" %>
+    <% end %>
+  </div>
+
+<% elsif current_tab != "guide" %>
+  <%# ── Unauthenticated on FAQs / Negotiation tab ── %>
+  <div class="resx-top">
+    <%= link_to root_path, class: "resx-back-btn" do %>
+      <i class="fas fa-arrow-left"></i> Back to Resources
+    <% end %>
+  </div>
+
+  <div class="resx-top-body">
+    <div class="resx-banner">
+      <i class="fas fa-circle-info"></i>
+      <span>
+        <strong>Disclaimer:</strong>
+        This page gives general information only. It is not legal advice.
+        For legal help, please talk to a lawyer or visit
+        <%= link_to "Ohio Legal Help", "https://www.ohiolegalhelp.org/guide/housing", target: "_blank", rel: "noopener noreferrer" %>.
+      </span>
+    </div>
+
+    <% if current_tab == "faqs" %>
+      <%= render "faqs" %>
+    <% elsif current_tab == "negotiation" %>
+      <%= render "negotiation" %>
+    <% end %>
+  </div>
+
+<% else %>
+  <%# ── Unauthenticated on guide tab: full landing page ── %>
+  <%= render "resources" %>
+<% end %>
 
 <style>
-/* --- Top tab bar (Resources | FAQs | Negotiation & Mediation) --- */
+/* --- Top tab bar / back button wrapper --- */
 .resx-top {
   max-width: 1080px;
   margin: 0 auto;
   padding: 24px 16px 0;
 }
+.resx-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0b2b4b;
+  text-decoration: none;
+  padding: 8px 0;
+  transition: opacity 0.15s ease;
+}
+.resx-back-btn:hover { opacity: 0.7; }
 .resx-top-tabs {
   display: inline-flex;
   gap: 16px;
@@ -68,15 +112,11 @@
   background: #0b2b4b;
   color: #ffffff;
 }
-
-/* container around body */
 .resx-top-body {
   max-width: 1080px;
   margin: 0 auto 32px;
   padding: 8px 16px 32px;
 }
-
-/* disclaimer banner (reused) */
 .resx-banner {
   display: flex;
   gap: 10px;

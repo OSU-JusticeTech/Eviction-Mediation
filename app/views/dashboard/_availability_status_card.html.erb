@@ -1,0 +1,35 @@
+<% available = user.mediator.Available %>
+<% active_cases = user.mediator.ActiveMediations || 0 %>
+<% capacity = user.mediator.MediationCap || 0 %>
+<% at_capacity = capacity > 0 && active_cases >= capacity %>
+<% unavailable_with_cases = !available && active_cases > 0 %>
+
+<div class="availability-status-card">
+  <div class="status-indicator <%= available ? 'available' : 'unavailable' %>">
+    <i class="fas <%= available ? 'fa-check-circle' : 'fa-pause-circle' %>"></i>
+  </div>
+  <div class="status-content">
+    <h3>Current Status: <%= available ? "Available" : "Unavailable" %></h3>
+
+    <% if at_capacity %>
+      <p style="color: #e67e22; font-weight: 500;">You're at capacity (<%= active_cases %>/<%= capacity %> cases)</p>
+    <% elsif unavailable_with_cases %>
+      <p style="color: #3498db; font-weight: 500;">You still have <%= active_cases %> open <%= "case".pluralize(active_cases) %></p>
+    <% elsif available %>
+      <p>Click "Disable" to stop accepting new mediation requests</p>
+    <% else %>
+      <p>Click "Enable" to start accepting new mediation requests</p>
+    <% end %>
+
+    <% if at_capacity %>
+      <button class="card-btn" disabled>At Capacity</button>
+    <% else %>
+      <%= form_with model: user, url: mediator_availability_path, method: :patch, local: true, class: "availability-form" do |f| %>
+        <%= f.fields_for :mediator do |m| %>
+          <%= m.hidden_field :Available, value: !available %>
+          <%= f.submit (available ? "Disable" : "Enable"), class: "card-btn" %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

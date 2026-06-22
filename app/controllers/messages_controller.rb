@@ -16,7 +16,6 @@ class MessagesController < ApplicationController
                            .order(deleted_at: :desc)
 
       @show_mediation_view = @mediation.present?
-      @landlords = User.where(Role: "Landlord").order(:CompanyName) unless @mediation
 
       respond_to do |format|
         format.html { render "messages/tenant_index" }

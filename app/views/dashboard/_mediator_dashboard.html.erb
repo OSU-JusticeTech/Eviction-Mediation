@@ -3,19 +3,10 @@
   <% active_cases = @user.mediator.ActiveMediations || 0 %>
   <% capacity = @user.mediator.MediationCap || 0 %>
 
-  <!-- Status and Workload Grid -->
-  <div class="mediator-status-grid">
+  <!-- Combined Status + Workload card -->
+  <div class="mediator-status-card">
     <!-- Availability Status -->
-    <div class="availability-status-card">
-      <div class="status-indicator <%= available ? 'available' : 'unavailable' %>">
-        <i class="fas <%= available ? 'fa-check-circle' : 'fa-pause-circle' %>"></i>
-      </div>
-      <div class="status-content">
-        <h3>Current Status: <%= available ? "Available" : "Unavailable" %></h3>
-        <p>You can update your availability in your account settings</p>
-        <%= link_to "Update Status", account_path, class: "status-btn" %>
-      </div>
-    </div>
+    <%= render "availability_status_card", user: @user %>
 
     <!-- Workload Overview -->
     <div class="workload-card">
@@ -42,27 +33,13 @@
 
 <!-- Quick Actions -->
 <div class="action-cards-grid">
-  <div class="action-card primary">
-    <div class="card-icon">
-      <i class="fas fa-clipboard-list"></i>
-    </div>
-    <div class="card-content">
-      <h3>My Mediations</h3>
-      <p>View and manage your assigned mediation cases</p>
-      <%= link_to "View Cases", third_party_mediations_path, class: "card-btn", style: "background: #3498db; color: white;", onmouseover: "this.style.background='#2980b9'", onmouseout: "this.style.background='#3498db'" %>
-    </div>
-  </div>
+  <%= render "action_card", path: third_party_mediations_path, icon: "fa-clipboard-list",
+        title: "My Mediations", description: "View and manage your assigned mediation cases",
+        label: "View Cases" %>
 
-  <div class="action-card">
-    <div class="card-icon">
-      <i class="fas fa-user-edit"></i>
-    </div>
-    <div class="card-content">
-      <h3>Account Settings</h3>
-      <p>Update your profile, availability, and preferences</p>
-      <%= link_to "Manage Account", account_path, class: "card-btn" %>
-    </div>
-  </div>
+  <%= render "action_card", path: account_path, icon: "fa-user-edit",
+        title: "Account Settings", description: "Update your profile, availability, and preferences",
+        label: "Manage Account" %>
 </div>
 
 <!-- Mediation Tips -->

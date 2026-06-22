@@ -1,48 +1,20 @@
 <!-- Quick Actions -->
 <div class="action-cards-grid">
-  <%= link_to messages_path, class: "action-card" do %>
-    <div class="card-icon">
-      <i class="fas fa-comments"></i>
-    </div>
-    <div class="card-content">
-      <h3>Messages</h3>
-      <p>Start or continue negotiations with your landlord</p>
-      <span class="card-btn">View Messages</span>
-    </div>
-  <% end %>
+  <%= render "action_card", path: messages_path, icon: "fa-comments",
+        title: "Messages", description: "Start or continue negotiations with your landlord",
+        label: "View Messages" %>
 
-  <%= link_to resources_path, class: "action-card" do %>
-    <div class="card-icon">
-      <i class="fas fa-book-open"></i>
-    </div>
-    <div class="card-content">
-      <h3>Resources</h3>
-      <p>Learn about mediation, your rights, and get help</p>
-      <span class="card-btn">Explore Resources</span>
-    </div>
-  <% end %>
+  <%= render "action_card", path: resources_path, icon: "fa-book-open",
+        title: "Resources", description: "Learn about mediation, your rights, and get help",
+        label: "Explore Resources" %>
 
-  <%= link_to documents_path, class: "action-card" do %>
-    <div class="card-icon">
-      <i class="fas fa-file-alt"></i>
-    </div>
-    <div class="card-content">
-      <h3>Documents</h3>
-      <p>Manage your agreements and important files</p>
-      <span class="card-btn">View Documents</span>
-    </div>
-  <% end %>
+  <%= render "action_card", path: documents_path, icon: "fa-file-alt",
+        title: "Documents", description: "Manage your agreements and important files",
+        label: "View Documents" %>
 
-  <%= link_to account_path, class: "action-card" do %>
-    <div class="card-icon">
-      <i class="fas fa-user-cog"></i>
-    </div>
-    <div class="card-content">
-      <h3>Account</h3>
-      <p>Update your profile and settings</p>
-      <span class="card-btn">Manage Account</span>
-    </div>
-  <% end %>
+  <%= render "action_card", path: account_path, icon: "fa-user-cog",
+        title: "Account", description: "Update your profile and settings",
+        label: "Manage Account" %>
 </div>
 
 <!-- Getting Started Guide -->
