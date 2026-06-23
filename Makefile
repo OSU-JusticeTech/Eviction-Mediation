@@ -25,7 +25,7 @@ export EXPORT_FILE := db_export.bak
 -include env.mk
 
 # Ensures make ignores file/directory name collisions for these targets
-.PHONY: test test-all test-system test-system-headed
+.PHONY: test test-all test-system test-system-headed pull-images
 
 dev-setup: down-clean
 	@test -f config/database.yml || cp config/database.yml.docker config/database.yml
@@ -55,6 +55,11 @@ logs:
 
 build:
 	$(COMPOSE_CMD) build
+
+# Pre-pull upstream images bypassing Docker Desktop's VPNKit proxy.
+# Workaround for WSL2/Windows EOF errors during pulls — run before dev-setup/build if pulls hang.
+pull-images:
+	@NO_PROXY="*" $(COMPOSE_CMD) pull --ignore-buildable
 
 test:
 	$(COMPOSE_CMD) up -d db
