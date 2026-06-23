@@ -163,10 +163,8 @@ def build_mediation!(landlord:, tenant:, status:, mediator: nil,
   # Past mediations close their conversation thread too.
   message_string.update!(deleted_at: mediation.deleted_at) if mediation.deleted_at
 
-  # An assigned mediator counts the live mediation against their cap.
-  if mediator && status != :past
-    Mediator.find_by(UserID: mediator.UserID)&.increment!(:ActiveMediations)
-  end
+  # No manual counter bump: creating an assigned, non-past mediation re-derives
+  # the mediator's ActiveMediations counter via PrimaryMessageGroup's callback.
 
   seed_messages!(mediation, landlord: landlord, tenant: tenant, mediator: mediator) if with_messages
 

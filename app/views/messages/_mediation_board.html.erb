@@ -1,7 +1,9 @@
 <%#
   Shared mediation board for tenants and landlords.
   Locals:
-    grouped_mediations - Hash of status_category => [PrimaryMessageGroup]
+    grouped_mediations - Hash of board category => [PrimaryMessageGroup],
+                         keyed :needs_action / :everything_else (see
+                         MessagesController#board_category)
     has_past           - whether a Past filter chip should be offered
     role               - "Tenant" or "Landlord" (drives card wording/actions)
 
@@ -37,19 +39,29 @@
               data: { "mediation-filter-target": "search", action: "input->mediation-filter#filterBySearch" } %>
       </div>
 
-      <div class="filter-dates">
-        <label class="filter-date">
-          <span>From</span>
-          <%= date_field_tag :mediation_date_from, nil,
-                "aria-label": "Filter from date",
-                data: { "mediation-filter-target": "dateFrom", action: "change->mediation-filter#filterByDate" } %>
-        </label>
-        <label class="filter-date">
-          <span>To</span>
-          <%= date_field_tag :mediation_date_to, nil,
-                "aria-label": "Filter to date",
-                data: { "mediation-filter-target": "dateTo", action: "change->mediation-filter#filterByDate" } %>
-        </label>
+      <div class="filter-date-controls">
+        <div class="filter-dates">
+          <label class="filter-date">
+            <span>From</span>
+            <%= date_field_tag :mediation_date_from, nil,
+                  "aria-label": "Filter from date",
+                  data: { "mediation-filter-target": "dateFrom", action: "change->mediation-filter#filterByDate" } %>
+          </label>
+          <label class="filter-date">
+            <span>To</span>
+            <%= date_field_tag :mediation_date_to, nil,
+                  "aria-label": "Filter to date",
+                  data: { "mediation-filter-target": "dateTo", action: "change->mediation-filter#filterByDate" } %>
+          </label>
+        </div>
+
+        <button type="button" class="filter-sort"
+                data-mediation-filter-target="sort"
+                data-action="mediation-filter#toggleSort"
+                aria-label="Sort by date">
+          <i class="fas fa-sort" aria-hidden="true" data-mediation-filter-target="sortIcon"></i>
+          <span data-mediation-filter-target="sortLabel">Sort by date</span>
+        </button>
       </div>
 
       <button type="button" class="filter-clear" hidden
@@ -64,7 +76,10 @@
       <% next if items.blank? %>
       <h2 class="mediation-group__title" data-mediation-filter-target="header" data-group="<%= category %>"><%= title %></h2>
       <% items.each do |mediation| %>
-        <%= render "messages/mediation_card", mediation: mediation, role: role %>
+        <%= render "messages/mediation_card",
+              mediation: mediation,
+              role: role,
+              action: @mediation_actions[mediation.ConversationID] %>
       <% end %>
     <% end %>
   </div>

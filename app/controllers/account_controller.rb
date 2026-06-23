@@ -210,8 +210,6 @@ class AccountController < ApplicationController
   def set_mediator_case_count
     return unless @user&.Role == "Mediator"
 
-    @active_case_count = PrimaryMessageGroup
-      .where(MediatorID: @user.UserID, MediatorAssigned: true, deleted_at: nil)
-      .count
+    @active_case_count = @user.mediator&.ActiveMediations || 0
   end
 end

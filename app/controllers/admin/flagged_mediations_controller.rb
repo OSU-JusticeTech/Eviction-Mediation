@@ -63,18 +63,10 @@ class Admin::FlaggedMediationsController < ApplicationController
     notice_msg = nil
 
     ActiveRecord::Base.transaction do
-      # Decrement old mediator
-      if old_mediator_id
-        old_mediator = Mediator.find_by(UserID: old_mediator_id)
-        old_mediator.decrement!(:ActiveMediations) if old_mediator
-      end
-
-      # Assign new mediator
+      # Assign the new mediator. Changing MediatorID/MediatorAssigned re-derives
+      # the ActiveMediations counter for both the old and new mediator via
+      # PrimaryMessageGroup's caseload callback — no manual +/-1 needed here.
       @mediation.update!(MediatorID: new_mediator_id, MediatorAssigned: true)
-
-      # Increment new mediator
-      new_mediator = Mediator.find_by(UserID: new_mediator_id)
-      new_mediator.increment!(:ActiveMediations) if new_mediator
 
       if old_mediator_id
         # Reassignment Logic (Flagged Case)

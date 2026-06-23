@@ -4,14 +4,17 @@
 # model remove the "{}" from the fixture names and add the columns immediately
 # below each fixture, per the syntax in the comments below
 #
+# ActiveMediations must equal each mediator's count of active, assigned,
+# non-deleted PrimaryMessageGroups (see primary_message_groups.yml) so the
+# cached counter stays consistent with the live data it is derived from.
 mediator1:
   UserID: 4
   Available: 1
-  ActiveMediations: 3
+  ActiveMediations: 1 # conversation "one"
   MediationCap: 5
 
 mediator2:
   UserID: 8
   Available: 0
-  ActiveMediations: 1
+  ActiveMediations: 1 # conversation "two"
   MediationCap: 3

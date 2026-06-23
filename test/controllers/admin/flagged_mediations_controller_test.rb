@@ -122,16 +122,22 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
 
   test "initial assignment increments mediator load" do
     mediator_record = mediators(:mediator2)
+    # Setup ended conversation "two" (mediator2's only fixture case), so the
+    # counter is 0 here; assigning the unassigned case re-derives it to 1.
 
     patch admin_reassign_mediator_url(@unassigned), params: { new_mediator_id: @new_mediator.UserID }
 
     assert_redirected_to admin_mediations_path
-    assert_equal 2, mediator_record.reload.ActiveMediations
+    assert_equal 1, mediator_record.reload.ActiveMediations
   end
 
   test "reassignment decrements old mediator and increments new mediator" do
     old_mediator = mediators(:mediator1)
     new_mediator = mediators(:mediator2)
+    # Setup unassigned conversation "one" (mediator1's fixture case) and ended
+    # conversation "two" (mediator2's), so both counters start at 0. Assigning
+    # "one" to the old mediator brings it to 1, then reassigning moves that one
+    # case to the new mediator: old -> 0, new -> 1.
     @unassigned.update!(
       MediatorAssigned: true,
       MediatorRequested: true,
@@ -143,7 +149,7 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
     patch admin_reassign_mediator_url(@unassigned), params: { new_mediator_id: new_mediator.UserID }
 
     assert_redirected_to admin_mediations_path
-    assert_equal 2, old_mediator.reload.ActiveMediations
-    assert_equal 2, new_mediator.reload.ActiveMediations
+    assert_equal 0, old_mediator.reload.ActiveMediations
+    assert_equal 1, new_mediator.reload.ActiveMediations
   end
 end

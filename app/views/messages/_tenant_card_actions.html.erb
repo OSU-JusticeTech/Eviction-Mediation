@@ -1,4 +1,4 @@
-<%# locals: mediation %>
+<%# locals: mediation, action (the viewer's pending action, or nil) %>
 <% case mediation.status_category %>
 <% when :active %>
   <%= link_to "Access Negotiation", message_path(mediation.ConversationID), class: "card-btn card-btn--primary" %>
@@ -18,7 +18,7 @@
 
 <% when :past %>
   <%= link_to "View Summary", mediation_summary_path(mediation.ConversationID), class: "card-btn card-btn--secondary" %>
-  <% if needs_good_faith_response?(mediation, @user) %>
+  <% if action == :feedback %>
     <%= link_to "Complete Feedback", mediation_survey_path(mediation.ConversationID), class: "card-btn card-btn--feedback" %>
   <% else %>
     <span class="card-status-note"><i class="fas fa-check" aria-hidden="true"></i> Feedback submitted</span>

@@ -5,11 +5,11 @@ module MessagesHelper
     past: "Past"
   }.freeze
 
-  # Section titles for the grouped (default) board view.
+  # Section titles for the grouped (default) board view. The default groups the
+  # viewer's mediations by whether they require the viewer's action.
   GROUP_TITLES = {
-    active: "Active Mediations",
-    pending: "Pending Mediations",
-    past: "Past Mediations"
+    needs_action: "Needs Your Action",
+    everything_else: "All Other Negotiations"
   }.freeze
 
   def mediation_status_label(mediation)
@@ -55,7 +55,7 @@ module MessagesHelper
       party&.LName,
       party&.Email,
       party&.CompanyName,
-      (party&.formatted_tenant_address if viewer_role == "Landlord"),
+      mediation.tenant&.formatted_tenant_address,
       mediation_status_label(mediation)
     ].compact.join(" ").downcase
   end

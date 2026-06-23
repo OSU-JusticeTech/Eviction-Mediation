@@ -1,8 +1,8 @@
-<%# locals: mediation, role %>
+<%# locals: mediation, role, action (the viewer's pending action, or nil) %>
 <% party = mediation_counterparty(mediation, role) %>
 <article class="mediation-card-item mediation-card-item--<%= mediation.status_category %>"
          data-mediation-filter-target="card"
-         data-group="<%= mediation.status_category %>"
+         data-group="<%= action ? :needs_action : :everything_else %>"
          data-status="<%= mediation.status_category %>"
          data-date="<%= mediation.last_activity_at&.strftime("%Y-%m-%d") %>"
          data-search="<%= mediation_search_terms(mediation, role) %>">
@@ -15,16 +15,19 @@
     </div>
 
     <ul class="mediation-card-item__meta">
-      <% if role == "Landlord" && party.formatted_tenant_address.present? %>
-        <li><i class="fas fa-location-dot" aria-hidden="true"></i> <%= party.formatted_tenant_address %></li>
+      <% if mediation.tenant&.formatted_tenant_address.present? %>
+        <li><i class="fas fa-location-dot" aria-hidden="true"></i> <%= mediation.tenant.formatted_tenant_address %></li>
       <% end %>
       <li><i class="fas fa-envelope" aria-hidden="true"></i> <%= party.Email %></li>
     </ul>
 
     <p class="mediation-card-item__substatus"><%= mediation_substatus(mediation, role) %></p>
+    <% if mediation.CreatedAt.present? %>
+      <p class="mediation-card-item__created">Case opened <%= mediation.CreatedAt.strftime("%B %d, %Y") %></p>
+    <% end %>
   </div>
 
   <div class="mediation-card-item__actions">
-    <%= render "messages/#{role.downcase}_card_actions", mediation: mediation %>
+    <%= render "messages/#{role.downcase}_card_actions", mediation: mediation, action: action %>
   </div>
 </article>

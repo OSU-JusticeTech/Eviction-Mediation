@@ -61,4 +61,80 @@ class PrimaryMessageGroupTest < ActiveSupport::TestCase
     assert_not pmg.active?
     assert_nil pmg.pending_stage
   end
+
+  # --- Needs-action (default board grouping) -----------------------
+
+  test "landlord needs to act while awaiting landlord acceptance" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: false, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+
+    assert pmg.needs_action_from?("Landlord")
+    assert_not pmg.needs_action_from?("Tenant")
+  end
+
+  test "tenant needs to act while awaiting tenant acceptance" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+
+    assert pmg.needs_action_from?("Tenant")
+    assert_not pmg.needs_action_from?("Landlord")
+  end
+
+  test "tenant needs to act while awaiting tenant intake" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, deleted_at: nil)
+
+    assert pmg.needs_action_from?("Tenant")
+    assert_not pmg.needs_action_from?("Landlord")
+  end
+
+  test "no one needs to act on active or past mediations" do
+    pmg = primary_message_groups(:one)
+
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: nil)
+    assert_not pmg.needs_action_from?("Tenant")
+    assert_not pmg.needs_action_from?("Landlord")
+
+    pmg.assign_attributes(deleted_at: Time.current)
+    assert_not pmg.needs_action_from?("Tenant")
+    assert_not pmg.needs_action_from?("Landlord")
+  end
+
+  # --- pending_action_for (tiered board ordering) ------------------
+
+  test "pending request awaiting the viewer is a respond action" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: false, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+
+    assert_equal :respond, pmg.pending_action_for("Landlord", feedback_pending: false)
+    assert_nil pmg.pending_action_for("Tenant", feedback_pending: false)
+  end
+
+  test "ended mediation still owing feedback is a feedback action" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: Time.current)
+
+    assert_equal :feedback, pmg.pending_action_for("Tenant", feedback_pending: true)
+    assert_equal :feedback, pmg.pending_action_for("Landlord", feedback_pending: true)
+  end
+
+  test "ended mediation with feedback submitted needs no action" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: Time.current)
+
+    assert_nil pmg.pending_action_for("Tenant", feedback_pending: false)
+    assert_nil pmg.pending_action_for("Landlord", feedback_pending: false)
+  end
+
+  test "respond takes precedence and active mediations need no action" do
+    pmg = primary_message_groups(:one)
+
+    # A live pending request is a respond action regardless of feedback state.
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+    assert_equal :respond, pmg.pending_action_for("Tenant", feedback_pending: true)
+
+    # An active mediation has nothing outstanding.
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: nil)
+    assert_nil pmg.pending_action_for("Tenant", feedback_pending: true)
+  end
 end

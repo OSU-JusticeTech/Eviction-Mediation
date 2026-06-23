@@ -3,8 +3,8 @@ import { Controller } from "@hotwired/stimulus"
 // Drives the tenant/landlord messages board.
 //
 // All of a user's mediations are rendered into the DOM once. By default they
-// are shown grouped (Active / Pending / Past) and paginated 10 at a time. The
-// moment a status chip other than "All" is chosen, text is typed into search,
+// are shown grouped (Needs Action / Everything Else) and paginated 10 at a
+// time. The moment a status chip other than "All" is chosen, text is typed into search,
 // or a date bound is set, the board collapses into a single flat list of the
 // matching mediations (still paginated). Filtering always runs across the full
 // set, not just the current page, and pagination then windows the results.
@@ -12,6 +12,7 @@ export default class extends Controller {
   static targets = [
     "card", "groups", "empty", "header",
     "search", "chip", "dateFrom", "dateTo", "clear",
+    "sort", "sortLabel", "sortIcon",
     "pagination", "prev", "next", "pages"
   ]
 
@@ -22,6 +23,7 @@ export default class extends Controller {
     this.query = ""
     this.dateFrom = null
     this.dateTo = null
+    this.sort = null // null = server order, "newest" or "oldest" = sorted by date
     this.page = 1
     this.apply()
   }
@@ -46,16 +48,27 @@ export default class extends Controller {
     this.apply()
   }
 
+  // One-click date sort: each click flips between newest-first and oldest-first.
+  // Clearing filters returns to the default (server-rendered) grouped order.
+  toggleSort() {
+    this.sort = this.sort === "newest" ? "oldest" : "newest"
+    this.page = 1
+    this.#updateSortButton()
+    this.apply()
+  }
+
   clearFilters() {
     this.status = "all"
     this.query = ""
     this.dateFrom = null
     this.dateTo = null
+    this.sort = null
     this.page = 1
     if (this.hasSearchTarget) this.searchTarget.value = ""
     if (this.hasDateFromTarget) this.dateFromTarget.value = ""
     if (this.hasDateToTarget) this.dateToTarget.value = ""
     this.chipTargets.forEach((chip) => chip.classList.toggle("is-active", chip.dataset.status === "all"))
+    this.#updateSortButton()
     this.apply()
   }
 
@@ -83,8 +96,10 @@ export default class extends Controller {
   }
 
   // A filter is active whenever the view should switch from grouped to flat.
+  // Sorting by date also flattens the list, since a global date order cuts
+  // across the Active / Pending / Past groups.
   get isFiltering() {
-    return this.status !== "all" || this.query !== "" || this.dateFrom !== null || this.dateTo !== null
+    return this.status !== "all" || this.query !== "" || this.dateFrom !== null || this.dateTo !== null || this.sort !== null
   }
 
   apply() {
@@ -92,7 +107,7 @@ export default class extends Controller {
     this.element.classList.toggle("is-filtered", filtering)
     if (this.hasClearTarget) this.clearTarget.hidden = !filtering
 
-    const matching = this.cardTargets.filter((card) => this.#matches(card))
+    const matching = this.#sortMatching(this.cardTargets.filter((card) => this.#matches(card)))
 
     const perPage = this.perPageValue
     const totalPages = Math.max(1, Math.ceil(matching.length / perPage))
@@ -114,6 +129,41 @@ export default class extends Controller {
     if (this.hasGroupsTarget) this.groupsTarget.hidden = matching.length === 0
 
     this.#renderPagination(matching.length, totalPages, perPage)
+  }
+
+  // Returns the matching cards in the active sort order so pagination windows
+  // the correct slice (e.g. the newest 10 on page 1). The flex `order` property
+  // mirrors that sequence visually without moving DOM nodes. Cards carry a
+  // YYYY-MM-DD `data-date`, so a lexicographic compare is also chronological.
+  #sortMatching(matching) {
+    if (!this.sort) {
+      this.cardTargets.forEach((card) => { card.style.order = "" })
+      return matching
+    }
+
+    const sorted = [...matching].sort((a, b) => {
+      const da = a.dataset.date || ""
+      const db = b.dataset.date || ""
+      return this.sort === "newest" ? db.localeCompare(da) : da.localeCompare(db)
+    })
+    sorted.forEach((card, index) => { card.style.order = String(index) })
+    return sorted
+  }
+
+  #updateSortButton() {
+    if (this.hasSortTarget) this.sortTarget.classList.toggle("is-active", this.sort !== null)
+
+    if (this.hasSortLabelTarget) {
+      this.sortLabelTarget.textContent =
+        this.sort === "newest" ? "Newest first" : this.sort === "oldest" ? "Oldest first" : "Sort by date"
+    }
+
+    if (this.hasSortIconTarget) {
+      const icon = this.sort === "newest" ? "fa-arrow-down-wide-short"
+        : this.sort === "oldest" ? "fa-arrow-up-short-wide"
+        : "fa-sort"
+      this.sortIconTarget.className = `fas ${icon}`
+    }
   }
 
   #matches(card) {
