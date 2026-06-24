@@ -52,7 +52,7 @@
   <div class="mediator-grid">
     <% User.includes(:mediator).where(Role: "Mediator").each do |mediator| %>
       <% available = mediator.mediator&.Available %>
-      <div class="mediator-card">
+      <%= link_to admin_account_path(mediator), class: "mediator-card" do %>
         <div class="mediator-info">
           <div class="mediator-avatar">
             <%= mediator.FName.first.upcase %><%= mediator.LName.first.upcase %>
@@ -68,7 +68,7 @@
             <%= available ? "Available" : "Busy" %>
           </span>
         </div>
-      </div>
+      <% end %>
     <% end %>
   </div>
 </div>

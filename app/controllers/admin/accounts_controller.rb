@@ -7,6 +7,17 @@ class Admin::AccountsController < ApplicationController
     @mediators = Mediator.includes(:user).all
   end
 
+  def show
+    @mediator_user = User.find(params[:id])
+    @mediator = Mediator.find_by!(UserID: @mediator_user.UserID)
+    @active_mediations = PrimaryMessageGroup.active_for_mediator(@mediator_user.UserID)
+                           .includes(:tenant, :landlord)
+                           .order(CreatedAt: :desc)
+    @back_url = request.referer.presence || admin_accounts_path
+  rescue ActiveRecord::RecordNotFound
+    redirect_to admin_accounts_path, alert: "Mediator not found."
+  end
+
   def create
     user = User.create!(
       Email: params[:email],
@@ -43,7 +54,11 @@ class Admin::AccountsController < ApplicationController
       user.update!(password: params[:password])
     end
 
-    redirect_to "#{admin_accounts_path}#reset", notice: "Mediator updated successfully."     # Need this line so that javascript refreshes
+    if params[:source] == "show"
+      redirect_to admin_account_path(params[:id]), notice: "Mediation cap updated successfully."
+    else
+      redirect_to "#{admin_accounts_path}#reset", notice: "Mediator updated successfully."     # Need this line so that javascript refreshes
+    end
   rescue ActiveRecord::RecordNotFound
     redirect_to admin_accounts_path, alert: "Mediator not found."
   rescue ActiveRecord::RecordInvalid => e

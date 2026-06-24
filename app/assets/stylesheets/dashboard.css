@@ -467,10 +467,14 @@ input[type="submit"].card-btn:disabled {
     border-radius: 8px;
     padding: 1rem;
     transition: all 0.2s ease;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
 }
 
 .mediator-card:hover {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border-color: #3b82f6;
 }
 
 .mediator-info {
