@@ -59,6 +59,11 @@ class Admin::FlaggedMediationsController < ApplicationController
       redirect_to admin_flagged_mediation_path(@mediation), alert: "New mediator must be different from the current one." and return
     end
 
+    new_mediator = Mediator.find_by(UserID: new_mediator_id)
+    unless new_mediator&.Available && new_mediator.ActiveMediations < new_mediator.MediationCap
+      redirect_to admin_flagged_mediation_path(@mediation), alert: "That mediator is no longer available to accept cases." and return
+    end
+
     redirect_path = nil
     notice_msg = nil
 
