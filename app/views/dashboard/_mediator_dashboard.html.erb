@@ -31,12 +31,10 @@
   </div>
 <% end %>
 
+<%= render "active_cases" %>
+
 <!-- Quick Actions -->
 <div class="action-cards-grid">
-  <%= render "action_card", path: third_party_mediations_path, icon: "fa-clipboard-list",
-        title: "My Mediations", description: "View and manage your assigned mediation cases",
-        label: "View Cases" %>
-
   <%= render "action_card", path: account_path, icon: "fa-user-edit",
         title: "Account Settings", description: "Update your profile, availability, and preferences",
         label: "Manage Account" %>

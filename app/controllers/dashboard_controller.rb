@@ -11,6 +11,12 @@ class DashboardController < ApplicationController
       when "Admin"
         render "dashboard/index"
       when "Mediator"
+        if @user.mediator.present?
+          @active_mediations = PrimaryMessageGroup
+            .where(MediatorID: @user.UserID, MediatorAssigned: true, deleted_at: nil)
+            .includes(:tenant, :landlord)
+            .sort_by { |m| -m.last_activity_at.to_i }
+        end
         render "dashboard/index"
       else
         render plain: "Error: Invalid user role", status: :forbidden
