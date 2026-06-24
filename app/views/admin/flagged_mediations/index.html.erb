@@ -1,103 +1,14 @@
 <div class="mediation-container">
   <h1>Mediations Dashboard</h1>
 
-  <h2>Unassigned Mediator Requests</h2>
-  <% if @unassigned_mediations.any? %>
-    <table class="mediation-table">
-      <thead>
-        <tr>
-          <th>Tenant</th>
-          <th>Landlord</th>
-          <th>Requested At</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% @unassigned_mediations.each do |mediation| %>
-          <tr>
-            <td data-label="Tenant"><%= mediation.tenant.FName %> <%= mediation.tenant.LName %></td>
-            <td data-label="Landlord"><%= mediation.landlord.FName %> <%= mediation.landlord.LName %></td>
-            <td data-label="Requested At"><%= mediation.CreatedAt.strftime("%B %d, %Y") %></td>
-            <td data-label="Action"><%= link_to "Assign Mediator", admin_flagged_mediation_path(mediation), class: "view-link" %></td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
+  <% if @show_mediation_view %>
+    <%= render "messages/mediation_board",
+          grouped_mediations: @grouped_mediations,
+          has_past: @has_past_mediations,
+          show_pending_chip: false,
+          group_titles: MessagesHelper::MEDIATOR_GROUP_TITLES,
+          role: "Admin" %>
   <% else %>
-    <p class="mediation-status">No unassigned mediations.</p>
-  <% end %>
-
-  <h2>Active Mediations</h2>
-  <% if @active_mediations.any? %>
-    <table class="mediation-table">
-      <thead>
-        <tr>
-          <th>Tenant</th>
-          <th>Landlord</th>
-          <th>Mediator</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% @active_mediations.each do |mediation| %>
-          <tr>
-            <td data-label="Tenant"><%= mediation.tenant.FName %> <%= mediation.tenant.LName %></td>
-            <td data-label="Landlord"><%= mediation.landlord.FName %> <%= mediation.landlord.LName %></td>
-            <td data-label="Mediator">
-              <% if (mediator = mediation.mediator) %>
-                <%= mediator.FName %> <%= mediator.LName %>
-              <% else %>
-                <span class="mediation-status">Unassigned</span>
-              <% end %>
-            </td>
-            <td data-label="Action"><%= link_to "View Case", mediator_case_path(mediation.id), class: "view-link" %></td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
-  <% else %>
-    <p class="mediation-status">No active mediations.</p>
-  <% end %>
-
-  <h2>Completed Mediations</h2>
-  <% if @completed_mediations.any? %>
-    <table class="mediation-table">
-      <thead>
-        <tr>
-          <th>Tenant</th>
-          <th>Landlord</th>
-          <th>Ended At</th>
-          <th>Summary</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% @completed_mediations.each do |mediation| %>
-          <tr>
-            <td data-label="Tenant"><%= mediation.tenant.FName %> <%= mediation.tenant.LName %></td>
-            <td data-label="Landlord"><%= mediation.landlord.FName %> <%= mediation.landlord.LName %></td>
-            <td data-label="Ended At"><%= mediation.deleted_at.strftime("%B %d, %Y %I:%M %p") %></td>
-            <td data-label="Summary">
-              <%= link_to "View Summary", mediation_summary_path(mediation.ConversationID), class: "view-link" %>
-            </td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
-
-    <% if @total_pages > 1 %>
-      <div class="pagination">
-        <% if @current_page > 1 %>
-          <%= link_to "Previous", admin_mediations_path(page: @current_page - 1), class: "pagination-link" %>
-        <% end %>
-        
-        <span class="page-info">Page <%= @current_page %> of <%= @total_pages %></span>
-        
-        <% if @current_page < @total_pages %>
-          <%= link_to "Next", admin_mediations_path(page: @current_page + 1), class: "pagination-link" %>
-        <% end %>
-      </div>
-    <% end %>
-  <% else %>
-    <p class="mediation-status">No completed mediations found.</p>
+    <p class="mediation-status">No mediations found.</p>
   <% end %>
 </div>

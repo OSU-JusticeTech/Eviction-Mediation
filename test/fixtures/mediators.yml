@@ -15,6 +15,6 @@ mediator1:
 
 mediator2:
   UserID: 8
-  Available: 0
+  Available: 1
   ActiveMediations: 1 # conversation "two"
   MediationCap: 3

@@ -1,0 +1,6 @@
+<%# locals: mediation, action (unused for mediators; present for interface consistency) %>
+<% if mediation.past? %>
+  <%= link_to "View Summary", mediation_summary_path(mediation.ConversationID), class: "card-btn card-btn--secondary" %>
+<% else %>
+  <%= link_to "View Mediation", mediator_case_path(mediation), class: "card-btn card-btn--primary" %>
+<% end %>

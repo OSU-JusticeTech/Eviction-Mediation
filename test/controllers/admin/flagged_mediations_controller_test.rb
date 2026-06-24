@@ -20,19 +20,20 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "lists unassigned and completed mediations for admins" do
+  test "lists active and past mediations in board for admins" do
     get admin_mediations_url
 
     assert_response :success
     assert_select "h1", "Mediations Dashboard"
 
-    # Check for Unassigned section
-    assert_select "h2", "Unassigned Mediator Requests"
-    assert_select "td", text: /#{@unassigned.tenant.FName}/
+    # Board renders group headings for both sections
+    assert_select "h2.mediation-group__title", "Active Mediations"
+    assert_select "h2.mediation-group__title", "Past Mediations"
 
-    # Check for Completed section
-    assert_select "h2", "Completed Mediations"
-    assert_select "td", text: /#{@completed.tenant.FName}/
+    # Both the unassigned case (active) and the completed case (past) are
+    # represented as cards; each card name combines both parties.
+    assert_match @unassigned.tenant.FName, response.body
+    assert_match @completed.tenant.FName, response.body
   end
 
   test "lists active mediations with a view case link for admins" do
@@ -47,8 +48,8 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
     get admin_mediations_url
 
     assert_response :success
-    assert_select "h2", "Active Mediations"
-    assert_select "a.view-link[href=?]", mediator_case_path(active.id), text: "View Case"
+    assert_select "h2.mediation-group__title", "Active Mediations"
+    assert_select "a[href=?]", mediator_case_path(active.id), text: "View Case"
   end
 
   test "shows a specific mediation" do

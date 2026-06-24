@@ -4,16 +4,14 @@ class ThirdPartyMediationsController < ApplicationController
   before_action :authorize_mediator
 
   def index
-    @mediations = PrimaryMessageGroup
+    mediations = PrimaryMessageGroup
       .where(MediatorID: @user.UserID, MediatorAssigned: true)
-      .where(deleted_at: nil)
       .includes(:tenant, :landlord)
+      .sort_by { |m| [ m.past? ? 1 : 0, -(m.last_activity_at.to_i) ] }
 
-    @past_mediations = PrimaryMessageGroup
-      .where(MediatorID: @user.UserID, MediatorAssigned: true)
-      .where.not(deleted_at: nil)
-      .includes(:tenant, :landlord)
-      .order(deleted_at: :desc)
+    @grouped_mediations  = mediations.group_by { |m| m.past? ? :past : :active }
+    @has_past_mediations = mediations.any?(&:past?)
+    @show_mediation_view = mediations.any?
 
     render "third_party_mediations/index"
   end

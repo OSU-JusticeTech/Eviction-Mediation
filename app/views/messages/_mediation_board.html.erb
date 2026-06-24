@@ -1,15 +1,18 @@
 <%#
-  Shared mediation board for tenants and landlords.
+  Shared mediation board for all roles.
   Locals:
-    grouped_mediations - Hash of board category => [PrimaryMessageGroup],
-                         keyed :needs_action / :everything_else (see
-                         MessagesController#board_category)
-    has_past           - whether a Past filter chip should be offered
-    role               - "Tenant" or "Landlord" (drives card wording/actions)
+    grouped_mediations  - Hash of board category => [PrimaryMessageGroup]
+    has_past            - whether a Past filter chip should be offered
+    role                - "Tenant", "Landlord", "Mediator", or "Admin"
+    group_titles        - Hash of category => heading string
+                         (defaults to MessagesHelper::GROUP_TITLES for tenant/landlord)
+    show_pending_chip   - whether to render the Pending filter chip (default: true)
 
   Headers and cards are rendered as flat siblings (not nested sections) so the
   Stimulus controller can window an arbitrary slice of them for pagination.
 %>
+<% group_titles      = local_assigns.fetch(:group_titles,     MessagesHelper::GROUP_TITLES) %>
+<% show_pending_chip = local_assigns.fetch(:show_pending_chip, true) %>
 <div class="mediation-board" data-controller="mediation-filter" data-mediation-filter-per-page-value="10">
   <div class="mediation-filter-bar">
     <div class="filter-chips" role="group" aria-label="Filter negotiations by status">
@@ -19,9 +22,11 @@
       <button type="button" class="filter-chip" data-status="active"
               data-mediation-filter-target="chip"
               data-action="mediation-filter#filterByStatus">Active</button>
-      <button type="button" class="filter-chip" data-status="pending"
-              data-mediation-filter-target="chip"
-              data-action="mediation-filter#filterByStatus">Pending</button>
+      <% if show_pending_chip %>
+        <button type="button" class="filter-chip" data-status="pending"
+                data-mediation-filter-target="chip"
+                data-action="mediation-filter#filterByStatus">Pending</button>
+      <% end %>
       <% if has_past %>
         <button type="button" class="filter-chip" data-status="past"
                 data-mediation-filter-target="chip"
@@ -71,7 +76,7 @@
   </div>
 
   <div class="mediation-groups" data-mediation-filter-target="groups">
-    <% MessagesHelper::GROUP_TITLES.each do |category, title| %>
+    <% group_titles.each do |category, title| %>
       <% items = grouped_mediations[category] %>
       <% next if items.blank? %>
       <h2 class="mediation-group__title" data-mediation-filter-target="header" data-group="<%= category %>"><%= title %></h2>
@@ -79,7 +84,8 @@
         <%= render "messages/mediation_card",
               mediation: mediation,
               role: role,
-              action: @mediation_actions[mediation.ConversationID] %>
+              board_group: category,
+              action: @mediation_actions&.dig(mediation.ConversationID) %>
       <% end %>
     <% end %>
   </div>

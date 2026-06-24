@@ -4,29 +4,17 @@ class Admin::FlaggedMediationsController < ApplicationController
   before_action :authorize_admin # Ensures Only Admins Can deal with flagged mediations
 
   def index
-    @unassigned_mediations = PrimaryMessageGroup
-      .where(MediatorRequested: true, MediatorAssigned: false)
-      .includes(:tenant, :landlord)
-
-    @active_mediations = PrimaryMessageGroup
-      .where(MediatorAssigned: true, deleted_at: nil)
+    # Show all mediations that have requested/assigned a mediator, plus every
+    # ended mediation regardless of mediator involvement (for archive visibility).
+    mediations = PrimaryMessageGroup
+      .where(MediatorRequested: true)
+      .or(PrimaryMessageGroup.where.not(deleted_at: nil))
       .includes(:tenant, :landlord, :mediator)
-      .order(:ConversationID)
+      .sort_by { |m| [ m.past? ? 1 : 0, -(m.last_activity_at.to_i) ] }
 
-    page = params[:page].to_i > 0 ? params[:page].to_i : 1
-    per_page = 20
-    offset = (page - 1) * per_page
-
-    @completed_mediations = PrimaryMessageGroup
-      .where.not(deleted_at: nil)
-      .order(deleted_at: :desc)
-      .includes(:tenant, :landlord)
-      .offset(offset)
-      .limit(per_page)
-
-    @total_completed = PrimaryMessageGroup.where.not(deleted_at: nil).count
-    @total_pages = (@total_completed.to_f / per_page).ceil
-    @current_page = page
+    @grouped_mediations  = mediations.group_by { |m| m.past? ? :past : :active }
+    @has_past_mediations = mediations.any?(&:past?)
+    @show_mediation_view = mediations.any?
   end
 
   def show

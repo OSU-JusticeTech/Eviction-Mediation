@@ -18,7 +18,7 @@ class AdminMediationsTest < ApplicationSystemTestCase
     @message_string.update!(deleted_at: nil)
   end
 
-  test "admin reaches a read-only case overview from the active mediations table" do
+  test "admin reaches a read-only case overview from the active mediations board" do
     sign_in_as(@admin)
     visit admin_mediations_path
 

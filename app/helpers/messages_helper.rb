@@ -5,11 +5,18 @@ module MessagesHelper
     past: "Past"
   }.freeze
 
-  # Section titles for the grouped (default) board view. The default groups the
-  # viewer's mediations by whether they require the viewer's action.
+  # Section titles for the tenant/landlord board: grouped by whether the viewer
+  # has a pending action.
   GROUP_TITLES = {
     needs_action: "Needs Your Action",
     everything_else: "All Other Negotiations"
+  }.freeze
+
+  # Section titles for the mediator/admin board: simple active/past split with
+  # no pending-action grouping.
+  MEDIATOR_GROUP_TITLES = {
+    active: "Active Mediations",
+    past: "Past Mediations"
   }.freeze
 
   def mediation_status_label(mediation)
@@ -33,31 +40,68 @@ module MessagesHelper
     end
   end
 
+  # Display name summarising both parties, used on mediator/admin cards where
+  # there is no single "counterparty".
+  def mediation_parties_summary(mediation)
+    tenant_name   = full_name(mediation.tenant).presence   || mediation.tenant&.Email   || "Unknown Tenant"
+    landlord_name = mediation.landlord&.CompanyName.presence ||
+                    full_name(mediation.landlord).presence  ||
+                    mediation.landlord&.Email                || "Unknown Landlord"
+    "#{tenant_name} & #{landlord_name}"
+  end
+
   # Human-readable description of where a mediation stands, from the viewer's
   # perspective, shown on its card.
   def mediation_substatus(mediation, viewer_role)
-    case mediation.status_category
-    when :active
-      "In progress"
-    when :past
-      ended_on = mediation.deleted_at&.strftime("%B %d, %Y")
-      ended_on ? "Ended #{ended_on}" : "Ended"
-    when :pending
-      pending_substatus(mediation.pending_stage, viewer_role)
+    case viewer_role
+    when "Mediator"
+      mediation.past? ? "Ended #{mediation.deleted_at&.strftime('%B %d, %Y')}" : "In progress"
+    when "Admin"
+      if mediation.past?
+        "Ended #{mediation.deleted_at&.strftime('%B %d, %Y')}"
+      elsif mediation.MediatorAssigned?
+        "In progress"
+      else
+        "Awaiting mediator assignment"
+      end
+    else
+      case mediation.status_category
+      when :active
+        "In progress"
+      when :past
+        ended_on = mediation.deleted_at&.strftime("%B %d, %Y")
+        ended_on ? "Ended #{ended_on}" : "Ended"
+      when :pending
+        pending_substatus(mediation.pending_stage, viewer_role)
+      end
     end
   end
 
   # Lowercased text blob used by the client-side search filter.
   def mediation_search_terms(mediation, viewer_role)
-    party = mediation_counterparty(mediation, viewer_role)
-    [
-      party&.FName,
-      party&.LName,
-      party&.Email,
-      party&.CompanyName,
-      mediation.tenant&.formatted_tenant_address,
-      mediation_status_label(mediation)
-    ].compact.join(" ").downcase
+    if [ "Mediator", "Admin" ].include?(viewer_role)
+      [
+        mediation.tenant&.FName,
+        mediation.tenant&.LName,
+        mediation.tenant&.Email,
+        mediation.landlord&.FName,
+        mediation.landlord&.LName,
+        mediation.landlord&.Email,
+        mediation.landlord&.CompanyName,
+        mediation.tenant&.formatted_tenant_address,
+        STATUS_LABELS.fetch(mediation.past? ? :past : :active, "")
+      ].compact.join(" ").downcase
+    else
+      party = mediation_counterparty(mediation, viewer_role)
+      [
+        party&.FName,
+        party&.LName,
+        party&.Email,
+        party&.CompanyName,
+        mediation.tenant&.formatted_tenant_address,
+        mediation_status_label(mediation)
+      ].compact.join(" ").downcase
+    end
   end
 
   private
