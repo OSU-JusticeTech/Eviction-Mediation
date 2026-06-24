@@ -15,6 +15,7 @@ class IntakeQuestionsController < ApplicationController
       @intake_question.UserID = @user.UserID
       @intake_question.Section8 = section8
       @intake_question.TotalCostOrMonthly = total_cost_or_monthly
+      @intake_question.reasons = params.dig(:intake_question, :Reason)
       Rails.logger.debug params[:intake_question]
 
       if @intake_question.save
@@ -47,8 +48,10 @@ class IntakeQuestionsController < ApplicationController
     end
 
     def intake_question_params
+      # :Reason is handled separately via the #reasons= setter (it arrives as an
+      # array of selected reasons), so it is intentionally not permitted here.
       params.require(:intake_question).permit(
-        :Reason, :DescribeCause, :BestOption, :Section8,
+        :DescribeCause, :BestOption, :Section8,
         :MoneyOwed, :TotalCostOrMonthly, :MonthlyRent,
         :DateDue, :PayableToday, :conversation_id
       )

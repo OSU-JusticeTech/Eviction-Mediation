@@ -1,3 +1,5 @@
+import { setupChatDisclaimer } from "chat/chat_disclaimer";
+
 const MIN_HEIGHT = '38px';
 
 const setupTextareaAutoExpand = () => {
@@ -195,69 +197,7 @@ const initializeMediatorChat = () => {
   setupTextareaAutoExpand();
   setupMediatorForms();
 
-  // Show disclaimer modal with slight delay (tenants always, landlords once)
-  const disclaimerModal = document.querySelector('[data-disclaimer-modal]');
-  if (disclaimerModal) {
-    const userRole = disclaimerModal.dataset.userRole;
-    const disclaimerKey = `chatDisclaimerSeen_${userRole}`;
-
-    let shouldShowModal = true;
-
-    // For landlords, check if they've seen it before
-    if (userRole === 'Landlord') {
-      const hasSeenDisclaimer = localStorage.getItem(disclaimerKey);
-      if (hasSeenDisclaimer) {
-        shouldShowModal = false; // Don't show modal again for landlords
-      }
-    }
-    // Tenants always see it (shouldShowModal stays true)
-
-    if (shouldShowModal) {
-      setTimeout(() => {
-        disclaimerModal.hidden = false;
-        requestAnimationFrame(() => {
-          disclaimerModal.classList.add('is-open');
-        });
-      }, 300);
-    }
-  }
-
-  // Disclaimer modal close handler
-  const disclaimerCloseButtons = document.querySelectorAll(
-    '[data-disclaimer-modal-close]',
-  );
-  disclaimerCloseButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      const modal = document.querySelector('[data-disclaimer-modal]');
-      if (modal) {
-        modal.classList.remove('is-open');
-        modal.hidden = true;
-
-        // Mark as seen for landlords
-        const userRole = modal.dataset.userRole;
-        if (userRole === 'Landlord') {
-          const disclaimerKey = `chatDisclaimerSeen_${userRole}`;
-          localStorage.setItem(disclaimerKey, 'true');
-        }
-      }
-    });
-  });
-
-  // Also mark as seen when clicking outside the modal
-  if (disclaimerModal) {
-    disclaimerModal.addEventListener('click', (e) => {
-      if (e.target === disclaimerModal) {
-        disclaimerModal.classList.remove('is-open');
-        disclaimerModal.hidden = true;
-
-        const userRole = disclaimerModal.dataset.userRole;
-        if (userRole === 'Landlord') {
-          const disclaimerKey = `chatDisclaimerSeen_${userRole}`;
-          localStorage.setItem(disclaimerKey, 'true');
-        }
-      }
-    });
-  }
+  setupChatDisclaimer();
 };
 
 const eagerInitializeMediatorChat = () => {

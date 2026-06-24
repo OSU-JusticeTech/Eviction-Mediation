@@ -412,6 +412,90 @@
     white-space: nowrap;
   }
 
+  /* Marks where the user left off when reopening a thread with unread messages */
+  .unread-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.5rem 0;
+    user-select: none;
+  }
+
+  .unread-divider::before,
+  .unread-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(217, 45, 32, 0.35);
+  }
+
+  .unread-divider__label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #d92d20;
+    white-space: nowrap;
+  }
+
+  /* Floating "jump to latest" button shown when scrolled away from the newest
+     message. Hidden by default; JS toggles the `is-visible` class. Visibility is
+     class-driven (not the [hidden] attribute) so a class selector can't override
+     it and stale/orphaned buttons can't get stuck on screen. */
+  .chat-jump-latest {
+    position: absolute;
+    left: 50%;
+    bottom: 84px; /* overridden inline so it clears the composer */
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.95rem;
+    background: #ffffff;
+    color: #102a4d;
+    border: 1px solid rgba(16, 42, 77, 0.12);
+    border-radius: 999px;
+    box-shadow: 0 8px 20px rgba(16, 42, 77, 0.18);
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 5;
+    transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  }
+
+  .chat-jump-latest.is-visible {
+    display: inline-flex;
+  }
+
+  .chat-jump-latest:hover {
+    border-color: rgba(16, 42, 77, 0.25);
+    box-shadow: 0 10px 24px rgba(16, 42, 77, 0.24);
+    transform: translateX(-50%) translateY(-1px);
+  }
+
+  .chat-jump-latest .fa-arrow-down {
+    font-size: 0.72rem;
+  }
+
+  .chat-jump-latest__count {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: #d92d20;
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .chat-jump-latest__count.is-visible {
+    display: inline-flex;
+  }
+
   /* Scrollbar Styles */
   .message-list-container::-webkit-scrollbar {
     width: 8px;
@@ -503,6 +587,7 @@
     margin: 0;
     font-size: 0.95rem;
     line-height: 1.45;
+    white-space: pre-wrap; /* preserve the sender's spaces, indentation and line breaks */
     word-wrap: break-word;
     overflow-wrap: break-word;
     word-break: break-word;
@@ -1078,7 +1163,7 @@
     margin-bottom: 0;
   }
 
-  .chat-disclaimer-modal.is-open .conversation-modal__content {
+  .chat-disclaimer-modal[open] .conversation-modal__content {
     animation: slideDown 350ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -1203,6 +1288,34 @@
 
   .conversation-modal[hidden] {
     display: none;
+  }
+
+  /* The terms-of-use and chat-terms modals are native <dialog> elements opened
+     with showModal() so the browser enforces a focus trap. Reset the dialog UA
+     box defaults and let the shared .conversation-modal overlay styles drive the
+     appearance. */
+  dialog.conversation-modal {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    color: inherit;
+    outline: none;
+  }
+
+  dialog.conversation-modal:focus,
+  dialog.conversation-modal:focus-visible {
+    outline: none !important;
+  }
+
+  dialog.conversation-modal:not([open]) {
+    display: none;
+  }
+
+  dialog.conversation-modal::backdrop {
+    background: transparent;
   }
 
   .conversation-modal__content {

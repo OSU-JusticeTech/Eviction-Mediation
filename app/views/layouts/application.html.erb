@@ -76,7 +76,7 @@
 
     <% if current_user && (current_user.Role == "Tenant" || current_user.Role == "Landlord") %>
       <!-- Terms of Use Modal -->
-      <div id="termsOfUseModal" class="conversation-modal" hidden>
+      <dialog id="termsOfUseModal" class="conversation-modal" tabindex="-1">
         <div class="conversation-modal__content" style="max-width: 600px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;">
           <div class="conversation-modal__header">
             <h3>Terms of Use</h3>
@@ -122,7 +122,7 @@
             <button id="acceptTermsBtn" class="conversation-cta" style="background: #102a4d; color: white; border: none; padding: 0.75rem 2rem; border-radius: 999px; font-weight: 600; cursor: pointer; font-size: 0.95rem;">OK</button>
           </div>
         </div>
-      </div>
+      </dialog>
 
       <script>
         (function() {
@@ -133,23 +133,44 @@
           function showTermsModal() {
             // Check if user has already accepted terms
             const hasAccepted = localStorage.getItem(storageKey);
-            
-            if (!hasAccepted && modal) {
-              modal.removeAttribute('hidden');
+
+            if (!hasAccepted && modal && !modal.open) {
+              // showModal() opens the dialog in the top layer so the browser
+              // enforces a focus trap (the rest of the page becomes inert).
+              if (typeof modal.showModal === 'function') {
+                modal.showModal();
+              } else {
+                modal.setAttribute('open', '');
+              }
+              // Move focus off the auto-focused button to the dialog itself
+              // (outline: none) so no focus ring shows on open.
+              modal.focus();
               document.body.classList.add('has-modal-open');
             }
           }
-          
+
           function hideTermsModal() {
             if (modal) {
-              modal.setAttribute('hidden', '');
+              if (typeof modal.close === 'function' && modal.open) {
+                modal.close();
+              } else {
+                modal.removeAttribute('open');
+              }
               document.body.classList.remove('has-modal-open');
               localStorage.setItem(storageKey, 'true');
             }
           }
-          
+
           if (acceptBtn) {
             acceptBtn.addEventListener('click', hideTermsModal);
+          }
+
+          // Persist acceptance even if the dialog is dismissed via Escape.
+          if (modal) {
+            modal.addEventListener('close', function () {
+              document.body.classList.remove('has-modal-open');
+              localStorage.setItem(storageKey, 'true');
+            });
           }
           
           // Show modal on page load

@@ -1,4 +1,5 @@
 import consumer from "channels/consumer";
+import { setupJumpToLatest } from "chat/jump_to_latest";
 
 const escapeHtml = (value) => {
   if (value === null || value === undefined) return "";
@@ -33,8 +34,9 @@ const titleize = (value) => {
 
 const formatMessageContents = (contents) => {
   if (!contents) return "";
-  const sanitized = escapeHtml(contents);
-  return sanitized.replace(/(\r\n|\n|\r)/g, "<br>");
+  // Escape only; whitespace and line breaks are preserved by CSS white-space: pre-wrap
+  // on .message-content, so this matches the server-rendered output exactly.
+  return escapeHtml(contents);
 };
 
 const formatDateLabel = (timestamp) => {
@@ -107,6 +109,7 @@ const buildAttachmentHtml = (attachment, currentUserRole) => {
 let hasScrolledOnLoad = new Set();
 let activeSubscription = null;
 let activeConversationId = null;
+let activeJumpController = null;
 
 const initializeMessagesChannel = () => {
   const messagesContainer = document.querySelector('.message-list-container');
@@ -140,6 +143,14 @@ const initializeMessagesChannel = () => {
       console.log("Removing existing subscription before reinitializing:", subscription);
       consumer.subscriptions.remove(subscription);
     });
+
+  const jumpController = setupJumpToLatest({
+    container: messagesContainer,
+    list: messagesList,
+    currentUserId,
+    conversationId,
+  });
+  activeJumpController = jumpController;
 
   const subscription = consumer.subscriptions.create({ channel: "MessagesChannel", conversation_id: conversationId }, {
     initialized() {
@@ -208,6 +219,10 @@ const initializeMessagesChannel = () => {
       }
 
       if (!(isSender || isRecipient || isBroadcast)) return;
+
+      // Capture scroll position before we mutate the DOM — appending a message
+      // grows scrollHeight and would otherwise misread an at-bottom user as scrolled up.
+      const wasAtBottom = jumpController ? jumpController.isAtBottom() : true;
 
       // Remove "no messages" placeholder if it exists
       const noMessagesPlaceholder = messagesList.querySelector('.no-messages');
@@ -294,25 +309,22 @@ const initializeMessagesChannel = () => {
         }, { once: true });
       }
 
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      if (jumpController) {
+        jumpController.handleIncomingMessage(newMessageElement, { fromCurrentUser: isSender, wasAtBottom });
+      } else {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
     }
   });
 
   activeSubscription = subscription;
   activeConversationId = conversationId;
 
-  if (!hasScrolledOnLoad.has(conversationId)) {
-    hasScrolledOnLoad.add(conversationId);
-    messagesContainer.classList.add("use-smooth-scroll");
-    requestAnimationFrame(() => {
-      messagesContainer.scrollTo({
-        top: messagesContainer.scrollHeight,
-        behavior: "smooth"
-      });
-      setTimeout(() => {
-        messagesContainer.classList.remove("use-smooth-scroll");
-      }, 450);
-    });
+  const isFirstLoad = !hasScrolledOnLoad.has(conversationId);
+  hasScrolledOnLoad.add(conversationId);
+
+  if (jumpController) {
+    jumpController.positionOnLoad({ smooth: isFirstLoad });
   } else {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
   }
@@ -341,6 +353,10 @@ document.addEventListener('turbo:before-visit', () => {
     activeSubscription = null;
     activeConversationId = null;
   }
+  if (activeJumpController) {
+    activeJumpController.teardown();
+    activeJumpController = null;
+  }
 });
 
 document.addEventListener('turbo:before-cache', () => {
@@ -348,5 +364,10 @@ document.addEventListener('turbo:before-cache', () => {
     consumer.subscriptions.remove(activeSubscription);
     activeSubscription = null;
     activeConversationId = null;
+  }
+  // Strip the dynamically-added button/divider so the cached snapshot is clean.
+  if (activeJumpController) {
+    activeJumpController.teardown();
+    activeJumpController = null;
   }
 });

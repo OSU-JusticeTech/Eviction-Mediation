@@ -81,7 +81,7 @@
   <% end %>
 
   <% if @user&.Role != "Mediator" %>
-    <div class="conversation-modal chat-disclaimer-modal" data-disclaimer-modal data-user-role="<%= @user.Role %>" hidden role="dialog" aria-modal="true" aria-labelledby="disclaimer-modal-title">
+    <dialog class="conversation-modal chat-disclaimer-modal" data-disclaimer-modal data-user-role="<%= @user.Role %>" tabindex="-1" aria-labelledby="disclaimer-modal-title">
       <div class="conversation-modal__content">
         <div class="conversation-modal__header">
           <h3 id="disclaimer-modal-title">Chat Terms</h3>
@@ -104,6 +104,6 @@
           <button type="button" class="conversation-action conversation-action--primary" data-disclaimer-modal-close>I Understand</button>
         </div>
       </div>
-    </div>
+    </dialog>
   <% end %>
 </div>
