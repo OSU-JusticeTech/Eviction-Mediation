@@ -19,12 +19,21 @@ export default class extends Controller {
   static values = { perPage: { type: Number, default: 10 } }
 
   connect() {
-    this.status = "all"
-    this.query = ""
-    this.dateFrom = null
-    this.dateTo = null
-    this.sort = null // null = server order, "newest" or "oldest" = sorted by date
-    this.page = 1
+    const saved = this.#loadState()
+    this.status = saved.status ?? "all"
+    this.query = saved.query ?? ""
+    this.dateFrom = saved.dateFrom ?? null
+    this.dateTo = saved.dateTo ?? null
+    this.sort = saved.sort ?? null
+    this.page = saved.page ?? 1
+
+    if (this.hasSearchTarget) this.searchTarget.value = this.query
+    if (this.hasDateFromTarget) this.dateFromTarget.value = this.dateFrom ?? ""
+    if (this.hasDateToTarget) this.dateToTarget.value = this.dateTo ?? ""
+    this.chipTargets.forEach((chip) =>
+      chip.classList.toggle("is-active", chip.dataset.status === this.status)
+    )
+    this.#updateSortButton()
     this.apply()
   }
 
@@ -129,6 +138,7 @@ export default class extends Controller {
     if (this.hasGroupsTarget) this.groupsTarget.hidden = matching.length === 0
 
     this.#renderPagination(matching.length, totalPages, perPage)
+    this.#saveState()
   }
 
   // Returns the matching cards in the active sort order so pagination windows
@@ -235,5 +245,32 @@ export default class extends Controller {
   // results start at the top instead of leaving the user at the pagination row.
   #scrollToTop() {
     this.element.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+
+  #storageKey() {
+    return `mediationFilter:${window.location.pathname}`
+  }
+
+  #saveState() {
+    try {
+      const state = {
+        status: this.status,
+        query: this.query,
+        dateFrom: this.dateFrom,
+        dateTo: this.dateTo,
+        sort: this.sort,
+        page: this.page,
+      }
+      window.sessionStorage.setItem(this.#storageKey(), JSON.stringify(state))
+    } catch (_) { /* sessionStorage unavailable — degrade silently */ }
+  }
+
+  #loadState() {
+    try {
+      const raw = window.sessionStorage.getItem(this.#storageKey())
+      return raw ? JSON.parse(raw) : {}
+    } catch (_) {
+      return {}
+    }
   }
 }

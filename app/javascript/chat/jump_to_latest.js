@@ -165,7 +165,6 @@ export const setupJumpToLatest = ({ container, list, currentUserId, conversation
     const top = maxMessageId();
     if (top > 0) writeLastReadId(userId, conversationId, top);
     unreadCount = 0;
-    removeUnreadDivider();
     updateCount();
     hideButton();
   };
