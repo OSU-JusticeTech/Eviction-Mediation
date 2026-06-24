@@ -1,7 +1,9 @@
 <div class="active-cases-section">
   <div class="active-cases-header">
     <h2><i class="fas fa-clipboard-list"></i> Active Cases</h2>
-    <span class="case-count-badge"><%= @active_mediations.size %> <%= "case".pluralize(@active_mediations.size) %></span>
+    <div class="active-cases-header-right">
+      <%= link_to "View Cases", third_party_mediations_path, class: "card-btn card-btn--primary case-row-btn" %>
+    </div>
   </div>
 
   <% if @active_mediations.any? %>
@@ -12,7 +14,7 @@
             <span class="party-name"><%= mediation.tenant.display_name %></span>
             <span class="party-name"><%= mediation.landlord.display_name %></span>
           </div>
-<span class="case-activity">Opened <%= time_ago_in_words(mediation.last_activity_at) %> ago</span>
+<span class="case-activity">Opened <%= (Date.current - mediation.last_activity_at.to_date).to_i %> days ago</span>
           <%= link_to "View Case", mediator_case_path(mediation), class: "card-btn card-btn--primary case-row-btn" %>
         </div>
       <% end %>

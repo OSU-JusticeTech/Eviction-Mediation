@@ -995,6 +995,12 @@ input[type="submit"].card-btn:disabled {
     margin-right: 0.5rem;
 }
 
+.active-cases-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
 .case-count-badge {
     background: #f1f5f9;
     color: #64748b;
@@ -1003,6 +1009,7 @@ input[type="submit"].card-btn:disabled {
     padding: 0.25rem 0.75rem;
     border-radius: 50px;
 }
+
 
 .cases-list {
     display: flex;
