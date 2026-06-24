@@ -439,6 +439,22 @@ input[type="submit"].card-btn:disabled {
     color: #f59e0b;
 }
 
+.stat-icon--active {
+    color: #3b82f6;
+}
+
+.stat-icon--unassigned {
+    color: #f59e0b;
+}
+
+.stat-icon--ended {
+    color: #10b981;
+}
+
+.stat-icon--feedback {
+    color: #8b5cf6;
+}
+
 .stat-content h3 {
     font-size: 2rem;
     font-weight: 700;
@@ -475,6 +491,13 @@ input[type="submit"].card-btn:disabled {
 .mediator-card:hover {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
     border-color: #3b82f6;
+}
+
+.mediator-status {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .mediator-info {
