@@ -190,6 +190,17 @@ class MessagesController < ApplicationController
         return
       end
 
+      # Admins have read-only visibility into conversations: they may view the
+      # chat pane but must never post messages (and their presence is not
+      # revealed to the tenant, landlord, or mediator).
+      if @user.Role == "Admin"
+        respond_to do |format|
+          format.html { redirect_to message_path(primary_group.ConversationID), alert: "Administrators have read-only access to this conversation." }
+          format.json { render json: { error: "Read-only access" }, status: :forbidden }
+        end
+        return
+      end
+
       # Determine Recipient / broadcast behavior
       recipient_id = determine_recipient(primary_group)
 

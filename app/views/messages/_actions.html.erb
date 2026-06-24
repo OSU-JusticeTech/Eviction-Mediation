@@ -2,59 +2,38 @@
 <% mediation_assigned = @mediation&.MediatorRequested && @mediation&.MediatorAssigned %>
 <% can_request_mediator = @mediation && !mediation_requested && !mediation_assigned %>
 
-<div class="conversation-actions" data-chat-actions>
-  <% show_status_card = @mediation.present? && (mediation_assigned || mediation_requested) %>
-
-  <% if show_status_card %>
-    <div id="mediation-status-container">
+<div class="conversation-toolbar__actions" data-chat-actions>
+  <% if can_request_mediator %>
+    <button type="button"
+            class="conversation-cta conversation-cta--primary"
+            data-mediator-modal-open>
+      <span class="conversation-cta__icon"><i class="fa-solid fa-handshake"></i></span>
+      <span class="conversation-cta__label">Request a mediator</span>
+    </button>
+  <% elsif @mediation.present? %>
+    <div id="mediation-status-container" class="conversation-status-pill-wrap">
       <% if mediation_assigned %>
         <% mediator = @mediation&.mediator %>
-        <% mediator_name = mediator ? [mediator.FName, mediator.LName].compact.join(" ").squeeze(" ").strip : "A mediator" %>
-        <div class="conversation-banner conversation-banner--success">
+        <% mediator_name = mediator ? [mediator.FName, mediator.LName].compact.join(" ").squeeze(" ").strip.presence : nil %>
+        <span class="conversation-status-pill conversation-status-pill--success" title="A mediator has been assigned to this case.">
           <i class="fa-solid fa-handshake" aria-hidden="true"></i>
-          <span>Mediator <strong><%= mediator_name %></strong> has been assigned to this case.</span>
-        </div>
-      <% elsif mediation_requested %>
-        <div class="conversation-card">
-          <div class="conversation-status conversation-status--info">
-            <i class="fa-solid fa-clock" aria-hidden="true"></i>
-            Mediator requested. We'll notify you when someone is assigned.
-          </div>
-        </div>
+          <span><%= mediator_name ? "Mediator: #{mediator_name}" : "Mediator assigned" %></span>
+        </span>
+      <% else %>
+        <span class="conversation-status-pill conversation-status-pill--info" title="We'll notify you when a mediator is assigned.">
+          <i class="fa-solid fa-clock" aria-hidden="true"></i>
+          <span>Mediator requested</span>
+        </span>
       <% end %>
-    </div>
-  <% elsif @mediation.blank? %>
-    <div class="conversation-card conversation-card--warning">
-      <div class="conversation-status conversation-status--warning">
-        We couldn't load mediation details. Please refresh.
-      </div>
     </div>
   <% end %>
 
-  <div class="conversation-actions__button-stack">
-    <% if can_request_mediator %>
-      <button type="button"
-              class="conversation-cta conversation-cta--primary"
-              data-mediator-modal-open>
-        <span class="conversation-cta__icon"><i class="fa-solid fa-handshake"></i></span>
-        <span class="conversation-cta__label">Request a mediator</span>
-      </button>
-    <% else %>
-      <button type="button"
-              class="conversation-cta conversation-cta--primary is-disabled"
-              disabled>
-        <span class="conversation-cta__icon"><i class="fa-solid fa-handshake-angle"></i></span>
-        <span class="conversation-cta__label"><%= mediation_assigned ? "Mediator assigned" : "Mediator requested" %></span>
-      </button>
-    <% end %>
-
-    <button type="button"
-            class="conversation-cta conversation-cta--danger"
-            data-end-modal-open>
-      <span class="conversation-cta__icon"><i class="fa-solid fa-circle-xmark"></i></span>
-      <span class="conversation-cta__label">End <%= mediation_assigned ? 'Mediation' : 'Negotiation' %></span>
-    </button>
-  </div>
+  <button type="button"
+          class="conversation-cta conversation-cta--danger"
+          data-end-modal-open>
+    <span class="conversation-cta__icon"><i class="fa-solid fa-circle-xmark"></i></span>
+    <span class="conversation-cta__label">End <%= mediation_assigned ? 'Mediation' : 'Negotiation' %></span>
+  </button>
 
   <% if @mediation.present? %>
     <div class="conversation-modal" data-mediator-modal hidden role="dialog" aria-modal="true" aria-labelledby="mediator-modal-title">

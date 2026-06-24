@@ -8,6 +8,11 @@ require "prawn/table"
 class DocumentsController < ApplicationController
   before_action :require_login
   before_action :set_user
+  before_action :block_admin_document_creation, only: [
+    :new, :create, :template_intake, :generate_from_intake,
+    :template_preview, :intake_template_view, :generate_filled_template,
+    :apply_signature
+  ]
   before_action :set_conversation_context, only: [ :intake_template_view ]
 
 
@@ -792,6 +797,14 @@ class DocumentsController < ApplicationController
   def set_user
     @user = ::User.find_by(UserID: session[:user_id])
     redirect_to login_path, alert: "Please log in." unless @user
+  end
+
+  # Admins have read-only visibility into conversations. They may view and
+  # download existing documents, but must not create or generate new ones.
+  def block_admin_document_creation
+    if @user&.Role == "Admin"
+      redirect_to admin_mediations_path, alert: "Administrators have read-only access and cannot generate documents."
+    end
   end
 
   # PDF Template Generators

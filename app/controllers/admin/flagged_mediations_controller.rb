@@ -8,6 +8,11 @@ class Admin::FlaggedMediationsController < ApplicationController
       .where(MediatorRequested: true, MediatorAssigned: false)
       .includes(:tenant, :landlord)
 
+    @active_mediations = PrimaryMessageGroup
+      .where(MediatorAssigned: true, deleted_at: nil)
+      .includes(:tenant, :landlord, :mediator)
+      .order(:ConversationID)
+
     page = params[:page].to_i > 0 ? params[:page].to_i : 1
     per_page = 20
     offset = (page - 1) * per_page

@@ -166,26 +166,21 @@ const initializeMessagesChannel = () => {
           if (submitButton) submitButton.disabled = false;
         }
 
-        // Update the status box
+        // Update the status pill in the toolbar
         const statusContainer = document.getElementById('mediation-status-container');
         if (statusContainer) {
-           const mediatorName = data.mediator_name || "A mediator";
+           const mediatorName = (data.mediator_name || "").trim();
+           const label = mediatorName ? `Mediator: ${mediatorName}` : "Mediator assigned";
            statusContainer.innerHTML = `
-            <div class="conversation-banner conversation-banner--success">
+            <span class="conversation-status-pill conversation-status-pill--success" title="A mediator has been assigned to this case.">
               <i class="fa-solid fa-handshake" aria-hidden="true"></i>
-              <span>Mediator <strong>${mediatorName}</strong> has been assigned to this case.</span>
-            </div>
+              <span>${label}</span>
+            </span>
            `;
         }
 
-        // Update the button text
-        const requestButton = document.querySelector('.conversation-cta--primary');
-        if (requestButton) {
-            const label = requestButton.querySelector('.conversation-cta__label');
-            if (label) label.textContent = "Mediator assigned";
-            requestButton.classList.add('is-disabled');
-            requestButton.disabled = true;
-        }
+        // The "Request a mediator" toolbar button is only rendered while a request
+        // can still be made, so once a mediator is assigned there's nothing to relabel.
 
         console.log('Mediator assigned, conversation now in broadcast mode.');
         return;
