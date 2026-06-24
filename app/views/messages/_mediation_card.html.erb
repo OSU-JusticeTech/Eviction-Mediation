@@ -1,0 +1,58 @@
+<%# locals: mediation, role, board_group, action (the viewer's pending action, or nil) %>
+<%#
+  board_group - the category key this card belongs to in grouped_mediations
+                (:needs_action/:everything_else for tenant/landlord,
+                 :active/:past for mediator/admin).
+  action      - nil for mediator/admin (no pending actions); used by
+                tenant/landlord card-action partials for feedback prompts.
+%>
+<% is_observer   = [ "Mediator", "Admin" ].include?(role) %>
+<%# Mediator/admin cards use their board group as the display status so the
+    filter chips and CSS modifiers align with the active/past split, regardless
+    of the model's own status_category (which may be :pending for unassigned
+    admin cases). Tenant/landlord cards keep the model's status_category. %>
+<% display_status = is_observer ? board_group : mediation.status_category %>
+<% party          = is_observer ? nil : mediation_counterparty(mediation, role) %>
+<article class="mediation-card-item mediation-card-item--<%= display_status %>"
+         data-mediation-filter-target="card"
+         data-group="<%= board_group %>"
+         data-status="<%= display_status %>"
+         data-date="<%= mediation.last_activity_at&.strftime("%Y-%m-%d") %>"
+         data-search="<%= mediation_search_terms(mediation, role) %>">
+  <div class="mediation-card-item__main">
+    <div class="mediation-card-item__header">
+      <% if is_observer %>
+        <h3 class="mediation-card-item__name"><%= mediation_parties_summary(mediation) %></h3>
+      <% else %>
+        <h3 class="mediation-card-item__name"><%= mediation_counterparty_name(mediation, role) %></h3>
+      <% end %>
+      <span class="status-badge status-badge--<%= display_status %>">
+        <%= MessagesHelper::STATUS_LABELS.fetch(display_status, display_status.to_s.capitalize) %>
+      </span>
+    </div>
+
+    <ul class="mediation-card-item__meta">
+      <% if mediation.tenant&.formatted_tenant_address.present? %>
+        <li><i class="fas fa-location-dot" aria-hidden="true"></i> <%= mediation.tenant.formatted_tenant_address %></li>
+      <% end %>
+      <% if is_observer %>
+        <li><i class="fas fa-user" aria-hidden="true"></i> Tenant: <%= mediation.tenant&.Email %></li>
+        <li><i class="fas fa-building" aria-hidden="true"></i> Landlord: <%= mediation.landlord&.Email %></li>
+        <% if role == "Admin" && mediation.mediator.present? %>
+          <li><i class="fas fa-gavel" aria-hidden="true"></i> Mediator: <%= mediation.mediator.FName %> <%= mediation.mediator.LName %></li>
+        <% end %>
+      <% else %>
+        <li><i class="fas fa-envelope" aria-hidden="true"></i> <%= party.Email %></li>
+      <% end %>
+    </ul>
+
+    <p class="mediation-card-item__substatus"><%= mediation_substatus(mediation, role) %></p>
+    <% if mediation.CreatedAt.present? %>
+      <p class="mediation-card-item__created">Case opened <%= mediation.CreatedAt.strftime("%B %d, %Y") %></p>
+    <% end %>
+  </div>
+
+  <div class="mediation-card-item__actions">
+    <%= render "messages/#{role.downcase}_card_actions", mediation: mediation, action: action %>
+  </div>
+</article>

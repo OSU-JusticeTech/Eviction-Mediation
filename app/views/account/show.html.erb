@@ -158,6 +158,16 @@
           <h2><i class="fa-solid fa-calendar-check"></i> Mediator Availability</h2>
         </div>
         <div class="card-body">
+          <div class="info-item" style="margin-bottom: 1.5rem;">
+            <div class="info-label">
+              <i class="fa-solid fa-folder-open"></i> Current Cases
+            </div>
+            <div class="info-value">
+              <%= @active_case_count %>
+              <%= @active_case_count == 1 ? "active case" : "active cases" %>
+            </div>
+          </div>
+
           <%= form_with model: @user, url: account_path, method: :patch, local: true, class: "account-form" do |f| %>
             <%= f.fields_for :mediator do |m| %>
               <div class="info-label">

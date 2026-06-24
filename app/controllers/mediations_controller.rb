@@ -108,15 +108,9 @@ class MediationsController < ApplicationController
     if @mediation.deleted_at.nil?
       @mediation.update(deleted_at: Time.current, EndedBy: @user.UserID)
       @mediation.linked_message_string&.update(deleted_at: Time.current)
-
-      # Decrement the mediator’s active mediation count if one is assigned
-      if @mediation.MediatorID.present?
-        mediator = Mediator.find_by(UserID: @mediation.MediatorID)
-        if mediator && mediator.ActiveMediations > 0
-          mediator.decrement!(:ActiveMediations)
-        end
-      end
-
+      # Setting deleted_at takes this case out of the mediator's active load;
+      # the ActiveMediations counter is re-derived automatically by
+      # PrimaryMessageGroup's caseload callback.
     end
     if @user.Role == "Mediator"
       redirect_to third_party_mediations_path, notice: "Mediation terminated."

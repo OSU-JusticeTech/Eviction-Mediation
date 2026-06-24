@@ -19,8 +19,10 @@ class ThirdPartyMediationsTest < ApplicationSystemTestCase
     visit third_party_mediations_path
 
     assert_selector "h1", text: "Your Assigned Mediation Cases"
-    assert_text @tenant.FName
-    assert_text @landlord.FName
+    # Board shows both parties by email in card meta; tenant name appears in
+    # the parties summary and landlord by company name (or name if no company).
+    assert_text @tenant.Email
+    assert_text @landlord.Email
     assert_link "View Mediation"
   end
 

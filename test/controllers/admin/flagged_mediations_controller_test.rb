@@ -20,19 +20,20 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "lists unassigned and completed mediations for admins" do
+  test "lists active and past mediations in board for admins" do
     get admin_mediations_url
 
     assert_response :success
     assert_select "h1", "Mediations Dashboard"
 
-    # Check for Unassigned section
-    assert_select "h2", "Unassigned Mediator Requests"
-    assert_select "td", text: /#{@unassigned.tenant.FName}/
+    # Board renders group headings for both sections
+    assert_select "h2.mediation-group__title", "Active Mediations"
+    assert_select "h2.mediation-group__title", "Past Mediations"
 
-    # Check for Completed section
-    assert_select "h2", "Completed Mediations"
-    assert_select "td", text: /#{@completed.tenant.FName}/
+    # Both the unassigned case (active) and the completed case (past) are
+    # represented as cards; each card name combines both parties.
+    assert_match @unassigned.tenant.FName, response.body
+    assert_match @completed.tenant.FName, response.body
   end
 
   test "lists active mediations with a view case link for admins" do
@@ -47,8 +48,8 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
     get admin_mediations_url
 
     assert_response :success
-    assert_select "h2", "Active Mediations"
-    assert_select "a.view-link[href=?]", mediator_case_path(active.id), text: "View Case"
+    assert_select "h2.mediation-group__title", "Active Mediations"
+    assert_select "a[href=?]", mediator_case_path(active.id), text: "View Case"
   end
 
   test "shows a specific mediation" do
@@ -122,16 +123,22 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
 
   test "initial assignment increments mediator load" do
     mediator_record = mediators(:mediator2)
+    # Setup ended conversation "two" (mediator2's only fixture case), so the
+    # counter is 0 here; assigning the unassigned case re-derives it to 1.
 
     patch admin_reassign_mediator_url(@unassigned), params: { new_mediator_id: @new_mediator.UserID }
 
     assert_redirected_to admin_mediations_path
-    assert_equal 2, mediator_record.reload.ActiveMediations
+    assert_equal 1, mediator_record.reload.ActiveMediations
   end
 
   test "reassignment decrements old mediator and increments new mediator" do
     old_mediator = mediators(:mediator1)
     new_mediator = mediators(:mediator2)
+    # Setup unassigned conversation "one" (mediator1's fixture case) and ended
+    # conversation "two" (mediator2's), so both counters start at 0. Assigning
+    # "one" to the old mediator brings it to 1, then reassigning moves that one
+    # case to the new mediator: old -> 0, new -> 1.
     @unassigned.update!(
       MediatorAssigned: true,
       MediatorRequested: true,
@@ -143,7 +150,7 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
     patch admin_reassign_mediator_url(@unassigned), params: { new_mediator_id: new_mediator.UserID }
 
     assert_redirected_to admin_mediations_path
-    assert_equal 2, old_mediator.reload.ActiveMediations
-    assert_equal 2, new_mediator.reload.ActiveMediations
+    assert_equal 0, old_mediator.reload.ActiveMediations
+    assert_equal 1, new_mediator.reload.ActiveMediations
   end
 end

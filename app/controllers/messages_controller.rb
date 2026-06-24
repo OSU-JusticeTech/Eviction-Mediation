@@ -3,36 +3,21 @@ class MessagesController < ApplicationController
   before_action :set_user
 
   def index
+    # Load every mediation for the current user as a single list sorted by when
+    # it was opened (newest first), then group it into "needs action" (the
+    # viewer must act next) and "everything else". The view renders this list
+    # grouped by default and the filter UI flattens/paginates it client-side, so
+    # we deliberately avoid one-query-per-status.
     case @user.Role
     when "Tenant"
-      @mediation = PrimaryMessageGroup
-                     .includes(:landlord)
-                     .find_by(TenantID: @user.UserID, deleted_at: nil)
-
-      @past_mediations = PrimaryMessageGroup
-                           .includes(:landlord)
-                           .where(TenantID: @user.UserID)
-                           .where.not(deleted_at: nil)
-                           .order(deleted_at: :desc)
-
-      @show_mediation_view = @mediation.present?
+      load_user_mediations(:TenantID, includes: :landlord)
 
       respond_to do |format|
         format.html { render "messages/tenant_index" }
       end
 
     when "Landlord"
-      @mediation = PrimaryMessageGroup
-                     .includes(:tenant)
-                     .where(LandlordID: @user.UserID, deleted_at: nil)
-
-      @past_mediations = PrimaryMessageGroup
-                           .includes(:tenant)
-                           .where(LandlordID: @user.UserID)
-                           .where.not(deleted_at: nil)
-                           .order(deleted_at: :desc)
-
-      @show_mediation_view = @mediation.any?
+      load_user_mediations(:LandlordID, includes: :tenant)
 
       respond_to do |format|
         format.html { render "messages/landlord_index" }
@@ -364,43 +349,59 @@ class MessagesController < ApplicationController
     render "messages/summary"
   end
 
-  def past_mediations
-    # Only allow tenants to access this page
-    if @user.Role != "Tenant"
-      redirect_to messages_path, alert: "Access Denied"
-      return
-    end
-
-    @past_mediations = PrimaryMessageGroup
-                         .includes(:landlord)
-                         .where(TenantID: @user.UserID)
-                         .where.not(deleted_at: nil)
-                         .order(deleted_at: :desc)
-
-    respond_to do |format|
-      format.html { render "messages/past_mediations" }
-    end
-  end
-
-  def landlord_past_mediations
-    # Only allow landlords to access this page
-    if @user.Role != "Landlord"
-      redirect_to messages_path, alert: "Access Denied"
-      return
-    end
-
-    @past_mediations = PrimaryMessageGroup
-                         .includes(:tenant)
-                         .where(LandlordID: @user.UserID)
-                         .where.not(deleted_at: nil)
-                         .order(deleted_at: :desc)
-
-    respond_to do |format|
-      format.html { render "messages/landlord_past_mediations" }
-    end
-  end
-
   private
+
+  # Loads, sorts, and groups every mediation belonging to the current user on
+  # the given foreign key (TenantID or LandlordID), populating the instance
+  # variables the shared board view expects. Within each group mediations are
+  # ordered newest-first by when they were opened; mediations awaiting the
+  # viewer's response surface above those only awaiting feedback.
+  def load_user_mediations(foreign_key, includes:)
+    @mediations = PrimaryMessageGroup
+                    .includes(includes)
+                    .where(foreign_key => @user.UserID)
+                    .to_a
+
+    # The action the viewer owes on each mediation, keyed by conversation and
+    # computed once here (with the feedback surveys batch-loaded) so grouping,
+    # sorting, and the card view all agree without a per-card survey query.
+    surveyed = SurveyResponse
+                 .where(user_id: @user.UserID, conversation_id: @mediations.map(&:ConversationID))
+                 .distinct
+                 .pluck(:conversation_id)
+                 .to_set
+    @mediation_actions = @mediations.each_with_object({}) do |mediation, actions|
+      actions[mediation.ConversationID] = mediation.pending_action_for(
+        @user.Role, feedback_pending: surveyed.exclude?(mediation.ConversationID)
+      )
+    end
+
+    @mediations.sort_by! { |m| mediation_sort_key(m) }
+
+    @grouped_mediations = @mediations.group_by { |m| board_category(m) }
+    @has_past_mediations = @mediations.any?(&:past?)
+    @show_mediation_view = @mediations.any?
+  end
+
+  # Default board grouping from the current viewer's perspective: mediations
+  # awaiting their action are surfaced first, everything else follows.
+  def board_category(mediation)
+    @mediation_actions[mediation.ConversationID] ? :needs_action : :everything_else
+  end
+
+  # Orders the single mediation list: needs-action cases first, and within them
+  # those awaiting a response ahead of those only awaiting feedback, then
+  # newest-opened first within each tier.
+  ACTION_ORDER = { respond: 0, feedback: 1 }.freeze
+
+  def mediation_sort_key(mediation)
+    action = @mediation_actions[mediation.ConversationID]
+    [
+      action ? 0 : 1,
+      ACTION_ORDER.fetch(action, 0),
+      -(mediation.CreatedAt || Time.at(0)).to_i
+    ]
+  end
 
   def determine_recipient(primary_group)
     return nil unless primary_group

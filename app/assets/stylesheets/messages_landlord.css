@@ -1,4 +1,3 @@
-/* Container Styling */
 .mediation-container {
     width: 100%; 
     max-width: 1200px;
@@ -27,7 +26,6 @@
     align-items: center;
 }
 
-/* Mediation Form Card */
 .mediation-card {
     background: white;
     padding: 15px 30px;
@@ -48,7 +46,6 @@
     font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Header Styling */
 .mediation-container h1 {
     font-size: 2rem;
     color: #102a4d;
@@ -58,14 +55,12 @@
     gap: 8px;
 }
 
-/* Welcome Message */
 .mediation-container p {
     font-size: 1rem;
     margin-bottom: 20px;
     color: black;
 }
 
-/* Table Styling */
 .mediation-table {
     width: 100%; 
     max-width: 1200px;
@@ -78,7 +73,6 @@
     table-layout: auto;
 }
 
-/* Table Header */
 .mediation-table th {
     background-color: #007bff;
     color: white;
@@ -88,7 +82,6 @@
     letter-spacing: 1px;
 }
 
-/* Table Rows */
 .mediation-table td {
     padding: 12px;
     border-bottom: 1px solid #ddd;
@@ -96,18 +89,15 @@
     overflow-wrap: break-word;
 }
 
-/* Alternating Row Colors */
 .mediation-table tr:nth-child(even) {
     background-color: #f2f2f2;
 }
 
-/* Hover Effect */
 .mediation-table tr:hover {
     background-color: #e0e0e0;
     transition: 0.3s;
 }
 
-/* Accept Negotiation/Mediation Button */
 .accept-btn {
     background: none;
     border: none;
@@ -125,7 +115,6 @@
     text-decoration: underline;
   }  
 
-  /* View summary/mediation */
   .view-link {
     color: #102a4d;
     text-decoration: none;
@@ -136,7 +125,6 @@
       text-decoration: underline;
   } 
 
-  /* Complete feedback */
   .complete-link {
     color: #c0392b;
     text-decoration: none;
@@ -147,7 +135,6 @@
       text-decoration: underline;
   } 
 
-/* Pagination */
 .pagination {
     display: flex;
     justify-content: center;
@@ -175,7 +162,6 @@
     color: #555;
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
     .mediation-container {
         padding: 15px;
@@ -368,8 +354,6 @@
         font-weight: bold;
     }
 }
-<<<<<<< HEAD
-}
 
 .signature-status {
     font-size: 0.9rem;
@@ -463,7 +447,506 @@
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
-=======
 
+/* =================================================================
+   Landlord messages board: toolbar, filter bar, grouped card list
+   ================================================================= */
 
->>>>>>> 2fa-clean
+.mediation-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin: 16px 0 24px;
+}
+
+.mediation-board {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: left;
+}
+
+/* Force [hidden] over class `display` rules so the Stimulus controller's
+   filter/pagination toggling wins inside the board. */
+.mediation-board [hidden] {
+    display: none !important;
+}
+
+/* --- Filter bar --- */
+.mediation-filter-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+.filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.filter-chip {
+    border: 1px solid #c7d2e0;
+    background: #fff;
+    color: #102a4d;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.filter-chip:hover {
+    background: #eef3fa;
+}
+
+.filter-chip.is-active {
+    background: #102a4d;
+    border-color: #102a4d;
+    color: #fff;
+}
+
+.filter-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.filter-search {
+    position: relative;
+    flex: 1 1 280px;
+    min-width: 200px;
+}
+
+.filter-search i {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #8a98aa;
+    pointer-events: none;
+}
+
+.filter-search input {
+    width: 100%;
+    padding: 10px 14px 10px 38px;
+    border: 1px solid #c7d2e0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+}
+
+.filter-search input:focus,
+.filter-date input:focus {
+    outline: none;
+    border-color: #102a4d;
+    box-shadow: 0 0 0 2px rgba(16, 42, 77, 0.12);
+}
+
+/* Keeps the date range and sort button together on one row. */
+.filter-date-controls {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.filter-dates {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.filter-date {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #5a6b7f;
+}
+
+.filter-date input {
+    padding: 8px 10px;
+    border: 1px solid #c7d2e0;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+}
+
+.filter-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    border: 1px solid #c7d2e0;
+    border-radius: 8px;
+    background: #fff;
+    color: #102a4d;
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-family: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.filter-sort:hover {
+    background: #eef3fa;
+}
+
+.filter-sort.is-active {
+    border-color: #102a4d;
+}
+
+.filter-sort i {
+    color: #5a6b7f;
+}
+
+.filter-clear {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: #102a4d;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 6px 4px;
+    font-family: inherit;
+}
+
+.filter-clear:hover {
+    color: #c0392b;
+}
+
+/* --- Grouped list (default view) --- */
+.mediation-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.mediation-group__title {
+    font-size: 1.15rem;
+    color: #102a4d;
+    margin: 8px 0 0;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #e3e9f2;
+}
+
+.mediation-empty {
+    text-align: center;
+    color: #5a6b7f;
+    font-weight: 600;
+    padding: 24px;
+}
+
+/* --- Mediation card --- */
+.mediation-card-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: #fff;
+    border: 1px solid #e3e9f2;
+    border-left: 5px solid #c7d2e0;
+    border-radius: 10px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.mediation-card-item--active {
+    border-left-color: #1c7030;
+}
+
+.mediation-card-item--pending {
+    border-left-color: #d99100;
+}
+
+.mediation-card-item--past {
+    border-left-color: #8a98aa;
+}
+
+.mediation-card-item__main {
+    flex: 1 1 280px;
+    min-width: 0;
+}
+
+.mediation-card-item__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.mediation-card-item__name {
+    font-size: 1.1rem;
+    color: #102a4d;
+    margin: 0;
+}
+
+.mediation-card-item__meta {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0;
+    color: #5a6b7f;
+    font-size: 0.9rem;
+}
+
+.mediation-card-item__meta li {
+    margin-bottom: 2px;
+    word-break: break-word;
+}
+
+.mediation-card-item__meta i {
+    color: #8a98aa;
+    width: 16px;
+    text-align: center;
+}
+
+.mediation-card-item__substatus {
+    margin: 10px 0 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #344b66;
+}
+
+.mediation-card-item--pending .mediation-card-item__substatus {
+    color: #9a6700;
+}
+
+.mediation-card-item__created {
+    margin: 4px 0 0;
+    font-size: 0.8rem;
+    color: #6b7a8d;
+}
+
+/* --- Status badge --- */
+.status-badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.status-badge--active {
+    background: #e3f5e9;
+    color: #1c7030;
+}
+
+.status-badge--pending {
+    background: #fdf2dc;
+    color: #9a6700;
+}
+
+.status-badge--past {
+    background: #eef0f3;
+    color: #5a6b7f;
+}
+
+/* --- Card actions --- */
+.mediation-card-item__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.mediation-card-item__actions form {
+    margin: 0;
+}
+
+.card-btn {
+    display: inline-block;
+    padding: 9px 18px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-family: inherit;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.card-btn--primary {
+    background: #102a4d;
+    color: #fff;
+}
+
+.card-btn--primary:hover {
+    background: #0d2340;
+}
+
+.card-btn--secondary {
+    background: #eef3fa;
+    color: #102a4d;
+    border-color: #c7d2e0;
+}
+
+.card-btn--secondary:hover {
+    background: #dfe8f5;
+}
+
+.card-btn--ghost {
+    background: transparent;
+    color: #c0392b;
+    border-color: #e0b4ae;
+}
+
+.card-btn--ghost:hover {
+    background: #fbeae8;
+}
+
+.card-btn--feedback {
+    background: #c0392b;
+    color: #fff;
+}
+
+.card-btn--feedback:hover {
+    background: #a52f23;
+}
+
+.card-status-note {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #5a6b7f;
+}
+
+@media (max-width: 600px) {
+    .filter-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-search,
+    .filter-date-controls {
+        width: 100%;
+        /* Column layout reads flex-basis as height; reset to content. */
+        flex: 0 0 auto;
+    }
+
+    /* Let the date range + sort button wrap below the search row. */
+    .filter-date-controls {
+        flex-wrap: wrap;
+    }
+
+    .filter-dates {
+        flex: 1 1 auto;
+    }
+
+    .filter-date {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .filter-date input {
+        width: 100%;
+    }
+
+    .filter-clear {
+        margin-left: 0;
+        align-self: flex-start;
+    }
+
+    .mediation-card-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .mediation-card-item__main {
+        /* Column layout reads flex-basis as height; collapse to content. */
+        flex: 0 0 auto;
+    }
+
+    .mediation-card-item__actions {
+        justify-content: flex-start;
+    }
+
+    .card-btn {
+        flex: 1 1 auto;
+    }
+}
+
+/* --- Board pagination --- */
+.mediation-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.mediation-pagination .pagination-link {
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9rem;
+}
+
+.mediation-pagination .pagination-link:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.mediation-pagination .pagination-link:disabled:hover {
+    background-color: #102a4d;
+}
+
+/* Numbered page buttons (windowed with "…") */
+.pagination-pages {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.pagination-page {
+    min-width: 38px;
+    padding: 8px 10px;
+    border: 1px solid #c7d2e0;
+    background: #fff;
+    color: #102a4d;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.pagination-page:hover {
+    background: #eef3fa;
+}
+
+.pagination-page.is-active {
+    background: #102a4d;
+    border-color: #102a4d;
+    color: #fff;
+    cursor: default;
+}
+
+.pagination-ellipsis {
+    padding: 0 2px;
+    color: #8a98aa;
+    font-weight: 700;
+    user-select: none;
+}
