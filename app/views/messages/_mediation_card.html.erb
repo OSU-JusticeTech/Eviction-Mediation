@@ -2,18 +2,25 @@
 <%#
   board_group - the category key this card belongs to in grouped_mediations
                 (:needs_action/:everything_else for tenant/landlord,
-                 :active/:past for mediator/admin).
+                 :needs_assignment/:active/:past for admin,
+                 :active/:past for mediator).
   action      - nil for mediator/admin (no pending actions); used by
                 tenant/landlord card-action partials for feedback prompts.
 %>
 <% is_observer   = [ "Mediator", "Admin" ].include?(role) %>
-<%# Mediator/admin cards use their board group as the display status so the
-    filter chips and CSS modifiers align with the active/past split, regardless
-    of the model's own status_category (which may be :pending for unassigned
-    admin cases). Tenant/landlord cards keep the model's status_category. %>
-<% display_status = is_observer ? board_group : mediation.status_category %>
+<%# Mediator/admin cards use board_group as the display status so filter chips
+    and CSS modifiers align with the active/past split. The admin
+    :needs_assignment group maps display_status to :active so those cards remain
+    visible under the "Active" filter chip, while css_status preserves the
+    :needs_assignment modifier for the amber/yellow border. %>
+<% display_status = if is_observer
+                       board_group == :needs_assignment ? :active : board_group
+                     else
+                       mediation.status_category
+                     end %>
+<% css_status     = is_observer ? board_group : display_status %>
 <% party          = is_observer ? nil : mediation_counterparty(mediation, role) %>
-<article class="mediation-card-item mediation-card-item--<%= display_status %>"
+<article class="mediation-card-item mediation-card-item--<%= css_status %>"
          data-mediation-filter-target="card"
          data-group="<%= board_group %>"
          data-status="<%= display_status %>"

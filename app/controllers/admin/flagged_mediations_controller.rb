@@ -10,9 +10,17 @@ class Admin::FlaggedMediationsController < ApplicationController
       .where(MediatorRequested: true)
       .or(PrimaryMessageGroup.where.not(deleted_at: nil))
       .includes(:tenant, :landlord, :mediator)
-      .sort_by { |m| [ m.past? ? 1 : 0, -(m.last_activity_at.to_i) ] }
+      .sort_by { |m| [ m.past? ? 2 : (m.MediatorAssigned? ? 1 : 0), -(m.last_activity_at.to_i) ] }
 
-    @grouped_mediations  = mediations.group_by { |m| m.past? ? :past : :active }
+    @grouped_mediations  = mediations.group_by do |m|
+      if m.past?
+        :past
+      elsif !m.MediatorAssigned?
+        :needs_assignment
+      else
+        :active
+      end
+    end
     @has_past_mediations = mediations.any?(&:past?)
     @show_mediation_view = mediations.any?
   end

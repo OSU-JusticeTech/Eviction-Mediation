@@ -12,9 +12,16 @@ module MessagesHelper
     everything_else: "All Other Negotiations"
   }.freeze
 
-  # Section titles for the mediator/admin board: simple active/past split with
-  # no pending-action grouping.
+  # Section titles for the mediator board: simple active/past split.
   MEDIATOR_GROUP_TITLES = {
+    active: "Active Mediations",
+    past: "Past Mediations"
+  }.freeze
+
+  # Section titles for the admin board: needs-assignment cases surface first,
+  # then the active/past split.
+  ADMIN_GROUP_TITLES = {
+    needs_assignment: "Needs Action",
     active: "Active Mediations",
     past: "Past Mediations"
   }.freeze
