@@ -14,7 +14,7 @@ class DashboardController < ApplicationController
         if @user.mediator.present?
           @active_mediations = PrimaryMessageGroup
             .where(MediatorID: @user.UserID, MediatorAssigned: true, deleted_at: nil)
-            .includes(:tenant, :landlord)
+            .includes(:tenant, :landlord, :linked_message_string)
             .sort_by { |m| -m.last_activity_at.to_i }
         end
         render "dashboard/index"
