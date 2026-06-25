@@ -120,7 +120,7 @@ end
 
   namespace :admin do
     # Admin Mediator Accounts Controller
-    resources :accounts, only: [ :index, :create, :update ], controller: "accounts"
+    resources :accounts, only: [ :index, :create, :update, :show ], controller: "accounts"
 
 
     get "mediations", to: "flagged_mediations#index"

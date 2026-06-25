@@ -1,0 +1,123 @@
+<%= stylesheet_link_tag "admin_mediations", "data-turbo-track": "reload" %>
+
+<div class="admin-mediation-details-container">
+  <div class="page-header">
+    <%= link_to @back_url, class: "back-link" do %>
+      <i class="fa-solid fa-arrow-left"></i> Back
+    <% end %>
+    <h1><%= @mediator_user.FName %> <%= @mediator_user.LName %></h1>
+  </div>
+
+  <div class="details-grid">
+    <!-- Left Column: Profile & Status -->
+    <div class="details-column left-column">
+
+      <!-- Profile Card -->
+      <div class="info-card">
+        <div class="card-header">
+          <h2><i class="fa-solid fa-user-tie"></i> Profile</h2>
+        </div>
+        <div class="card-body">
+          <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="width: 56px; height: 56px; border-radius: 50%; background: #e2e8f0; color: #475569; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.2rem; flex-shrink: 0;">
+              <%= @mediator_user.FName.first.upcase %><%= @mediator_user.LName.first.upcase %>
+            </div>
+            <div>
+              <div style="font-size: 1.1rem; font-weight: 600; color: #0f172a;"><%= @mediator_user.FName %> <%= @mediator_user.LName %></div>
+              <div style="font-size: 0.85rem; color: #64748b;">Mediator</div>
+            </div>
+          </div>
+          <div class="info-row">
+            <span class="label">Email</span>
+            <span class="value"><%= @mediator_user.Email %></span>
+          </div>
+          <% if @mediator_user.PhoneNumber.present? %>
+            <div class="info-row">
+              <span class="label">Phone</span>
+              <span class="value"><%= @mediator_user.PhoneNumber %></span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Status & Capacity Card -->
+      <div class="info-card">
+        <div class="card-header">
+          <h2><i class="fa-solid fa-chart-bar"></i> Status & Capacity</h2>
+        </div>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="label">Availability</span>
+            <span class="value">
+              <span class="status-badge <%= @mediator.Available ? 'available' : 'unavailable' %>">
+                <i class="fas <%= @mediator.Available ? 'fa-check-circle' : 'fa-times-circle' %>"></i>
+                <%= @mediator.Available ? "Available" : "Busy" %>
+              </span>
+            </span>
+          </div>
+          <div class="info-row">
+            <span class="label">Active Cases</span>
+            <span class="value"><%= @mediator.ActiveMediations %></span>
+          </div>
+          <div class="info-row">
+            <span class="label">Mediation Cap</span>
+            <span class="value"><%= @mediator.MediationCap %></span>
+          </div>
+
+          <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;">
+            <p style="font-size: 0.85rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 0.75rem 0;">Update Mediation Cap</p>
+            <%= form_with url: admin_account_path(@mediator_user), method: :patch, local: true do |f| %>
+              <%= hidden_field_tag :source, "show" %>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <%= number_field_tag :mediation_cap, @mediator.MediationCap, min: 0, class: "form-control", style: "flex: 1;", required: true %>
+                <%= f.submit "Update", class: "btn btn-primary", style: "width: auto; padding: 0.75rem 1.25rem; white-space: nowrap;" %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Column: Active Mediations -->
+    <div class="details-column right-column">
+      <div class="info-card">
+        <div class="card-header">
+          <h2><i class="fa-solid fa-gavel"></i> Active Mediations (<%= @active_mediations.count %>)</h2>
+        </div>
+        <div class="card-body" style="padding: 0;">
+          <% if @active_mediations.any? %>
+            <% @active_mediations.each do |mediation| %>
+              <div class="info-row" style="padding: 1rem 1.5rem; align-items: center;">
+                <div>
+                  <div style="font-weight: 600; color: #0f172a; margin-bottom: 0.25rem;">
+                    Case #<%= mediation.ConversationID %>
+                  </div>
+                  <div style="font-size: 0.875rem; color: #64748b;">
+                    Tenant: <%= mediation.tenant.FName %> <%= mediation.tenant.LName %>
+                  </div>
+                  <div style="font-size: 0.875rem; color: #64748b;">
+                    Landlord: <%= mediation.landlord.FName %> <%= mediation.landlord.LName %>
+                  </div>
+                  <% if mediation.CreatedAt.present? %>
+                    <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem;">
+                      Started <%= mediation.CreatedAt.strftime("%B %d, %Y") %>
+                    </div>
+                  <% end %>
+                </div>
+                <%= link_to mediator_case_path(mediation), class: "btn btn-primary", style: "width: auto; padding: 0.5rem 1rem; font-size: 0.875rem; white-space: nowrap; flex-shrink: 0;" do %>
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> View Case
+                <% end %>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="no-data" style="padding: 3rem 1.5rem;">
+              <i class="fa-regular fa-folder-open" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
+              No active mediations currently assigned.
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

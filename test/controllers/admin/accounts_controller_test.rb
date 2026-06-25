@@ -59,4 +59,48 @@ class Admin::AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_match %r{\A#{Regexp.escape(admin_accounts_url)}}, response.redirect_url
     assert_equal 7, @mediator.reload.MediationCap
   end
+
+  # show
+
+  test "admin can view mediator profile" do
+    log_in_as(@admin)
+
+    get admin_account_path(@mediator_user)
+
+    assert_response :success
+    assert_select "h1", text: /#{@mediator_user.FName}/
+  end
+
+  test "non-admin cannot view mediator profile" do
+    post login_path, params: { email: users(:tenant1).Email, password: "password" }
+
+    get admin_account_path(@mediator_user)
+
+    assert_redirected_to dashboard_path
+    assert_equal "Access Denied", flash[:alert]
+  end
+
+  test "show redirects with alert for unknown mediator id" do
+    log_in_as(@admin)
+
+    get admin_account_path(999999)
+
+    assert_redirected_to admin_accounts_path
+    assert_equal "Mediator not found.", flash[:alert]
+  end
+
+  # show-page cap update
+
+  test "cap update from show page redirects back to show page" do
+    log_in_as(@admin)
+
+    patch admin_account_path(@mediator_user), params: {
+      mediation_cap: 10,
+      source: "show"
+    }
+
+    assert_redirected_to admin_account_path(@mediator_user)
+    assert_equal "Mediation cap updated successfully.", flash[:notice]
+    assert_equal 10, @mediator.reload.MediationCap
+  end
 end

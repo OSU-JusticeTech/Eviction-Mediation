@@ -1,0 +1,36 @@
+<div class="active-cases-section">
+  <div class="active-cases-header">
+    <h2><i class="fas fa-clipboard-list"></i> Active Cases</h2>
+    <div class="active-cases-header-right">
+      <%= link_to "View Cases", third_party_mediations_path, class: "card-btn card-btn--primary case-row-btn" %>
+    </div>
+  </div>
+
+  <% if @active_mediations.any? %>
+    <div class="cases-list">
+      <% @active_mediations.each do |mediation| %>
+        <% last_msg_at = mediation.linked_message_string&.LastMessageSentDate %>
+        <% needs_response = last_msg_at.nil? || last_msg_at < 24.hours.ago %>
+        <div class="case-row">
+          <div class="case-parties">
+            <span class="party-name"><%= mediation.tenant.display_name %></span>
+            <span class="party-name"><%= mediation.landlord.display_name %></span>
+          </div>
+          <div class="case-activity">
+            <span>Opened <%= time_ago_in_words(mediation.CreatedAt) %> ago</span>
+            <% if last_msg_at %>
+              <span class="case-last-message">Last message <%= time_ago_in_words(last_msg_at) %> ago</span>
+            <% else %>
+              <span class="case-last-message case-last-message--none">No messages yet</span>
+            <% end %>
+          </div>
+          <%= link_to needs_response ? "Respond Now" : "View Case",
+                mediator_case_path(mediation),
+                class: "card-btn #{needs_response ? 'card-btn--urgent' : 'card-btn--primary'} case-row-btn" %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="no-active-cases">No active cases assigned to you.</p>
+  <% end %>
+</div>

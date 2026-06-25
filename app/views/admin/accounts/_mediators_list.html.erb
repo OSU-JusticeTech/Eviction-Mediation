@@ -1,0 +1,124 @@
+<style>
+  .mediator-list-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+
+  @media (max-width: 900px) {
+    .mediator-list-table thead {
+      display: none;
+    }
+
+    .mediator-list-table,
+    .mediator-list-table tbody,
+    .mediator-list-table tr {
+      display: block;
+    }
+
+    .mediator-list-table tr {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      margin-bottom: 0.75rem;
+      padding: 1rem;
+      background: #fafafa;
+    }
+
+    .mediator-list-table td {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.3rem 0 !important;
+      text-align: left !important;
+      border: none !important;
+      font-size: 0.9rem;
+    }
+
+    .mediator-list-table td.col-identity {
+      margin-bottom: 0.5rem;
+      border-bottom: 1px solid #e2e8f0 !important;
+      padding-bottom: 0.75rem !important;
+      justify-content: flex-start;
+    }
+
+    .mediator-list-table td.col-actions {
+      margin-top: 0.75rem;
+      border-top: 1px solid #e2e8f0 !important;
+      padding-top: 0.75rem !important;
+      justify-content: stretch;
+    }
+
+    .mediator-list-table td.col-actions a {
+      display: flex !important;
+      justify-content: center;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .mediator-list-table td[data-label]::before {
+      content: attr(data-label);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+  }
+</style>
+
+<div style="margin-top: 1.5rem;">
+  <% if @mediators.any? %>
+    <table class="mediator-list-table">
+      <thead>
+        <tr style="border-bottom: 2px solid #e2e8f0; text-align: left; color: #64748b; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">
+          <th style="padding: 0.75rem 1rem;">Mediator</th>
+          <th style="padding: 0.75rem 1rem;">Email</th>
+          <th style="padding: 0.75rem 1rem; text-align: center;">Status</th>
+          <th style="padding: 0.75rem 1rem; text-align: center;">Cases</th>
+          <th style="padding: 0.75rem 1rem; text-align: center;">Cap</th>
+          <th style="padding: 0.75rem 1rem;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @mediators.each do |mediator| %>
+          <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+            <td class="col-identity" style="padding: 0.875rem 1rem;">
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="width: 36px; height: 36px; border-radius: 50%; background: #e2e8f0; color: #475569; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">
+                  <%= mediator.user.FName.first.upcase %><%= mediator.user.LName.first.upcase %>
+                </div>
+                <span style="font-weight: 600; color: #0f172a;"><%= mediator.user.FName %> <%= mediator.user.LName %></span>
+              </div>
+            </td>
+            <td data-label="Email" style="padding: 0.875rem 1rem; color: #475569;"><%= mediator.user.Email %></td>
+            <td data-label="Status" style="padding: 0.875rem 1rem; text-align: center;">
+              <% if mediator.Available %>
+                <span style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.75rem; border-radius: 50px; background: #dcfce7; color: #166534; font-size: 0.8rem; font-weight: 600;">
+                  <i class="fas fa-check-circle"></i> Available
+                </span>
+              <% else %>
+                <span style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.75rem; border-radius: 50px; background: #fef3c7; color: #92400e; font-size: 0.8rem; font-weight: 600;">
+                  <i class="fas fa-times-circle"></i> Busy
+                </span>
+              <% end %>
+            </td>
+            <td data-label="Active Cases" style="padding: 0.875rem 1rem; text-align: center; font-weight: 600; color: #0f172a;">
+              <%= mediator.ActiveMediations %>
+            </td>
+            <td data-label="Cap" style="padding: 0.875rem 1rem; text-align: center; color: #475569;">
+              <%= mediator.MediationCap %>
+            </td>
+            <td class="col-actions" style="padding: 0.875rem 1rem; text-align: right;">
+              <%= link_to admin_account_path(mediator.user), style: "display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.9rem; border-radius: 6px; background: #3b82f6; color: white; font-size: 0.85rem; font-weight: 600; text-decoration: none;" do %>
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> View Profile
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <p style="text-align: center; color: #94a3b8; padding: 2rem; font-style: italic;">No mediators found.</p>
+  <% end %>
+</div>

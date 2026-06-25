@@ -12,32 +12,42 @@
 <!-- System Overview -->
 <div class="stats-grid">
   <div class="stat-card">
-    <div class="stat-icon">
-      <i class="fas fa-balance-scale"></i>
+    <div class="stat-icon stat-icon--active">
+      <i class="fas fa-gavel"></i>
     </div>
     <div class="stat-content">
-      <h3><%= User.includes(:mediator).where(Role: "Mediator").count %></h3>
-      <p>Total Mediators</p>
+      <h3><%= PrimaryMessageGroup.where(accepted_by_landlord: true, accepted_by_tenant: true, deleted_at: nil).where.not(IntakeID: nil).count %></h3>
+      <p>Active Mediations</p>
     </div>
   </div>
 
   <div class="stat-card">
-    <div class="stat-icon available">
-      <i class="fas fa-check-circle"></i>
+    <div class="stat-icon stat-icon--unassigned">
+      <i class="fas fa-user-clock"></i>
     </div>
     <div class="stat-content">
-      <h3><%= User.includes(:mediator).where(Role: "Mediator").joins(:mediator).where(mediators: { Available: true }).count %></h3>
-      <p>Available Now</p>
+      <h3><%= PrimaryMessageGroup.where(MediatorRequested: true, MediatorAssigned: false, deleted_at: nil).count %></h3>
+      <p>Unassigned Requests</p>
     </div>
   </div>
 
   <div class="stat-card">
-    <div class="stat-icon busy">
-      <i class="fas fa-clock"></i>
+    <div class="stat-icon stat-icon--ended">
+      <i class="fas fa-flag-checkered"></i>
     </div>
     <div class="stat-content">
-      <h3><%= User.includes(:mediator).where(Role: "Mediator").joins(:mediator).where(mediators: { Available: false }).count %></h3>
-      <p>Currently Busy</p>
+      <h3><%= PrimaryMessageGroup.where("deleted_at >= ?", 7.days.ago).count %></h3>
+      <p>Ended This Week</p>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon stat-icon--feedback">
+      <i class="fas fa-comment-dots"></i>
+    </div>
+    <div class="stat-content">
+      <h3><%= PrimaryMessageGroup.where.not(deleted_at: nil).where(EndOfConversationGoodFaithLandlord: nil).or(PrimaryMessageGroup.where.not(deleted_at: nil).where(EndOfConversationGoodFaithTenant: nil)).count %></h3>
+      <p>Awaiting Feedback</p>
     </div>
   </div>
 </div>
@@ -52,7 +62,7 @@
   <div class="mediator-grid">
     <% User.includes(:mediator).where(Role: "Mediator").each do |mediator| %>
       <% available = mediator.mediator&.Available %>
-      <div class="mediator-card">
+      <%= link_to admin_account_path(mediator), class: "mediator-card" do %>
         <div class="mediator-info">
           <div class="mediator-avatar">
             <%= mediator.FName.first.upcase %><%= mediator.LName.first.upcase %>
@@ -63,12 +73,15 @@
           </div>
         </div>
         <div class="mediator-status">
+          <span style="font-size: 0.8rem; color: #64748b;">
+            <%= mediator.mediator&.ActiveMediations || 0 %>/<%= mediator.mediator&.MediationCap || 0 %> cases
+          </span>
           <span class="status-badge <%= available ? 'available' : 'unavailable' %>">
             <i class="fas <%= available ? 'fa-check-circle' : 'fa-times-circle' %>"></i>
             <%= available ? "Available" : "Busy" %>
           </span>
         </div>
-      </div>
+      <% end %>
     <% end %>
   </div>
 </div>

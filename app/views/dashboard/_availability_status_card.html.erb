@@ -27,8 +27,8 @@
       <%= form_with model: user, url: mediator_availability_path, method: :patch, local: true, class: "availability-form" do |f| %>
         <%= f.fields_for :mediator do |m| %>
           <%= m.hidden_field :Available, value: !available %>
-          <%= f.submit (available ? "Disable" : "Enable"), class: "card-btn" %>
         <% end %>
+        <button type="submit" class="card-btn"><%= available ? "Disable" : "Enable" %></button>
       <% end %>
     <% end %>
   </div>
