@@ -4,7 +4,7 @@ class LandlordMailer < ApplicationMailer
   #
   #   en.landlord_mailer.invitation_email.subject
   #
-  default from: Rails.application.credentials.dig(:smtp, :from)
+  default from: Rails.application.credentials.dig(:smtp, :from) || "no-reply@example.com"
 
   def invitation_email(email, invited_by)
     @invited_by = invited_by

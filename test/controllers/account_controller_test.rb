@@ -302,6 +302,62 @@ class AccountControllerTest < ActionDispatch::IntegrationTest
     assert_match "Verification code sent via SMS", flash[:notice]
   end
 
+  test "tenant can disable unread message notifications" do
+    log_in_as(@tenant)
+    follow_redirect!
+
+    patch account_path, params: { user: { notify_unread_messages: false } }
+
+    assert_redirected_to account_path
+    assert_equal "Notification preferences updated.", flash[:notice]
+    assert_equal false, @tenant.reload[:notify_unread_messages]
+  end
+
+  test "tenant can re-enable unread message notifications" do
+    @tenant.update!(notify_unread_messages: false)
+    log_in_as(@tenant)
+    follow_redirect!
+
+    patch account_path, params: { user: { notify_unread_messages: true } }
+
+    assert_redirected_to account_path
+    assert_equal true, @tenant.reload[:notify_unread_messages]
+  end
+
+  test "tenant can disable new mediation request notifications" do
+    log_in_as(@tenant)
+    follow_redirect!
+
+    patch account_path, params: { user: { notify_new_mediation_request: false } }
+
+    assert_redirected_to account_path
+    assert_equal "Notification preferences updated.", flash[:notice]
+    assert_equal false, @tenant.reload[:notify_new_mediation_request]
+  end
+
+  test "landlord can disable unread message notifications" do
+    landlord = users(:landlord1)
+    log_in_as(landlord)
+    follow_redirect!
+
+    patch account_path, params: { user: { notify_unread_messages: false } }
+
+    assert_redirected_to account_path
+    assert_equal false, landlord.reload[:notify_unread_messages]
+  end
+
+  test "landlord can disable new mediation request notifications" do
+    landlord = users(:landlord1)
+    log_in_as(landlord)
+    follow_redirect!
+
+    patch account_path, params: { user: { notify_new_mediation_request: false } }
+
+    assert_redirected_to account_path
+    assert_equal "Notification preferences updated.", flash[:notice]
+    assert_equal false, landlord.reload[:notify_new_mediation_request]
+  end
+
   test "confirm phone falls back when twilio verify raises" do
     @tenant.update!(
       two_factor_code: "123456",

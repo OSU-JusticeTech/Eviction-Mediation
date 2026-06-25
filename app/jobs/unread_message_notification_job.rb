@@ -43,14 +43,15 @@ class UnreadMessageNotificationJob < ApplicationJob
       recent_notification = last_notification_sent_at(mediation.LandlordID, mediation.ConversationID)
 
       if recent_notification.nil? || recent_notification < last_tenant_message.MessageDate
-        MediationMailer.unread_message_notification(
-          mediation.landlord.Email,
-          mediation.landlord,
-          mediation.tenant,
-          mediation.ConversationID
-        ).deliver_later
+        if mediation.landlord.notify_unread_messages?
+          MediationMailer.unread_message_notification(
+            mediation.landlord.Email,
+            mediation.landlord,
+            mediation.tenant,
+            mediation.ConversationID
+          ).deliver_later
+        end
 
-        # Record that we sent the notification
         record_notification(mediation.LandlordID, mediation.ConversationID)
       end
     end
@@ -81,14 +82,15 @@ class UnreadMessageNotificationJob < ApplicationJob
       recent_notification = last_notification_sent_at(mediation.TenantID, mediation.ConversationID)
 
       if recent_notification.nil? || recent_notification < last_landlord_message.MessageDate
-        MediationMailer.unread_message_notification(
-          mediation.tenant.Email,
-          mediation.tenant,
-          mediation.landlord,
-          mediation.ConversationID
-        ).deliver_later
+        if mediation.tenant.notify_unread_messages?
+          MediationMailer.unread_message_notification(
+            mediation.tenant.Email,
+            mediation.tenant,
+            mediation.landlord,
+            mediation.ConversationID
+          ).deliver_later
+        end
 
-        # Record that we sent the notification
         record_notification(mediation.TenantID, mediation.ConversationID)
       end
     end

@@ -151,6 +151,52 @@
       </div>
     </div>
 
+    <!-- Notification Preferences Card -->
+    <% if @user.Role == "Tenant" || @user.Role == "Landlord" %>
+      <div class="account-card" style="margin-bottom: 24px;">
+        <div class="card-header">
+          <h2><i class="fa-solid fa-bell"></i> Notification Preferences</h2>
+        </div>
+        <div class="card-body">
+          <%= form_with model: @user, url: account_path, method: :patch, local: true, class: "account-form" do |f| %>
+            <div class="form-section-card">
+              <div class="info-label" style="margin-bottom: 1rem;">
+                <i class="fa-solid fa-envelope"></i> Email Notifications
+              </div>
+
+              <div class="checkbox-group" style="margin-bottom: 0.75rem;">
+                <%= f.check_box :notify_unread_messages,
+                    { class: "form-checkbox", id: "notify_unread_messages" },
+                    true, false %>
+                <%= f.label :notify_unread_messages,
+                    class: "checkbox-label", for: "notify_unread_messages" do %>
+                  Unread message reminders
+                  <span style="display: block; font-weight: 400; color: #64748b; font-size: 0.85rem; margin-top: 2px;">
+                    Receive an email when you have an unread mediation message for more than 4 hours.
+                  </span>
+                <% end %>
+              </div>
+
+              <div class="checkbox-group" style="margin-bottom: 0.75rem;">
+                <%= f.check_box :notify_new_mediation_request,
+                    { class: "form-checkbox", id: "notify_new_mediation_request" },
+                    true, false %>
+                <%= f.label :notify_new_mediation_request,
+                    class: "checkbox-label", for: "notify_new_mediation_request" do %>
+                  New mediation request notifications
+                  <span style="display: block; font-weight: 400; color: #64748b; font-size: 0.85rem; margin-top: 2px;">
+                    Receive an email when a <%= @user.Role == "Landlord" ? "tenant initiates" : "landlord initiates" %> a mediation with you.
+                  </span>
+                <% end %>
+              </div>
+
+              <%= f.submit "Save Preferences", class: "btn-primary", style: "margin-top: 0.5rem;" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
     <% if @user.Role == "Mediator" %>
       <!-- Mediator Availability Card -->
       <div class="account-card" style="margin-bottom: 24px;">

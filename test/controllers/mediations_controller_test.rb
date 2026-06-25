@@ -1,6 +1,7 @@
 require "test_helper"
 
 class MediationsControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
   setup do
     @tenant = users(:tenant1)
     @landlord = users(:landlord1)
@@ -169,5 +170,61 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to messages_path
     assert_equal "You are not authorized to submit this survey.", flash[:alert]
+  end
+
+  # --- Notification preference enforcement ---
+
+  test "does not email landlord mediation request notification when preference is off" do
+    @landlord.update!(notify_new_mediation_request: false)
+    tenant2 = users(:tenant2)
+    log_in_as(tenant2)
+
+    ActionMailer::Base.deliveries.clear
+    post mediations_path, params: { landlord_id: @landlord[:UserID] }
+
+    landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(@landlord.Email) }
+    assert_empty landlord_emails
+  end
+
+  test "emails landlord mediation request notification when preference is on" do
+    @landlord.update!(notify_new_mediation_request: true)
+    tenant2 = users(:tenant2)
+    log_in_as(tenant2)
+
+    ActionMailer::Base.deliveries.clear
+    perform_enqueued_jobs do
+      post mediations_path, params: { landlord_id: @landlord[:UserID] }
+    end
+
+    landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(@landlord.Email) }
+    assert_not_empty landlord_emails
+  end
+
+  test "does not email tenant mediation request notification when preference is off" do
+    tenant3 = users(:tenant3)
+    tenant3.update!(notify_new_mediation_request: false)
+    landlord2 = users(:landlord2)
+    log_in_as(landlord2)
+
+    ActionMailer::Base.deliveries.clear
+    post mediations_path, params: { tenant_email: tenant3.Email }
+
+    tenant_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(tenant3.Email) }
+    assert_empty tenant_emails
+  end
+
+  test "emails tenant mediation request notification when preference is on" do
+    tenant3 = users(:tenant3)
+    tenant3.update!(notify_new_mediation_request: true)
+    landlord2 = users(:landlord2)
+    log_in_as(landlord2)
+
+    ActionMailer::Base.deliveries.clear
+    perform_enqueued_jobs do
+      post mediations_path, params: { tenant_email: tenant3.Email }
+    end
+
+    tenant_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(tenant3.Email) }
+    assert_not_empty tenant_emails
   end
 end

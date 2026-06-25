@@ -93,6 +93,17 @@ class AccountController < ApplicationController
       end
     end
 
+    # Notification Preferences Update
+    if params[:user]&.key?(:notify_unread_messages) || params[:user]&.key?(:notify_new_mediation_request)
+      if @user.update(notification_params)
+        flash[:notice] ||= "Notification preferences updated."
+        updated = true
+      else
+        flash.now[:alert] = "Failed to update notification preferences."
+        render :show and return
+      end
+    end
+
     flash[:alert] = "No changes detected." unless updated
     redirect_to account_path
   end
@@ -195,6 +206,10 @@ class AccountController < ApplicationController
 
   def two_factor_params
     params.require(:user).permit(:phone_number, :two_factor_enabled)
+  end
+
+  def notification_params
+    params.require(:user).permit(:notify_unread_messages, :notify_new_mediation_request)
   end
 
   def require_login

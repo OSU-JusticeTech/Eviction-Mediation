@@ -3,16 +3,25 @@
 
 <% if current_user %>
   <%# ── Logged-in: full tab bar ── %>
+  <%
+    from_conversation = params[:from_conversation].presence
+    back_path = message_path(from_conversation) if from_conversation
+  %>
   <div class="resx-top">
+    <% if back_path %>
+      <%= link_to back_path, class: "resx-back-btn" do %>
+        <i class="fas fa-arrow-left"></i> Back to conversation
+      <% end %>
+    <% end %>
     <div class="resx-top-tabs">
       <%= link_to "Resources",
-                  resources_path(tab: "guide"),
+                  resources_path(tab: "guide", from_conversation: from_conversation),
                   class: "resx-top-tab #{'is-active' if current_tab == 'guide'}" %>
       <%= link_to "FAQs",
-                  resources_path(tab: "faqs"),
+                  resources_path(tab: "faqs", from_conversation: from_conversation),
                   class: "resx-top-tab #{'is-active' if current_tab == 'faqs'}" %>
       <%= link_to "Negotiation & Mediation",
-                  resources_path(tab: "negotiation"),
+                  resources_path(tab: "negotiation", from_conversation: from_conversation),
                   class: "resx-top-tab #{'is-active' if current_tab == 'negotiation'}" %>
     </div>
   </div>
