@@ -62,10 +62,10 @@ module MessagesHelper
   def mediation_substatus(mediation, viewer_role)
     case viewer_role
     when "Mediator"
-      mediation.past? ? "Ended #{mediation.deleted_at&.strftime('%B %d, %Y')}" : "In progress"
+      mediation.past? ? past_substatus(mediation) : "In progress"
     when "Admin"
       if mediation.past?
-        "Ended #{mediation.deleted_at&.strftime('%B %d, %Y')}"
+        past_substatus(mediation)
       elsif mediation.MediatorAssigned?
         "In progress"
       else
@@ -76,8 +76,7 @@ module MessagesHelper
       when :active
         "In progress"
       when :past
-        ended_on = mediation.deleted_at&.strftime("%B %d, %Y")
-        ended_on ? "Ended #{ended_on}" : "Ended"
+        past_substatus(mediation)
       when :pending
         pending_substatus(mediation.pending_stage, viewer_role)
       end
@@ -112,6 +111,26 @@ module MessagesHelper
   end
 
   private
+
+  def past_substatus(mediation)
+    ended_on  = mediation.deleted_at&.strftime("%B %d, %Y")
+    ended_by  = mediation_ended_by_label(mediation)
+    base      = ended_on ? "Ended #{ended_on}" : "Ended"
+    ended_by  ? "#{base} · by #{ended_by}" : base
+  end
+
+  def mediation_ended_by_label(mediation)
+    ender_id = mediation.EndedBy
+    return nil if ender_id.blank?
+
+    if ender_id == mediation.TenantID
+      "Tenant"
+    elsif ender_id == mediation.LandlordID
+      "Landlord"
+    elsif ender_id == mediation.MediatorID
+      "Mediator"
+    end
+  end
 
   def full_name(user)
     [ user&.FName, user&.LName ].compact.join(" ").strip
