@@ -21,12 +21,26 @@ import "chat/mediator_chats";
       return;
     }
 
+    // click on resources dropdown toggle on mobile — toggle sub-menu without closing nav
+    const dropdownToggle = e.target.closest('.nav-dropdown-toggle');
+    if (dropdownToggle && window.innerWidth <= 850) {
+      e.preventDefault();
+      const dropdown = dropdownToggle.closest('.nav-dropdown');
+      if (dropdown) {
+        const opening = !dropdown.classList.contains('is-open');
+        dropdown.classList.toggle('is-open');
+        dropdownToggle.setAttribute('aria-expanded', String(opening));
+      }
+      return;
+    }
+
     // click on any menu link and then close mobile menu
     const menuLink = e.target.closest('.navbar-menu a');
     if (menuLink) {
       const menu = document.querySelector('.navbar-menu');
       if (menu) {
         menu.classList.remove('active');
+        document.querySelectorAll('.nav-dropdown.is-open').forEach(d => d.classList.remove('is-open'));
         const navToggle = document.querySelector('#navbar-toggle');
         if (navToggle) navToggle.setAttribute('aria-expanded', 'false');
       }

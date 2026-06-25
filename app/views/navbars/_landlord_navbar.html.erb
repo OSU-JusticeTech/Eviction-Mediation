@@ -7,7 +7,16 @@
     <li><a href="/dashboard" title="Home" class="<%= active_nav_class('/dashboard') %>"><i class="fas fa-home"></i> Home</a></li>
     <li><a href="/messages" title="Messages" class="<%= active_nav_class('/messages') %>"><i class="fas fa-envelope"></i> Messages</a></li>
     <li><a href="/documents" title="Documents" class="<%= active_nav_class('/documents') %>"><i class="fas fa-file-alt"></i> Documents</a></li>
-    <li><a href="/resources" title="Resources" class="<%= active_nav_class('/resources') %>"><i class="fas fa-book"></i> Resources</a></li>
+    <li class="nav-dropdown">
+      <a href="/resources" title="Resources" class="<%= active_nav_class('/resources') %> nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">
+        <i class="fas fa-book"></i> Resources <i class="fas fa-chevron-down nav-caret"></i>
+      </a>
+      <ul class="nav-dropdown-menu" role="menu" aria-label="Resources sub-pages">
+        <li role="none"><a href="/resources?tab=guide" role="menuitem">Main Resources</a></li>
+        <li role="none"><a href="/resources?tab=faqs" role="menuitem">FAQs</a></li>
+        <li role="none"><a href="/resources?tab=negotiation" role="menuitem">Negotiation and Mediation</a></li>
+      </ul>
+    </li>
     <li><a href="/account" title="Account" class="<%= active_nav_class('/account') %>"><i class="fas fa-user"></i> Account</a></li>
         <li><%= link_to "Log Out", logout_path, method: :delete, class: "logout-btn navbar-logout-mobile" %></li>
     </ul>        

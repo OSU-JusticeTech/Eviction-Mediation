@@ -1329,6 +1329,35 @@
     gap: 1.1rem;
   }
 
+  .terms-body-wrapper {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .terms-scroll-hint {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 72px;
+    background: linear-gradient(to bottom, transparent, #ffffff);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 6px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .terms-scroll-hint i {
+    color: #102a4d;
+    font-size: 1rem;
+  }
+
   .conversation-modal__header {
     display: flex;
     align-items: center;
@@ -2073,9 +2102,14 @@
       font-size: 0.95rem;
     }
 
+    .conversation-modal {
+      padding: 1.5rem 0;
+    }
+
     .conversation-modal__content {
       padding: 1.25rem;
-      width: min(440px, 96vw);
+      width: min(440px, 92vw);
+      margin-inline: auto;
     }
 
     .conversation-modal__header h3 {

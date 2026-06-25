@@ -139,6 +139,120 @@
     }
 }
 
+/* Resources Dropdown */
+.nav-dropdown {
+    position: relative;
+}
+
+.nav-dropdown-toggle .nav-caret {
+    font-size: 0.7rem !important;
+    margin-left: 2px;
+    transition: transform 0.2s ease;
+}
+
+.nav-dropdown:hover .nav-dropdown-toggle .nav-caret {
+    transform: rotate(180deg);
+}
+
+.nav-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a436e;
+    border-radius: 10px;
+    padding: 6px 0;
+    list-style: none;
+    min-width: 220px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    z-index: 200;
+}
+
+/* Transparent bridge fills the gap so hover isn't lost when moving cursor toward the menu */
+.nav-dropdown-menu::before {
+    content: '';
+    position: absolute;
+    top: -16px;
+    left: -16px;
+    right: -16px;
+    height: 16px;
+}
+
+.nav-dropdown:hover .nav-dropdown-menu {
+    display: block;
+}
+
+.nav-dropdown-menu li {
+    display: block;
+}
+
+.nav-dropdown-menu li a {
+    color: white !important;
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding: 9px 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    border-bottom: none !important;
+    border-radius: 0;
+    transition: background 0.2s ease;
+}
+
+.nav-dropdown-menu li:first-child a {
+    border-radius: 10px 10px 0 0;
+}
+
+.nav-dropdown-menu li:last-child a {
+    border-radius: 0 0 10px 10px;
+}
+
+.nav-dropdown-menu li a:hover {
+    background: #007bff;
+    transform: none;
+}
+
+/* Mobile dropdown: disable CSS hover, rely on JS .is-open class */
+@media (max-width: 850px) {
+    .nav-dropdown {
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+    }
+
+    .nav-dropdown-menu {
+        position: static;
+        transform: none;
+        box-shadow: none;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        min-width: unset;
+        width: 90%;
+        margin: 4px auto 0;
+        padding: 4px 0;
+    }
+
+    .nav-dropdown:hover .nav-dropdown-menu {
+        display: none;
+    }
+
+    .nav-dropdown.is-open .nav-dropdown-menu {
+        display: block;
+    }
+
+    .nav-dropdown-menu li a {
+        justify-content: center;
+        font-size: 0.875rem;
+        padding: 8px 16px;
+    }
+
+    .nav-dropdown.is-open .nav-caret {
+        transform: rotate(180deg);
+    }
+}
+
 /* Responsive Design for Mobile */
 @media (max-width: 850px) {
     .navbar-container {
