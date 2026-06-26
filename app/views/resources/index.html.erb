@@ -121,6 +121,35 @@
   background: #0b2b4b;
   color: #ffffff;
 }
+@media (max-width: 600px) {
+  .resx-top-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    border-radius: 12px;
+    gap: 6px;
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+  .resx-top-tab {
+    flex: 1;
+    text-align: center;
+    border-radius: 8px;
+    font-size: 13px;
+    padding: 9px 10px;
+    white-space: nowrap;
+    background: #ffffff;
+    border: 1.5px solid #d1d9e6;
+    color: #475569;
+  }
+  .resx-top-tab.is-active {
+    background: #0b2b4b;
+    border-color: #0b2b4b;
+    color: #ffffff;
+  }
+}
 .resx-top-body {
   max-width: 1080px;
   margin: 0 auto 32px;
