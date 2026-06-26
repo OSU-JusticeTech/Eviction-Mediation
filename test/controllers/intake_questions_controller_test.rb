@@ -86,4 +86,21 @@ class IntakeQuestionsControllerTest < ActionDispatch::IntegrationTest
       }
     end
   end
+
+  test "creates intake with Unknown reason without requiring other fields" do
+    log_in_as(@tenant)
+
+    assert_difference("IntakeQuestion.count", 1) do
+      post intake_questions_path, params: {
+        conversation_id: @conversation.ConversationID,
+        intake_question: {
+          Reason: [ "Unknown" ]
+        }
+      }
+    end
+
+    assert_redirected_to messages_path
+    intake = IntakeQuestion.order(:IntakeID).last
+    assert_equal [ "Unknown" ], intake.reasons
+  end
 end

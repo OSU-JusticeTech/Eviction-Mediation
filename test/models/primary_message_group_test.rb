@@ -35,17 +35,39 @@ class PrimaryMessageGroupTest < ActiveSupport::TestCase
     assert_equal :awaiting_tenant_acceptance, pmg.pending_stage
   end
 
-  test "awaiting tenant intake when both accepted but no intake on file" do
+  test "awaiting intake when both accepted but no intakes on file" do
     pmg = primary_message_groups(:one)
-    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, deleted_at: nil)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, LandlordIntakeID: nil, deleted_at: nil)
 
     assert_equal :pending, pmg.status_category
-    assert_equal :awaiting_tenant_intake, pmg.pending_stage
+    assert_equal :awaiting_intake, pmg.pending_stage
+    assert pmg.needs_tenant_intake?
+    assert pmg.needs_landlord_intake?
   end
 
-  test "active once both parties accepted and intake is complete" do
+  test "awaiting intake when only tenant intake is complete" do
     pmg = primary_message_groups(:one)
-    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: nil)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, LandlordIntakeID: nil, deleted_at: nil)
+
+    assert_equal :pending, pmg.status_category
+    assert_equal :awaiting_intake, pmg.pending_stage
+    assert_not pmg.needs_tenant_intake?
+    assert pmg.needs_landlord_intake?
+  end
+
+  test "awaiting intake when only landlord intake is complete" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, LandlordIntakeID: 1, deleted_at: nil)
+
+    assert_equal :pending, pmg.status_category
+    assert_equal :awaiting_intake, pmg.pending_stage
+    assert pmg.needs_tenant_intake?
+    assert_not pmg.needs_landlord_intake?
+  end
+
+  test "active once both parties accepted and both intakes are complete" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, LandlordIntakeID: 1, deleted_at: nil)
 
     assert_equal :active, pmg.status_category
     assert pmg.active?
@@ -54,7 +76,7 @@ class PrimaryMessageGroupTest < ActiveSupport::TestCase
 
   test "past once ended regardless of other flags" do
     pmg = primary_message_groups(:one)
-    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: Time.current)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, LandlordIntakeID: 1, deleted_at: Time.current)
 
     assert_equal :past, pmg.status_category
     assert pmg.past?
@@ -80,9 +102,25 @@ class PrimaryMessageGroupTest < ActiveSupport::TestCase
     assert_not pmg.needs_action_from?("Landlord")
   end
 
-  test "tenant needs to act while awaiting tenant intake" do
+  test "tenant needs to act while their intake is missing" do
     pmg = primary_message_groups(:one)
-    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, deleted_at: nil)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, LandlordIntakeID: nil, deleted_at: nil)
+
+    assert pmg.needs_action_from?("Tenant")
+    assert pmg.needs_action_from?("Landlord")
+  end
+
+  test "landlord needs to act when only their intake is missing" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, LandlordIntakeID: nil, deleted_at: nil)
+
+    assert_not pmg.needs_action_from?("Tenant")
+    assert pmg.needs_action_from?("Landlord")
+  end
+
+  test "tenant needs to act when only their intake is missing" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, LandlordIntakeID: 1, deleted_at: nil)
 
     assert pmg.needs_action_from?("Tenant")
     assert_not pmg.needs_action_from?("Landlord")
@@ -91,7 +129,7 @@ class PrimaryMessageGroupTest < ActiveSupport::TestCase
   test "no one needs to act on active or past mediations" do
     pmg = primary_message_groups(:one)
 
-    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: nil)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, LandlordIntakeID: 1, deleted_at: nil)
     assert_not pmg.needs_action_from?("Tenant")
     assert_not pmg.needs_action_from?("Landlord")
 
@@ -112,7 +150,7 @@ class PrimaryMessageGroupTest < ActiveSupport::TestCase
 
   test "ended mediation still owing feedback is a feedback action" do
     pmg = primary_message_groups(:one)
-    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: Time.current)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, LandlordIntakeID: 1, deleted_at: Time.current)
 
     assert_equal :feedback, pmg.pending_action_for("Tenant", feedback_pending: true)
     assert_equal :feedback, pmg.pending_action_for("Landlord", feedback_pending: true)
@@ -120,7 +158,7 @@ class PrimaryMessageGroupTest < ActiveSupport::TestCase
 
   test "ended mediation with feedback submitted needs no action" do
     pmg = primary_message_groups(:one)
-    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: Time.current)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, LandlordIntakeID: 1, deleted_at: Time.current)
 
     assert_nil pmg.pending_action_for("Tenant", feedback_pending: false)
     assert_nil pmg.pending_action_for("Landlord", feedback_pending: false)
@@ -130,11 +168,11 @@ class PrimaryMessageGroupTest < ActiveSupport::TestCase
     pmg = primary_message_groups(:one)
 
     # A live pending request is a respond action regardless of feedback state.
-    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: false, IntakeID: nil, LandlordIntakeID: nil, deleted_at: nil)
     assert_equal :respond, pmg.pending_action_for("Tenant", feedback_pending: true)
 
     # An active mediation has nothing outstanding.
-    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, deleted_at: nil)
+    pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, LandlordIntakeID: 1, deleted_at: nil)
     assert_nil pmg.pending_action_for("Tenant", feedback_pending: true)
   end
 end

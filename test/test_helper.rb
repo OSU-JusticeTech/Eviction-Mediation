@@ -63,7 +63,20 @@ module ActiveSupport
         TotalCostOrMonthly: true,
         PayableToday: 50
       )
-      mediation.update!(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: intake.IntakeID, deleted_at: nil)
+      landlord_intake = LandlordIntakeQuestion.create!(
+        UserID: mediation.LandlordID,
+        Reason: "Failure to Pay Rent",
+        DesiredOutcome: "Receive Payment",
+        AcceptPaymentPlan: false,
+        AmountClaimed: 100
+      )
+      mediation.update!(
+        accepted_by_landlord: true,
+        accepted_by_tenant: true,
+        IntakeID: intake.IntakeID,
+        LandlordIntakeID: landlord_intake.LandlordIntakeID,
+        deleted_at: nil
+      )
     end
   end
 end

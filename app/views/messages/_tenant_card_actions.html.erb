@@ -10,8 +10,12 @@
     <%= button_to "Reject", reject_mediation_path(mediation), method: :post,
           class: "card-btn card-btn--ghost",
           form: { data: { turbo_confirm: "Reject this negotiation request?" } } %>
-  <% when :awaiting_tenant_intake %>
-    <%= link_to "Complete Intake Questions", new_intake_question_path, class: "card-btn card-btn--primary" %>
+  <% when :awaiting_intake %>
+    <% if mediation.needs_tenant_intake? %>
+      <%= link_to "Complete Intake Questions", new_intake_question_path, class: "card-btn card-btn--primary" %>
+    <% else %>
+      <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on landlord to complete intake</span>
+    <% end %>
   <% else %>
     <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on landlord</span>
   <% end %>

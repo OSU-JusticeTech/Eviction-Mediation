@@ -239,6 +239,30 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", text: "View Negotiation"
   end
 
+  test "landlord index shows intake button when tenant done but landlord intake missing" do
+    intake = IntakeQuestion.create!(
+      UserID: @tenant.UserID, Reason: "Failure to Pay Rent", BestOption: "Pay Missed Rent",
+      Section8: false, MoneyOwed: 100, TotalCostOrMonthly: true, PayableToday: 50
+    )
+    @mediation.update!(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: intake.IntakeID, LandlordIntakeID: nil, deleted_at: nil)
+    log_in_as(@landlord)
+
+    get messages_path
+
+    assert_response :success
+    assert_select "a[href=?]", new_landlord_intake_question_path, text: "Complete Intake Questions"
+  end
+
+  test "tenant index shows intake button when both intakes outstanding" do
+    @mediation.update!(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, LandlordIntakeID: nil, deleted_at: nil)
+    log_in_as(@tenant)
+
+    get messages_path
+
+    assert_response :success
+    assert_select "a[href=?]", new_intake_question_path, text: "Complete Intake Questions"
+  end
+
   test "tenant index renders an active mediation card with an access link" do
     activate_mediation(@mediation)
     log_in_as(@tenant)
@@ -289,8 +313,8 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_match /accept/, flash[:alert]
   end
 
-  test "show redirects tenant from pending mediation awaiting intake" do
-    @mediation.update!(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, deleted_at: nil)
+  test "show redirects tenant from pending mediation awaiting their intake" do
+    @mediation.update!(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, LandlordIntakeID: nil, deleted_at: nil)
     log_in_as(@tenant)
 
     get message_path(@mediation.ConversationID)
@@ -299,8 +323,36 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_match /intake/, flash[:alert]
   end
 
-  test "show redirects landlord from pending mediation" do
-    @mediation.update!(accepted_by_landlord: false, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+  test "show gives tenant a waiting message when landlord intake is outstanding" do
+    intake = IntakeQuestion.create!(
+      UserID: @tenant.UserID, Reason: "Failure to Pay Rent", BestOption: "Pay Missed Rent",
+      Section8: false, MoneyOwed: 100, TotalCostOrMonthly: true, PayableToday: 50
+    )
+    @mediation.update!(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: intake.IntakeID, LandlordIntakeID: nil, deleted_at: nil)
+    log_in_as(@tenant)
+
+    get message_path(@mediation.ConversationID)
+
+    assert_redirected_to messages_path
+    assert_match /waiting/i, flash[:alert]
+  end
+
+  test "show redirects landlord when their intake is outstanding" do
+    intake = IntakeQuestion.create!(
+      UserID: @tenant.UserID, Reason: "Failure to Pay Rent", BestOption: "Pay Missed Rent",
+      Section8: false, MoneyOwed: 100, TotalCostOrMonthly: true, PayableToday: 50
+    )
+    @mediation.update!(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: intake.IntakeID, LandlordIntakeID: nil, deleted_at: nil)
+    log_in_as(@landlord)
+
+    get message_path(@mediation.ConversationID)
+
+    assert_redirected_to messages_path
+    assert_match /intake/, flash[:alert]
+  end
+
+  test "show redirects landlord from pending mediation awaiting acceptance" do
+    @mediation.update!(accepted_by_landlord: false, accepted_by_tenant: false, IntakeID: nil, LandlordIntakeID: nil, deleted_at: nil)
     log_in_as(@landlord)
 
     get message_path(@mediation.ConversationID)

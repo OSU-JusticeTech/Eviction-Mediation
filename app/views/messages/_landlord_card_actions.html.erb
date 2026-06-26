@@ -4,11 +4,18 @@
   <%= link_to "View Negotiation", message_path(mediation.ConversationID), class: "card-btn card-btn--primary" %>
 
 <% when :pending %>
-  <% if mediation.pending_stage == :awaiting_landlord_acceptance %>
+  <% case mediation.pending_stage %>
+  <% when :awaiting_landlord_acceptance %>
     <%= button_to "Accept", accept_mediation_path(mediation), method: :post, class: "card-btn card-btn--primary" %>
     <%= button_to "Reject", reject_mediation_path(mediation), method: :post,
           class: "card-btn card-btn--ghost",
           form: { data: { turbo_confirm: "Reject this negotiation request?" } } %>
+  <% when :awaiting_intake %>
+    <% if mediation.needs_landlord_intake? %>
+      <%= link_to "Complete Intake Questions", new_landlord_intake_question_path, class: "card-btn card-btn--primary" %>
+    <% else %>
+      <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on tenant to complete intake</span>
+    <% end %>
   <% else %>
     <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on tenant</span>
   <% end %>

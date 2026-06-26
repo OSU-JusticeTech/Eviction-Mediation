@@ -33,30 +33,33 @@ class IntakeQuestion < ApplicationRecord
       self[:Reason] = Array(values).map { |v| v.to_s.strip }.reject(&:blank?).join(REASON_SEPARATOR)
     end
 
-    validates :BestOption, inclusion: {
-      in: [ "Pay Missed Rent", "Move Out" ]
-    }
-
-    validates :Section8, :TotalCostOrMonthly, inclusion: { in: [ true, false ] }
+    validates :BestOption, inclusion: { in: [ "Pay Missed Rent", "Move Out" ] }, unless: :unknown_only?
+    validates :Section8, :TotalCostOrMonthly, inclusion: { in: [ true, false ] }, unless: :unknown_only?
     validates :MoneyOwed,
           presence: true,
-          numericality: { greater_than_or_equal_to: 0 }
+          numericality: { greater_than_or_equal_to: 0 },
+          unless: :unknown_only?
 
     validates :PayableToday,
           presence: true,
-          numericality: { greater_than_or_equal_to: 0 }
+          numericality: { greater_than_or_equal_to: 0 },
+          unless: :unknown_only?
 
     validates :MonthlyRent,
           presence: true,
           numericality: { greater_than_or_equal_to: 0 },
-          if: -> { self[:TotalCostOrMonthly] == false }
+          if: -> { !unknown_only? && self[:TotalCostOrMonthly] == false }
 
     validates :MonthlyRent,
           absence: true,
-          unless: -> { self[:TotalCostOrMonthly] == false }
+          unless: -> { unknown_only? || self[:TotalCostOrMonthly] == false }
     has_one :primary_message_group, foreign_key: "IntakeID"
 
     private
+
+    def unknown_only?
+      reasons == [ "Unknown" ]
+    end
 
     def reasons_must_be_valid
       selected = reasons
