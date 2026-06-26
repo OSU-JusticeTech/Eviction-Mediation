@@ -13,7 +13,7 @@ class AccountController < ApplicationController
     updated = false
 
     # Password Update
-    if params[:user][:password].present?
+    if params.dig(:user, :password).present?
       if @user.update(password_params)
         flash[:notice] = "Password updated successfully."
         updated = true

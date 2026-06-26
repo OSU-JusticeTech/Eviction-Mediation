@@ -167,7 +167,7 @@
               <div class="checkbox-group" style="margin-bottom: 0.75rem;">
                 <%= f.check_box :notify_unread_messages,
                     { class: "form-checkbox", id: "notify_unread_messages" },
-                    true, false %>
+                    true, "0" %>
                 <%= f.label :notify_unread_messages,
                     class: "checkbox-label", for: "notify_unread_messages" do %>
                   Unread message reminders
@@ -180,7 +180,7 @@
               <div class="checkbox-group" style="margin-bottom: 0.75rem;">
                 <%= f.check_box :notify_new_mediation_request,
                     { class: "form-checkbox", id: "notify_new_mediation_request" },
-                    true, false %>
+                    true, "0" %>
                 <%= f.label :notify_new_mediation_request,
                     class: "checkbox-label", for: "notify_new_mediation_request" do %>
                   New mediation request notifications
