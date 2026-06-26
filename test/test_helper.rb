@@ -52,5 +52,18 @@ module ActiveSupport
     ensure
       vars.each_key { |k| ENV[k] = old[k] }
     end
+
+    def activate_mediation(mediation)
+      intake = IntakeQuestion.create!(
+        UserID: mediation.TenantID,
+        Reason: "Failure to Pay Rent",
+        BestOption: "Pay Missed Rent",
+        Section8: false,
+        MoneyOwed: 100,
+        TotalCostOrMonthly: true,
+        PayableToday: 50
+      )
+      mediation.update!(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: intake.IntakeID, deleted_at: nil)
+    end
   end
 end

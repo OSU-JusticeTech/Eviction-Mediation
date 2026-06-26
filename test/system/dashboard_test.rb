@@ -20,7 +20,7 @@ class DashboardTest < ApplicationSystemTestCase
 
     assert_selector "h1", text: "Welcome back, #{@tenant.FName}!"
     assert_text "Your tenant portal for eviction mediation and resources"
-    assert_link "View Messages"
+    assert_link "Start a negotiation"
   end
 
   test "landlord can open dashboard" do
@@ -28,7 +28,7 @@ class DashboardTest < ApplicationSystemTestCase
 
     assert_selector "h1", text: "Welcome back, #{@landlord.FName}!"
     assert_text "Your landlord portal for property management and mediation"
-    assert_link "View Messages"
+    assert_link "View negotiations"
   end
 
   test "admin can open dashboard" do

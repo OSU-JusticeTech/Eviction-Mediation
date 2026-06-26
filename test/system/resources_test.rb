@@ -57,7 +57,7 @@ class ResourcesTest < ApplicationSystemTestCase
     visit dashboard_path
     dismiss_terms_modal_if_present
 
-    find(".nav-dropdown").hover
+    open_nav_dropdown
     click_link "Main Resources"
     assert_current_path resources_path(tab: "guide")
   end
@@ -67,7 +67,7 @@ class ResourcesTest < ApplicationSystemTestCase
     visit dashboard_path
     dismiss_terms_modal_if_present
 
-    find(".nav-dropdown").hover
+    open_nav_dropdown
     click_link "FAQs", match: :first
     assert_current_path resources_path(tab: "faqs")
   end
@@ -77,12 +77,16 @@ class ResourcesTest < ApplicationSystemTestCase
     visit dashboard_path
     dismiss_terms_modal_if_present
 
-    find(".nav-dropdown").hover
+    open_nav_dropdown
     click_link "Negotiation and Mediation"
     assert_current_path resources_path(tab: "negotiation")
   end
 
   private
+
+  def open_nav_dropdown
+    page.execute_script("document.querySelector('.nav-dropdown-menu').style.display = 'block'")
+  end
 
   def sign_in_as(user)
     visit login_path

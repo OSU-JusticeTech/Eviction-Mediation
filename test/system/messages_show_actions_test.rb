@@ -10,7 +10,8 @@ class MessagesShowActionsTest < ApplicationSystemTestCase
   end
 
   test "tenant can request a mediator from message actions" do
-    @mediation.update!(MediatorRequested: false, MediatorAssigned: false, deleted_at: nil)
+    activate_mediation(@mediation)
+    @mediation.update!(MediatorRequested: false, MediatorAssigned: false)
     @message_string.update!(deleted_at: nil)
 
     sign_in_as(@tenant)
@@ -26,7 +27,8 @@ class MessagesShowActionsTest < ApplicationSystemTestCase
   end
 
   test "landlord can end negotiation from message actions" do
-    @mediation.update!(MediatorRequested: false, MediatorAssigned: false, deleted_at: nil)
+    activate_mediation(@mediation)
+    @mediation.update!(MediatorRequested: false, MediatorAssigned: false)
     @message_string.update!(deleted_at: nil)
 
     sign_in_as(@landlord)

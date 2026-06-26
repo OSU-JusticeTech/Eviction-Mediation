@@ -1,3 +1,7 @@
+<% content_for :head do %>
+  <meta name="turbo-cache-control" content="no-store">
+<% end %>
+
 <div class="modern-dashboard">
   <!-- Hero Section -->
   <div class="dashboard-hero">
@@ -16,18 +20,35 @@
               Your mediation cases and availability center
           <% end %>
         </p>
+
+        <%# Tenants and landlords always get a right panel (active or empty-state CTA) %>
+        <% has_right_panel = @user.tenant? || @user.landlord? %>
+        <% if has_right_panel %>
+          <div class="role-badge <%= @user.Role.downcase %>-badge" style="margin-top: 1rem; display: inline-flex; align-self: flex-start;">
+            <i class="fas <%= @user.tenant? ? 'fa-home' : 'fa-building' %>"></i>
+            <%= @user.Role %>
+          </div>
+        <% end %>
       </div>
-      
-      <!-- Role Badge -->
-      <div class="role-badge <%= @user.Role.downcase %>-badge">
-        <i class="fas <%= case @user.Role
-          when 'Tenant' then 'fa-home'
-          when 'Landlord' then 'fa-building'
-          when 'Admin' then 'fa-shield-alt'
-          when 'Mediator' then 'fa-balance-scale'
-          end %>"></i>
-        <%= @user.Role %>
-      </div>
+
+      <%# Right side: active panel, empty-state CTA, or role badge for other roles %>
+      <% if @user.tenant? && @active_mediation.present? %>
+        <%= render "tenant_messages_panel" %>
+      <% elsif @user.tenant? %>
+        <%= render "tenant_no_negotiation_panel" %>
+      <% elsif @user.landlord? && @landlord_active_conversations.present? %>
+        <%= render "landlord_messages_panel" %>
+      <% elsif @user.landlord? %>
+        <%= render "landlord_no_negotiation_panel" %>
+      <% else %>
+        <div class="role-badge <%= @user.Role.downcase %>-badge">
+          <i class="fas <%= case @user.Role
+            when 'Admin' then 'fa-shield-alt'
+            when 'Mediator' then 'fa-balance-scale'
+            end %>"></i>
+          <%= @user.Role %>
+        </div>
+      <% end %>
     </div>
   </div>
 

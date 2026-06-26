@@ -1,0 +1,46 @@
+<div class="bg-white/10 rounded-2xl p-5 backdrop-blur-sm w-full max-w-sm flex-shrink-0">
+
+  <%# Header row: label + unread badge %>
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center gap-2 text-white/60 text-xs uppercase tracking-widest font-semibold">
+      <i class="fas fa-comment-dots text-white/40"></i>
+      Messages
+    </div>
+    <% if @new_message_count.to_i > 0 %>
+      <span class="bg-red-500 text-white text-xs font-bold px-2.5 py-0.5 rounded-full leading-5">
+        <%= @new_message_count %> new
+      </span>
+    <% end %>
+  </div>
+
+  <%# Sender + preview %>
+  <% if @latest_message %>
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 uppercase">
+        <%= @message_sender&.display_name&.first || "?" %>
+      </div>
+      <div class="min-w-0 flex-1">
+        <p class="text-white font-semibold text-sm leading-tight truncate">
+          <% if @message_sender&.UserID == @user.UserID %>You<% else %><%= @message_sender&.display_name || "Unknown" %><% end %>
+        </p>
+        <p class="text-white/50 text-xs mt-0.5">
+          <%= @active_mediation.landlord.display_name %> &middot; <%= @latest_message.MessageDate.strftime("%-m/%-d, %-I:%M %p") %>
+        </p>
+      </div>
+    </div>
+
+    <p class="text-white/70 text-sm italic leading-snug mb-4 line-clamp-2">
+      &ldquo;<%= truncate(@latest_message.Contents, length: 90) %>&rdquo;
+    </p>
+  <% else %>
+    <p class="text-white/50 text-sm italic mb-4 leading-relaxed">No messages yet in this conversation.</p>
+  <% end %>
+
+  <%# CTA button %>
+  <%= link_to message_path(@active_mediation.ConversationID),
+        class: "flex items-center justify-between bg-white text-[#102a4d] text-sm font-bold px-4 py-3 rounded-full hover:bg-white/90 transition-colors" do %>
+    <span>Message your landlord</span>
+    <i class="fas fa-arrow-right text-xs"></i>
+  <% end %>
+
+</div>

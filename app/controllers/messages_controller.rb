@@ -56,6 +56,25 @@ class MessagesController < ApplicationController
       return
     end
 
+    # Block tenants and landlords from accessing chat until the negotiation is
+    # fully established (both parties accepted + tenant intake complete).
+    if @mediation.pending? && %w[Tenant Landlord].include?(@user.Role)
+      alert_message = case @mediation.pending_stage
+      when :awaiting_landlord_acceptance
+        "This negotiation is waiting for the landlord to respond before the chat opens."
+      when :awaiting_tenant_acceptance
+        "Please accept this negotiation request to open the chat."
+      when :awaiting_tenant_intake
+        "Please complete your intake questions to open the chat."
+      else
+        "This negotiation isn't ready yet. Complete all required steps first."
+      end
+      redirect_to messages_path, alert: alert_message
+      return
+    end
+
+    session["conversation_read_at_#{params[:id]}"] = Time.current.to_i
+
     @mediator = @mediation.mediator if @mediation&.MediatorAssigned
 
     @messages = Message

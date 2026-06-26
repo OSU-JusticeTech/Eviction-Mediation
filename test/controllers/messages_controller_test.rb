@@ -141,6 +141,7 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "show renders conversation for tenant participant" do
+    activate_mediation(@mediation)
     log_in_as(@tenant)
 
     get message_path(@mediation.ConversationID)
@@ -251,19 +252,6 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
 
   private
 
-  def activate_mediation(mediation)
-    intake = IntakeQuestion.create!(
-      UserID: mediation.TenantID,
-      Reason: "Failure to Pay Rent",
-      BestOption: "Pay Missed Rent",
-      Section8: false,
-      MoneyOwed: 100,
-      TotalCostOrMonthly: true,
-      PayableToday: 50
-    )
-    mediation.update!(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: intake.IntakeID, deleted_at: nil)
-  end
-
   test "show renders read-only chat for admin without composer or actions" do
     log_in_as(users(:admin1))
 
@@ -277,6 +265,57 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "h4", text: "Administrator View"
     # No end-mediation / request-mediator actions are offered to admins
     assert_select ".conversation-cta--danger", count: 0
+  end
+
+  # Navigation guard: pending mediations block Tenant/Landlord from show
+
+  test "show redirects tenant from pending mediation awaiting landlord acceptance" do
+    @mediation.update!(accepted_by_landlord: false, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+    log_in_as(@tenant)
+
+    get message_path(@mediation.ConversationID)
+
+    assert_redirected_to messages_path
+    assert_match /landlord/, flash[:alert]
+  end
+
+  test "show redirects tenant from pending mediation awaiting tenant acceptance" do
+    @mediation.update!(accepted_by_landlord: true, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+    log_in_as(@tenant)
+
+    get message_path(@mediation.ConversationID)
+
+    assert_redirected_to messages_path
+    assert_match /accept/, flash[:alert]
+  end
+
+  test "show redirects tenant from pending mediation awaiting intake" do
+    @mediation.update!(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: nil, deleted_at: nil)
+    log_in_as(@tenant)
+
+    get message_path(@mediation.ConversationID)
+
+    assert_redirected_to messages_path
+    assert_match /intake/, flash[:alert]
+  end
+
+  test "show redirects landlord from pending mediation" do
+    @mediation.update!(accepted_by_landlord: false, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+    log_in_as(@landlord)
+
+    get message_path(@mediation.ConversationID)
+
+    assert_redirected_to messages_path
+    assert flash[:alert].present?
+  end
+
+  test "show allows admin to view pending mediation" do
+    @mediation.update!(accepted_by_landlord: false, accepted_by_tenant: false, IntakeID: nil, deleted_at: nil)
+    log_in_as(users(:admin1))
+
+    get message_path(@mediation.ConversationID)
+
+    assert_response :success
   end
 
   test "create denies admin posting a message" do

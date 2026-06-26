@@ -25,7 +25,7 @@ export EXPORT_FILE := db_export.bak
 -include env.mk
 
 # Ensures make ignores file/directory name collisions for these targets
-.PHONY: test test-all test-system test-system-headed pull-images
+.PHONY: test test-all test-system test-system-headed pull-images css
 
 dev-setup: down-clean
 	@test -f config/database.yml || cp config/database.yml.docker config/database.yml
@@ -127,6 +127,9 @@ import-db:
 	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -Q "ALTER DATABASE [$(DB_TARGET_NAME)] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [$(DB_TARGET_NAME)] FROM DISK = N'/tmp/import.bak' WITH REPLACE; ALTER DATABASE [$(DB_TARGET_NAME)] SET MULTI_USER;"
 	$(COMPOSE_CMD) restart $(WEB_SERVICE)
 	@echo "Database imported from $(or $(FILE),$(EXPORT_FILE))"
+
+css:
+	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails tailwindcss:build
 
 credentials:
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails credentials:edit

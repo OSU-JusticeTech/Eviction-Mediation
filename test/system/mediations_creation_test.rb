@@ -56,7 +56,7 @@ class MediationsCreationTest < ApplicationSystemTestCase
     fill_in "landlord_email", with: @landlord.Email
     click_button "Request Negotiation"
 
-    assert_text "Negotiation requested with #{@landlord.CompanyName}"
+    assert_selector ".flash-notice", text: "Negotiation requested with #{@landlord.CompanyName}"
   end
 
   private
