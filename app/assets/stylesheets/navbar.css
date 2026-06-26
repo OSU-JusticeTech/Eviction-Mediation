@@ -278,6 +278,9 @@
         top: 100%;
         margin-top: 0;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        max-height: calc(100vh - 70px);
+        max-height: calc(100dvh - 70px);
+        overflow-y: auto;
     }
 
     .navbar-menu.active {
