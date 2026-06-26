@@ -20,18 +20,17 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "lists active and past mediations in board for admins" do
+  test "lists needs-action, active, and past mediations in board for admins" do
     get admin_mediations_url
 
     assert_response :success
     assert_select "h1", "Mediations Dashboard"
 
-    # Board renders group headings for both sections
-    assert_select "h2.mediation-group__title", "Active Mediations"
+    # Unassigned case surfaces under "Needs Action"; ended case under "Past Mediations"
+    assert_select "h2.mediation-group__title", "Needs Action"
     assert_select "h2.mediation-group__title", "Past Mediations"
 
-    # Both the unassigned case (active) and the completed case (past) are
-    # represented as cards; each card name combines both parties.
+    # Both cards are present; each card name combines both parties
     assert_match @unassigned.tenant.FName, response.body
     assert_match @completed.tenant.FName, response.body
   end

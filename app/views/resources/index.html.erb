@@ -3,16 +3,25 @@
 
 <% if current_user %>
   <%# ── Logged-in: full tab bar ── %>
+  <%
+    from_conversation = params[:from_conversation].presence
+    back_path = message_path(from_conversation) if from_conversation
+  %>
   <div class="resx-top">
+    <% if back_path %>
+      <%= link_to back_path, class: "resx-back-btn" do %>
+        <i class="fas fa-arrow-left"></i> Back to conversation
+      <% end %>
+    <% end %>
     <div class="resx-top-tabs">
       <%= link_to "Resources",
-                  resources_path(tab: "guide"),
+                  resources_path(tab: "guide", from_conversation: from_conversation),
                   class: "resx-top-tab #{'is-active' if current_tab == 'guide'}" %>
       <%= link_to "FAQs",
-                  resources_path(tab: "faqs"),
+                  resources_path(tab: "faqs", from_conversation: from_conversation),
                   class: "resx-top-tab #{'is-active' if current_tab == 'faqs'}" %>
       <%= link_to "Negotiation & Mediation",
-                  resources_path(tab: "negotiation"),
+                  resources_path(tab: "negotiation", from_conversation: from_conversation),
                   class: "resx-top-tab #{'is-active' if current_tab == 'negotiation'}" %>
     </div>
   </div>
@@ -111,6 +120,35 @@
 .resx-top-tab.is-active {
   background: #0b2b4b;
   color: #ffffff;
+}
+@media (max-width: 600px) {
+  .resx-top-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    border-radius: 12px;
+    gap: 6px;
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+  .resx-top-tab {
+    flex: 1;
+    text-align: center;
+    border-radius: 8px;
+    font-size: 13px;
+    padding: 9px 10px;
+    white-space: nowrap;
+    background: #ffffff;
+    border: 1.5px solid #d1d9e6;
+    color: #475569;
+  }
+  .resx-top-tab.is-active {
+    background: #0b2b4b;
+    border-color: #0b2b4b;
+    color: #ffffff;
+  }
 }
 .resx-top-body {
   max-width: 1080px;

@@ -52,6 +52,36 @@ class ResourcesTest < ApplicationSystemTestCase
     assert_text "Negotiation & Mediation: What They Are and How They Can Help"
   end
 
+  test "tenant navbar dropdown links to main resources tab" do
+    sign_in_as(@tenant)
+    visit dashboard_path
+    dismiss_terms_modal_if_present
+
+    find(".nav-dropdown").hover
+    click_link "Main Resources"
+    assert_current_path resources_path(tab: "guide")
+  end
+
+  test "tenant navbar dropdown links to faqs tab" do
+    sign_in_as(@tenant)
+    visit dashboard_path
+    dismiss_terms_modal_if_present
+
+    find(".nav-dropdown").hover
+    click_link "FAQs", match: :first
+    assert_current_path resources_path(tab: "faqs")
+  end
+
+  test "tenant navbar dropdown links to negotiation and mediation tab" do
+    sign_in_as(@tenant)
+    visit dashboard_path
+    dismiss_terms_modal_if_present
+
+    find(".nav-dropdown").hover
+    click_link "Negotiation and Mediation"
+    assert_current_path resources_path(tab: "negotiation")
+  end
+
   private
 
   def sign_in_as(user)

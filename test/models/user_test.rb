@@ -63,4 +63,24 @@ class UserTest < ActiveSupport::TestCase
     u.validate
     assert_includes u.errors[:ProfileDisclaimer], "You must agree to the Disclaimer to sign up."
   end
+
+  test "notify_unread_messages? returns true by default" do
+    u = User.new
+    assert u.notify_unread_messages?
+  end
+
+  test "notify_unread_messages? returns false when column is false" do
+    u = User.new(notify_unread_messages: false)
+    refute u.notify_unread_messages?
+  end
+
+  test "notify_new_mediation_request? returns true by default" do
+    u = User.new
+    assert u.notify_new_mediation_request?
+  end
+
+  test "notify_new_mediation_request? returns false when column is false" do
+    u = User.new(notify_new_mediation_request: false)
+    refute u.notify_new_mediation_request?
+  end
 end

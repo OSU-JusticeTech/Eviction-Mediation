@@ -66,8 +66,7 @@ class MediationsController < ApplicationController
       if landlord.persisted?
         Rails.logger.info "Landlord found: #{landlord.Email}, starting mediation and sending notification"
         start_mediation_with_existing_landlord(landlord)
-        # Send notification email even if account exists
-        LandlordMailer.mediation_request_notification(landlord.Email, @user).deliver_later
+        LandlordMailer.mediation_request_notification(landlord.Email, @user).deliver_later if landlord.notify_new_mediation_request?
       else
         redirect_to messages_path, alert: "An unexpected error occurred. Please try again."
       end
@@ -84,8 +83,7 @@ class MediationsController < ApplicationController
       if tenant&.persisted?
         Rails.logger.info "Tenant found: #{tenant.Email}, starting mediation and sending notification"
         start_mediation_with_existing_tenant(tenant)
-        # Send notification email even if account exists
-        TenantMailer.invitation_email(params[:tenant_email], @user).deliver_later
+        TenantMailer.invitation_email(params[:tenant_email], @user).deliver_later if tenant.notify_new_mediation_request?
       else
         Rails.logger.info "No tenant found with email: #{params[:tenant_email]}, sending invitation"
         send_tenant_invitation(params[:tenant_email])

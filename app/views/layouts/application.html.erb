@@ -81,7 +81,8 @@
           <div class="conversation-modal__header">
             <h3>Terms of Use</h3>
           </div>
-          <div class="conversation-modal__body" style="line-height: 1.6; overflow-y: auto; flex: 1; padding-right: 0.5rem;">
+          <div class="terms-body-wrapper">
+          <div id="termsModalBody" class="conversation-modal__body" style="line-height: 1.6; overflow-y: auto; flex: 1; padding-right: 0.5rem;">
             <h4 style="margin-top: 0.5rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Purpose</h4>
             <p style="margin-bottom: 1rem;">Welcome to the Franklin County Municipal Court Self-Help Center's online eviction mediation tool! This tool is designed to promote communication between tenants and landlords before an eviction is filed.</p>
 
@@ -118,6 +119,10 @@
             
             <p style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: 600;">By clicking "OK", you understand and agree to these terms.</p>
           </div>
+          <div id="termsScrollHint" class="terms-scroll-hint" aria-hidden="true">
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          </div>
           <div class="conversation-modal__actions">
             <button id="acceptTermsBtn" class="conversation-cta" style="background: #102a4d; color: white; border: none; padding: 0.75rem 2rem; border-radius: 999px; font-weight: 600; cursor: pointer; font-size: 0.95rem;">OK</button>
           </div>
@@ -130,6 +135,20 @@
           const acceptBtn = document.getElementById('acceptTermsBtn');
           const storageKey = 'evictionMediationTermsAccepted';
           
+          const termsBody = document.getElementById('termsModalBody');
+          const scrollHint = document.getElementById('termsScrollHint');
+
+          function updateScrollHint() {
+            if (!termsBody || !scrollHint) return;
+            const scrollable = termsBody.scrollHeight > termsBody.clientHeight + 8;
+            const atBottom = termsBody.scrollTop + termsBody.clientHeight >= termsBody.scrollHeight - 8;
+            scrollHint.style.opacity = (scrollable && !atBottom) ? '1' : '0';
+          }
+
+          if (termsBody) {
+            termsBody.addEventListener('scroll', updateScrollHint);
+          }
+
           function showTermsModal() {
             // Check if user has already accepted terms
             const hasAccepted = localStorage.getItem(storageKey);
@@ -146,6 +165,7 @@
               // (outline: none) so no focus ring shows on open.
               modal.focus();
               document.body.classList.add('has-modal-open');
+              requestAnimationFrame(updateScrollHint);
             }
           }
 

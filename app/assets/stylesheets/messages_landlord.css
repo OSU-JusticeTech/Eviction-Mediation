@@ -674,6 +674,10 @@
     border-left-color: #d99100;
 }
 
+.mediation-card-item--needs_assignment {
+    border-left-color: #d99100;
+}
+
 .mediation-card-item--past {
     border-left-color: #8a98aa;
 }

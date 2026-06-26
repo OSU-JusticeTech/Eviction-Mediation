@@ -12,9 +12,16 @@ module MessagesHelper
     everything_else: "All Other Negotiations"
   }.freeze
 
-  # Section titles for the mediator/admin board: simple active/past split with
-  # no pending-action grouping.
+  # Section titles for the mediator board: simple active/past split.
   MEDIATOR_GROUP_TITLES = {
+    active: "Active Mediations",
+    past: "Past Mediations"
+  }.freeze
+
+  # Section titles for the admin board: needs-assignment cases surface first,
+  # then the active/past split.
+  ADMIN_GROUP_TITLES = {
+    needs_assignment: "Needs Action",
     active: "Active Mediations",
     past: "Past Mediations"
   }.freeze
@@ -55,10 +62,10 @@ module MessagesHelper
   def mediation_substatus(mediation, viewer_role)
     case viewer_role
     when "Mediator"
-      mediation.past? ? "Ended #{mediation.deleted_at&.strftime('%B %d, %Y')}" : "In progress"
+      mediation.past? ? past_substatus(mediation) : "In progress"
     when "Admin"
       if mediation.past?
-        "Ended #{mediation.deleted_at&.strftime('%B %d, %Y')}"
+        past_substatus(mediation)
       elsif mediation.MediatorAssigned?
         "In progress"
       else
@@ -69,8 +76,7 @@ module MessagesHelper
       when :active
         "In progress"
       when :past
-        ended_on = mediation.deleted_at&.strftime("%B %d, %Y")
-        ended_on ? "Ended #{ended_on}" : "Ended"
+        past_substatus(mediation)
       when :pending
         pending_substatus(mediation.pending_stage, viewer_role)
       end
@@ -105,6 +111,26 @@ module MessagesHelper
   end
 
   private
+
+  def past_substatus(mediation)
+    ended_on  = mediation.deleted_at&.strftime("%B %d, %Y")
+    ended_by  = mediation_ended_by_label(mediation)
+    base      = ended_on ? "Ended #{ended_on}" : "Ended"
+    ended_by  ? "#{base} · by #{ended_by}" : base
+  end
+
+  def mediation_ended_by_label(mediation)
+    ender_id = mediation.EndedBy
+    return nil if ender_id.blank?
+
+    if ender_id == mediation.TenantID
+      "Tenant"
+    elsif ender_id == mediation.LandlordID
+      "Landlord"
+    elsif ender_id == mediation.MediatorID
+      "Mediator"
+    end
+  end
 
   def full_name(user)
     [ user&.FName, user&.LName ].compact.join(" ").strip

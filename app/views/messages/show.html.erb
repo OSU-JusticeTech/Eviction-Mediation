@@ -19,6 +19,14 @@
           <span class="conversation-cta__chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
         </button>
 
+        <% if @user.Role == "Tenant" || @user.Role == "Landlord" %>
+          <%= link_to resources_path(tab: "faqs", from_conversation: @mediation.ConversationID), class: "conversation-cta conversation-cta--info" do %>
+            <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-circle-question"></i></span>
+            <span class="conversation-cta__label">FAQ</span>
+            <span class="conversation-cta__chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+          <% end %>
+        <% end %>
+
         <% if @user.Role == "Mediator" || is_admin %>
           <%= link_to mediator_case_path(@mediation.id), class: "conversation-cta conversation-cta--info" do %>
             <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-folder-open"></i></span>
@@ -144,6 +152,7 @@
                 <h4>Chat Terms</h4>
                 <p>Messages shared in this chat box are used for mediation and negotiation purposes only.</p>
                 <p>The mediator may review these messages to <strong>help guide the conversation</strong>, but they <strong>do not represent either party</strong> and cannot give legal advice.</p>
+                <p>To act in good faith, users are expected to respond to messages within <strong>3 business days</strong>.</p>
                 <p>By continuing to use this chat, you agree to these terms.</p>
               </div>
             <% end %>

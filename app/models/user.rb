@@ -43,6 +43,14 @@ class User < ApplicationRecord
     [ street.presence, city_state_zip.presence ].compact.join(", ").presence
   end
 
+  def notify_unread_messages?
+    self[:notify_unread_messages] != false
+  end
+
+  def notify_new_mediation_request?
+    self[:notify_new_mediation_request] != false
+  end
+
   # Two-Factor Authentication methods
   def two_factor_enabled?
     self[:two_factor_enabled] == true

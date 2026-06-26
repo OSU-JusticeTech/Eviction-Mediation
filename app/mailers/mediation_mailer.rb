@@ -1,5 +1,5 @@
 class MediationMailer < ApplicationMailer
-  default from: Rails.application.credentials.dig(:smtp, :from)
+  default from: Rails.application.credentials.dig(:smtp, :from) || "no-reply@example.com"
 
   def unread_message_notification(email, recipient, sender, conversation_id)
     @recipient = recipient
