@@ -29,6 +29,7 @@
   <%# Main Stylesheet - include per-page styles explicitly so Propshaft/importmap
     and different branches load the expected files. This avoids relying on
     Sprockets `require_tree` which can be brittle across branches. %>
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
   <%= stylesheet_link_tag "base", "data-turbo-track": "reload" %>
   <%= stylesheet_link_tag "navbar", "data-turbo-track": "reload" %>
   <%= stylesheet_link_tag "flash", "data-turbo-track": "reload" %>

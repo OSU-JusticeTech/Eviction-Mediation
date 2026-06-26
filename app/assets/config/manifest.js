@@ -24,4 +24,4 @@
 //= link mediations.css
 //= link documents.css
 //= link resources.css
-//= link account_view.css
+//= link account_view.css//= link_tree ../builds

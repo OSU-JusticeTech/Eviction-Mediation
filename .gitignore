@@ -64,3 +64,6 @@ env-targets.mk
 
 # DB Backups
 db_export*.bak
+
+/app/assets/builds/*
+!/app/assets/builds/.keep
