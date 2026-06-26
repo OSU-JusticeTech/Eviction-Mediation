@@ -157,26 +157,16 @@
 .nav-dropdown-menu {
     display: none;
     position: absolute;
-    top: calc(100% + 10px);
+    top: 100%;
     left: 50%;
     transform: translateX(-50%);
-    background: #1a436e;
+    background: #102a4d;
     border-radius: 10px;
     padding: 6px 0;
     list-style: none;
     min-width: 220px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
     z-index: 200;
-}
-
-/* Transparent bridge fills the gap so hover isn't lost when moving cursor toward the menu */
-.nav-dropdown-menu::before {
-    content: '';
-    position: absolute;
-    top: -16px;
-    left: -16px;
-    right: -16px;
-    height: 16px;
 }
 
 .nav-dropdown:hover .nav-dropdown-menu {
