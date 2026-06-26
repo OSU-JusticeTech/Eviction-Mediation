@@ -243,6 +243,27 @@
     }
 }
 
+/* Touch devices: disable CSS hover dropdown, use JS .is-open instead */
+@media (hover: none) {
+    .nav-dropdown:hover .nav-dropdown-menu {
+        display: none;
+    }
+
+    .nav-dropdown.is-open .nav-dropdown-menu {
+        display: block;
+    }
+
+    .nav-dropdown.is-open .nav-caret {
+        transform: rotate(180deg);
+    }
+
+    /* Disable hover animations on touch */
+    .navbar-menu li a:hover {
+        background: none;
+        transform: none;
+    }
+}
+
 /* Responsive Design for Mobile */
 @media (max-width: 850px) {
     .navbar-container {
