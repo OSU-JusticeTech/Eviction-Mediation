@@ -2,6 +2,14 @@
 <% case mediation.status_category %>
 <% when :active %>
   <%= link_to "View Negotiation", message_path(mediation.ConversationID), class: "card-btn card-btn--primary" %>
+  <% unless mediation.MediatorRequested %>
+    <%= button_to "Request Mediator", request_mediator_message_path(mediation.ConversationID), method: :patch,
+          class: "card-btn card-btn--secondary",
+          form: { data: { turbo_confirm: "Request a mediator to join this negotiation?" } } %>
+  <% end %>
+  <%= button_to "End Mediation", end_mediation_path(mediation.ConversationID), method: :patch,
+        class: "card-btn card-btn--ghost",
+        form: { data: { turbo_confirm: "End this negotiation? This cannot be undone." } } %>
 
 <% when :pending %>
   <% case mediation.pending_stage %>
@@ -14,7 +22,7 @@
     <% if mediation.needs_landlord_intake? %>
       <%= link_to "Complete Intake Questions", new_landlord_intake_question_path, class: "card-btn card-btn--primary" %>
     <% else %>
-      <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on tenant to complete intake</span>
+      <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on tenant<br>to complete Intake Questions</span>
     <% end %>
   <% else %>
     <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on tenant</span>

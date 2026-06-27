@@ -5,7 +5,7 @@
     <h1>Start Your Intake Questions</h1>
     <h2>Please complete the following intake questions before proceeding with negotiation.</h2>
 
-    <%= form_with(model: @landlord_intake_question, url: landlord_intake_questions_path, local: true) do |f| %>
+    <%= form_with(model: @landlord_intake_question, url: landlord_intake_questions_path, local: true, data: { turbo: false }) do |f| %>
 
       <div class="form-section">
         <%= f.label :Reason, "What is the reason for the dispute?", class: "required-label" %>
@@ -91,7 +91,9 @@
 
 <script>
   document.addEventListener('turbo:load', function() {
-    const form = document.querySelector('form');
+    const form = document.querySelector('form[data-turbo="false"]');
+    if (!form || form.dataset.jsInitialized) return;
+    form.dataset.jsInitialized = 'true';
 
     // Multi-select "reason for dispute" dropdown
     const reasonSelect = document.getElementById('reason-checkboxes');
@@ -188,7 +190,6 @@
       updateReasonLabel();
     }
 
-    // Form validation with visual feedback
     if (form) {
       form.addEventListener('submit', function(e) {
         const requiredFields = form.querySelectorAll('[required]');
@@ -247,5 +248,13 @@
         }
       });
     }
+  });
+
+  document.addEventListener('turbo:before-cache', function() {
+    const reasonSelect = document.getElementById('reason-checkboxes');
+    if (!reasonSelect) return;
+    const reasonToggle = reasonSelect.querySelector('.reason-multiselect__toggle');
+    reasonSelect.classList.remove('open');
+    if (reasonToggle) reasonToggle.setAttribute('aria-expanded', 'false');
   });
 </script>

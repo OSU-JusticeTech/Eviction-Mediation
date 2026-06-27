@@ -18,12 +18,13 @@ class LandlordIntakeQuestionsController < ApplicationController
     if @landlord_intake_question.save
       conversation = PrimaryMessageGroup.find_by(
         LandlordID: @user.UserID,
-        deleted_at: nil
+        deleted_at: nil,
+        LandlordIntakeID: nil
       )
-      conversation.update!(LandlordIntakeID: @landlord_intake_question.LandlordIntakeID)
+      conversation&.update!(LandlordIntakeID: @landlord_intake_question.LandlordIntakeID)
       redirect_to messages_path, notice: "Intake questions completed successfully. You can now proceed to your negotiations."
     else
-      render plain: "ERROR: #{@landlord_intake_question.errors.full_messages.join(', ')}"
+      render :new, status: :unprocessable_entity
     end
   end
 

@@ -6,7 +6,7 @@
     <h1>Start Your Intake Questions</h1>
       <h2>Please complete the following intake questions before proceeding with negotiation.</h2>
 
-    <%= form_with(model: @intake_question, url: intake_questions_path(conversation_id: @conversation_id), local: true) do |f| %>
+    <%= form_with(model: @intake_question, url: intake_questions_path(conversation_id: @conversation_id), local: true, data: { turbo: false }) do |f| %>
 
       <div class="form-section">
         <%= f.label :Reason, "What is the reason for the dispute?", class: "required-label" %>
@@ -114,7 +114,9 @@
 
 <script>
   document.addEventListener('turbo:load', function() {
-    const form = document.querySelector('form');
+    const form = document.querySelector('form[data-turbo="false"]');
+    if (!form || form.dataset.jsInitialized) return;
+    form.dataset.jsInitialized = 'true';
     const monthlyRentSection = document.getElementById('monthly-rent-section');
     const monthlyRentField = document.getElementById('monthly_rent_field');
     const totalCostYes = document.getElementById('total_cost_yes');
@@ -303,5 +305,14 @@
 
     // Initialize monthly rent visibility on page load
     toggleMonthlyRent();
+  });
+
+  // Close dropdown before Turbo snapshots the page so back-navigation restores a clean state
+  document.addEventListener('turbo:before-cache', function() {
+    const reasonSelect = document.getElementById('reason-checkboxes');
+    if (!reasonSelect) return;
+    const reasonToggle = reasonSelect.querySelector('.reason-multiselect__toggle');
+    reasonSelect.classList.remove('open');
+    if (reasonToggle) reasonToggle.setAttribute('aria-expanded', 'false');
   });
 </script>

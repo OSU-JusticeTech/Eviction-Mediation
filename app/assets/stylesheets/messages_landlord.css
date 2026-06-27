@@ -765,10 +765,11 @@
 /* --- Card actions --- */
 .mediation-card-item__actions {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
     flex-shrink: 0;
+    min-width: 160px;
 }
 
 .mediation-card-item__actions form {
@@ -833,6 +834,31 @@
     color: #5a6b7f;
 }
 
+.card-status-note--success {
+    color: #1c7030;
+}
+
+.mediation-card-item__opened-date {
+    font-size: 0.78rem;
+    color: #6b7a8d;
+    font-weight: 500;
+}
+
+
+
+.mediation-card-item__mediator-status {
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.mediation-card-item__mediator-status--assigned {
+    color: #1c7030;
+}
+
+.mediation-card-item__mediator-status--pending {
+    color: #9a6700;
+}
+
 @media (max-width: 600px) {
     .filter-controls {
         flex-direction: column;
@@ -880,11 +906,7 @@
     }
 
     .mediation-card-item__actions {
-        justify-content: flex-start;
-    }
-
-    .card-btn {
-        flex: 1 1 auto;
+        width: 100%;
     }
 }
 

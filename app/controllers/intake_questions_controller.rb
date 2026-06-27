@@ -19,15 +19,15 @@ class IntakeQuestionsController < ApplicationController
       Rails.logger.debug params[:intake_question]
 
       if @intake_question.save
-        @conversation_id = params[:conversation_id]
         conversation = PrimaryMessageGroup.find_by(
             TenantID: @user.UserID,
-            deleted_at: nil
+            deleted_at: nil,
+            IntakeID: nil
           )
-        conversation.update!(IntakeID: @intake_question.IntakeID)
+        conversation&.update!(IntakeID: @intake_question.IntakeID)
         redirect_to messages_path, notice: "Intake questions completed successfully. You can now proceed to your negotiations."
       else
-        render plain: "ERROR 1 @intake_question"
+        render :new, status: :unprocessable_entity
       end
     end
 
