@@ -1,0 +1,64 @@
+<div class="bg-white/10 rounded-2xl p-5 backdrop-blur-sm w-full max-w-sm flex-shrink-0 border-l-4 border-[#d99100]">
+
+  <%# Header %>
+  <div class="flex items-center justify-between mb-1">
+    <div class="flex items-center gap-2 text-white/60 text-xs uppercase tracking-widest font-semibold">
+      <i class="fas fa-clock text-[#d99100]"></i>
+      Pending Negotiations
+    </div>
+    <span class="bg-[#fdf2dc] text-[#9a6700] text-xs font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-full">
+      <%= @landlord_pending_count %> pending
+    </span>
+  </div>
+
+  <p class="text-white/40 text-xs mb-4">Awaiting acceptance or intake completion</p>
+
+  <%# Conversation rows %>
+  <div class="flex flex-col gap-1.5 mb-4">
+    <% @landlord_pending_conversations.each do |mediation| %>
+      <% stage = mediation.pending_stage %>
+      <% needs_action = mediation.needs_action_from?("Landlord") %>
+      <% href = if stage == :awaiting_landlord_acceptance
+                  message_path(mediation.ConversationID)
+                elsif stage == :awaiting_intake && mediation.needs_landlord_intake?
+                  new_landlord_intake_question_path(conversation_id: mediation.ConversationID)
+                else
+                  message_path(mediation.ConversationID)
+                end %>
+      <%= link_to href,
+            class: "flex items-center justify-between #{ needs_action ? 'bg-[#d99100]/10 border border-[#d99100]/20' : 'bg-white/10' } hover:bg-[#d99100]/20 rounded-xl px-3 py-2.5 transition-all group" do %>
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-7 h-7 rounded-full #{ needs_action ? 'bg-[#d99100]/30' : 'bg-white/20' } flex items-center justify-center text-xs font-bold flex-shrink-0 uppercase #{ needs_action ? 'text-[#fcd97d]' : 'text-white' }">
+            <%= mediation.tenant.display_name.first %>
+          </div>
+          <div class="min-w-0">
+            <span class="text-white text-sm font-medium truncate block"><%= mediation.tenant.display_name %></span>
+            <span class="text-xs <%= needs_action ? 'text-[#fcd97d]/80' : 'text-white/40' %>">
+              <% if needs_action %>
+                <% case stage %>
+                <% when :awaiting_landlord_acceptance %>
+                  Awaiting your response
+                <% when :awaiting_intake %>
+                  Complete your intake
+                <% end %>
+              <% else %>
+                Waiting on tenant
+              <% end %>
+            </span>
+          </div>
+        </div>
+        <% if needs_action %>
+          <span class="w-2 h-2 rounded-full bg-[#d99100] flex-shrink-0 ml-2"></span>
+        <% end %>
+        <i class="fas fa-chevron-right text-white/30 text-xs group-hover:text-white/60 transition-colors ml-2"></i>
+      <% end %>
+    <% end %>
+  </div>
+
+  <%= link_to messages_path,
+        class: "flex items-center justify-between bg-white text-[#102a4d] text-sm font-bold px-4 py-3 rounded-full hover:bg-white/90 transition-colors" do %>
+    <span>View all negotiations</span>
+    <i class="fas fa-arrow-right text-xs"></i>
+  <% end %>
+
+</div>

@@ -79,6 +79,9 @@ gem "dotenv-rails"
 # for frontend to add icons
 gem "font-awesome-sass", "~> 6.4.2"
 
+# Tailwind CSS via standalone CLI (no Node.js required)
+gem "tailwindcss-rails"
+
 # Table support used by Prawn-based PDF generation
 gem "prawn"
 

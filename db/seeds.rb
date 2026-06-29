@@ -113,8 +113,11 @@ end
 #
 # status: :pending_awaiting_landlord | :pending_awaiting_tenant |
 #         :pending_intake | :active | :active_with_mediator | :past
+# requested_by: "Tenant" | "Landlord" — inferred from status for the two
+#   unambiguous cases; must be supplied explicitly for :pending_intake and later.
 def build_mediation!(landlord:, tenant:, status:, mediator: nil,
-                     created_at: Time.current, ended_at: nil, with_messages: false)
+                     created_at: Time.current, ended_at: nil, with_messages: false,
+                     requested_by: nil)
   message_string = MessageString.create!(
     Role: "Primary",
     CreatedAt: created_at,
@@ -136,15 +139,19 @@ def build_mediation!(landlord:, tenant:, status:, mediator: nil,
   case status
   when :pending_awaiting_landlord # tenant initiated, landlord must accept
     attrs[:accepted_by_tenant] = true
+    attrs[:requested_by] = requested_by || "Tenant"
   when :pending_awaiting_tenant   # landlord initiated, tenant must accept
     attrs[:accepted_by_landlord] = true
+    attrs[:requested_by] = requested_by || "Landlord"
   when :pending_intake            # both accepted, tenant still owes intake
     attrs[:accepted_by_landlord] = true
     attrs[:accepted_by_tenant] = true
+    attrs[:requested_by] = requested_by
   when :active, :active_with_mediator, :past
     attrs[:accepted_by_landlord] = true
     attrs[:accepted_by_tenant] = true
     attrs[:IntakeID] = build_intake!(tenant).IntakeID
+    attrs[:requested_by] = requested_by
   end
 
   if mediator
@@ -262,8 +269,11 @@ elsif PrimaryMessageGroup.where(LandlordID: primary_landlord.UserID).none?
 
   # Both accepted, but the tenant still owes intake answers -> tenant sees
   # "Complete Intake Questions", landlord sees "waiting on tenant".
+  # Tenant initiated this one, so "Unknown" should be hidden on the tenant's
+  # intake form and available on the landlord's.
   build_mediation!(landlord: primary_landlord, tenant: primary_tenant,
-                   status: :pending_intake, created_at: 3.days.ago)
+                   status: :pending_intake, created_at: 3.days.ago,
+                   requested_by: "Tenant")
 
   # Active negotiation, no mediator yet (with a short message thread).
   build_mediation!(landlord: primary_landlord, tenant: primary_tenant,

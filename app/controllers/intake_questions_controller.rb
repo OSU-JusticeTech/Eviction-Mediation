@@ -5,6 +5,8 @@ class IntakeQuestionsController < ApplicationController
 
     def new
       @intake_question = IntakeQuestion.new
+      mediation = tenant_intake_mediation
+      @show_unknown = mediation&.requested_by == "Landlord"
     end
 
     def create
@@ -19,15 +21,11 @@ class IntakeQuestionsController < ApplicationController
       Rails.logger.debug params[:intake_question]
 
       if @intake_question.save
-        @conversation_id = params[:conversation_id]
-        conversation = PrimaryMessageGroup.find_by(
-            TenantID: @user.UserID,
-            deleted_at: nil
-          )
-        conversation.update!(IntakeID: @intake_question.IntakeID)
+        conversation = tenant_intake_mediation
+        conversation&.update!(IntakeID: @intake_question.IntakeID)
         redirect_to messages_path, notice: "Intake questions completed successfully. You can now proceed to your negotiations."
       else
-        render plain: "ERROR 1 @intake_question"
+        render :new, status: :unprocessable_entity
       end
     end
 
@@ -45,6 +43,15 @@ class IntakeQuestionsController < ApplicationController
 
     def set_conversation_ID
         @conversation_id = params[:conversation_id]
+    end
+
+    # The specific mediation this tenant is completing intake for. Scoping by the
+    # conversation (rather than grabbing any intake-less mediation) ensures we read
+    # the correct `requested_by` when the tenant has more than one pending intake.
+    def tenant_intake_mediation
+        scope = PrimaryMessageGroup.where(TenantID: @user.UserID, deleted_at: nil, IntakeID: nil)
+        scope = scope.where(ConversationID: @conversation_id) if @conversation_id.present?
+        scope.first
     end
 
     def intake_question_params

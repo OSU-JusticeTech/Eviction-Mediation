@@ -5,6 +5,7 @@ class PrimaryMessageGroup < ApplicationRecord
   validates :accepted_by_landlord, inclusion: { in: [ true, false ] }
   validates :accepted_by_tenant, inclusion: { in: [ true, false ] }
   belongs_to :intake_question, foreign_key: "IntakeID", optional: true
+  belongs_to :landlord_intake_question, foreign_key: "LandlordIntakeID", optional: true
   belongs_to :tenant, class_name: "User", foreign_key: "TenantID"
   belongs_to :landlord, class_name: "User", foreign_key: "LandlordID"
   belongs_to :mediator, class_name: "User", foreign_key: "MediatorID", optional: true
@@ -50,8 +51,8 @@ class PrimaryMessageGroup < ApplicationRecord
   end
 
   def active?
-    # `self.` is required: a bare `IntakeID` would be parsed as a constant.
-    !past? && accepted_by_landlord? && accepted_by_tenant? && self.IntakeID.present?
+    # `self.` is required: bare column names would be parsed as constants.
+    !past? && accepted_by_landlord? && accepted_by_tenant? && self.IntakeID.present? && self.LandlordIntakeID.present?
   end
 
   def pending?
@@ -73,7 +74,15 @@ class PrimaryMessageGroup < ApplicationRecord
     return :awaiting_landlord_acceptance unless accepted_by_landlord?
     return :awaiting_tenant_acceptance unless accepted_by_tenant?
 
-    :awaiting_tenant_intake
+    :awaiting_intake
+  end
+
+  def needs_tenant_intake?
+    !past? && accepted_by_tenant? && self.IntakeID.blank?
+  end
+
+  def needs_landlord_intake?
+    !past? && accepted_by_landlord? && accepted_by_tenant? && self.LandlordIntakeID.blank?
   end
 
   # Timestamp used to order mediations within a group (most recent first).
@@ -89,9 +98,9 @@ class PrimaryMessageGroup < ApplicationRecord
   def needs_action_from?(viewer_role)
     case viewer_role
     when "Tenant"
-      pending_stage == :awaiting_tenant_acceptance || pending_stage == :awaiting_tenant_intake
+      pending_stage == :awaiting_tenant_acceptance || needs_tenant_intake?
     when "Landlord"
-      pending_stage == :awaiting_landlord_acceptance
+      pending_stage == :awaiting_landlord_acceptance || needs_landlord_intake?
     else
       false
     end

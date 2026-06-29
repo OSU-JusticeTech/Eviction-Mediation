@@ -2,6 +2,14 @@
 <% case mediation.status_category %>
 <% when :active %>
   <%= link_to "Access Negotiation", message_path(mediation.ConversationID), class: "card-btn card-btn--primary" %>
+  <% unless mediation.MediatorRequested %>
+    <%= button_to "Request Mediator", request_mediator_message_path(mediation.ConversationID), method: :patch,
+          class: "card-btn card-btn--secondary",
+          form: { data: { turbo_confirm: "Request a mediator to join this negotiation?" } } %>
+  <% end %>
+  <%= button_to "End Mediation", end_mediation_path(mediation.ConversationID), method: :patch,
+        class: "card-btn card-btn--ghost",
+        form: { data: { turbo_confirm: "End this negotiation? This cannot be undone." } } %>
 
 <% when :pending %>
   <% case mediation.pending_stage %>
@@ -10,10 +18,17 @@
     <%= button_to "Reject", reject_mediation_path(mediation), method: :post,
           class: "card-btn card-btn--ghost",
           form: { data: { turbo_confirm: "Reject this negotiation request?" } } %>
-  <% when :awaiting_tenant_intake %>
-    <%= link_to "Complete Intake Questions", new_intake_question_path, class: "card-btn card-btn--primary" %>
-  <% else %>
-    <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on landlord</span>
+  <% when :awaiting_intake %>
+    <% if mediation.needs_tenant_intake? %>
+      <%= link_to "Complete Intake Questions", new_intake_question_path(conversation_id: mediation.ConversationID), class: "card-btn card-btn--primary" %>
+    <% else %>
+      <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on landlord<br>to complete Intake Questions</span>
+    <% end %>
+  <% else %> <%# :awaiting_landlord_acceptance — tenant requested, landlord hasn't responded yet %>
+    <% if mediation.needs_tenant_intake? %>
+      <%= link_to "Complete Intake Questions", new_intake_question_path(conversation_id: mediation.ConversationID), class: "card-btn card-btn--primary" %>
+    <% end %>
+    <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on landlord to accept</span>
   <% end %>
 
 <% when :past %>

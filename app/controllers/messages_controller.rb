@@ -56,6 +56,31 @@ class MessagesController < ApplicationController
       return
     end
 
+    # Block tenants and landlords from accessing chat until the negotiation is
+    # fully established (both parties accepted + both intakes complete).
+    if @mediation.pending? && %w[Tenant Landlord].include?(@user.Role)
+      alert_message = case @mediation.pending_stage
+      when :awaiting_landlord_acceptance
+        "This negotiation is waiting for the landlord to respond before the chat opens."
+      when :awaiting_tenant_acceptance
+        "Please accept this negotiation request to open the chat."
+      when :awaiting_intake
+        if @user.Role == "Tenant" && @mediation.needs_tenant_intake?
+          "Please complete your intake questions to open the chat."
+        elsif @user.Role == "Landlord" && @mediation.needs_landlord_intake?
+          "Please complete your intake questions to open the chat."
+        else
+          "Waiting for the other party to complete their intake questions."
+        end
+      else
+        "This negotiation isn't ready yet. Complete all required steps first."
+      end
+      redirect_to messages_path, alert: alert_message
+      return
+    end
+
+    session["conversation_read_at_#{params[:id]}"] = Time.current.to_i
+
     @mediator = @mediation.mediator if @mediation&.MediatorAssigned
 
     @messages = Message
@@ -342,6 +367,10 @@ class MessagesController < ApplicationController
       )
       .where(TenantSignature: true, LandlordSignature: true)
       .distinct
+
+    # Fetch Intake Responses
+    @intake_question = IntakeQuestion.find_by(IntakeID: @mediation.IntakeID) if @mediation.IntakeID.present?
+    @landlord_intake_question = LandlordIntakeQuestion.find_by(LandlordIntakeID: @mediation.LandlordIntakeID) if @mediation.LandlordIntakeID.present?
 
     # Fetch Survey Responses
     @survey_responses = SurveyResponse.where(conversation_id: @mediation.ConversationID).includes(:user)

@@ -1,0 +1,25 @@
+<div class="bg-white/10 rounded-2xl p-5 backdrop-blur-sm w-full max-w-sm flex-shrink-0">
+
+  <%# Header %>
+  <div class="flex items-center gap-2 text-white/60 text-xs uppercase tracking-widest font-semibold mb-4">
+    <i class="fas fa-handshake text-white/40"></i>
+    Negotiations
+  </div>
+
+  <%# Empty state %>
+  <div class="flex flex-col items-center text-center py-2 mb-5">
+    <div class="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center mb-3">
+      <i class="fas fa-inbox text-white/30 text-2xl"></i>
+    </div>
+    <p class="text-white font-semibold text-sm mb-1">No active negotiations</p>
+    <p class="text-white/50 text-xs leading-relaxed">
+      You don't have any open tenant negotiations. Reach out to a tenant or wait for an incoming request to get started.
+    </p>
+  </div>
+
+  <%= link_to messages_path, class: "flex items-center justify-between bg-white text-[#102a4d] text-sm font-bold px-4 py-3 rounded-full hover:bg-white/90 transition-colors" do %>
+    <span>View negotiations</span>
+    <i class="fas fa-arrow-right text-xs"></i>
+  <% end %>
+
+</div>

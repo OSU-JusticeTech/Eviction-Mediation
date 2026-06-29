@@ -63,6 +63,9 @@ Rails.application.routes.draw do
   get "intake_questions/new", to: "intake_questions#new", as: "new_intake_question"
   post "intake_questions", to: "intake_questions#create", as: "intake_questions"
 
+  get "landlord_intake_questions/new", to: "landlord_intake_questions#new", as: "new_landlord_intake_question"
+  post "landlord_intake_questions", to: "landlord_intake_questions#create", as: "landlord_intake_questions"
+
 
   get  "/documents/template_preview/:conversation_id", to: "documents#intake_template_view", as: :intake_template_view
   post "/documents/template_generate", to: "documents#generate_filled_template", as: :generate_filled_template

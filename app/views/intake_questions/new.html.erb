@@ -6,7 +6,7 @@
     <h1>Start Your Intake Questions</h1>
       <h2>Please complete the following intake questions before proceeding with negotiation.</h2>
 
-    <%= form_with(model: @intake_question, url: intake_questions_path(conversation_id: @conversation_id), local: true) do |f| %>
+    <%= form_with(model: @intake_question, url: intake_questions_path(conversation_id: @conversation_id), local: true, data: { turbo: false }) do |f| %>
 
       <div class="form-section">
         <%= f.label :Reason, "What is the reason for the dispute?", class: "required-label" %>
@@ -15,16 +15,20 @@
         <div class="custom-select-wrapper reason-multiselect" id="reason-checkboxes" data-placeholder="Select reason(s)">
           <button type="button" class="form-control reason-multiselect__toggle" aria-haspopup="listbox" aria-expanded="false">
             <span class="reason-multiselect__label">Select reason(s)</span>
+            <i class="fas fa-chevron-down reason-toggle-caret"></i>
           </button>
-          <i class="arrow down"></i>
 
           <div class="reason-multiselect__panel" role="listbox">
             <% IntakeQuestion::REASONS.each do |reason| %>
+              <% next if reason == "Unknown" && !@show_unknown %>
               <label class="reason-checkbox-option">
                 <%= check_box_tag "intake_question[Reason][]", reason, @intake_question.reasons.include?(reason), id: "reason_#{reason.parameterize.underscore}" %>
                 <span><%= reason %></span>
               </label>
             <% end %>
+            <div class="reason-scroll-hint" aria-hidden="true">
+              <i class="fas fa-chevron-down"></i>
+            </div>
           </div>
         </div>
       </div>
@@ -111,7 +115,9 @@
 
 <script>
   document.addEventListener('turbo:load', function() {
-    const form = document.querySelector('form');
+    const form = document.querySelector('form[data-turbo="false"]');
+    if (!form || form.dataset.jsInitialized) return;
+    form.dataset.jsInitialized = 'true';
     const monthlyRentSection = document.getElementById('monthly-rent-section');
     const monthlyRentField = document.getElementById('monthly_rent_field');
     const totalCostYes = document.getElementById('total_cost_yes');
@@ -154,16 +160,75 @@
         }
       }
 
+      // Scroll hint for the dropdown panel
+      const reasonPanel = reasonSelect.querySelector('.reason-multiselect__panel');
+      const reasonScrollHint = reasonSelect.querySelector('.reason-scroll-hint');
+
+      function updateReasonScrollHint() {
+        if (!reasonScrollHint || !reasonPanel) return;
+        const scrollable = reasonPanel.scrollHeight > reasonPanel.clientHeight + 4;
+        const atBottom = reasonPanel.scrollTop + reasonPanel.clientHeight >= reasonPanel.scrollHeight - 8;
+        reasonScrollHint.style.opacity = (scrollable && !atBottom) ? '1' : '0';
+      }
+
+      if (reasonPanel) reasonPanel.addEventListener('scroll', updateReasonScrollHint);
+
       // Open/close the dropdown
       reasonToggle.addEventListener('click', function() {
         const isOpen = reasonSelect.classList.toggle('open');
         reasonToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        if (isOpen) requestAnimationFrame(updateReasonScrollHint);
       });
 
       // Keep label in sync as options are checked/unchecked
       reasonSelect.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         cb.addEventListener('change', updateReasonLabel);
       });
+
+      // "Unknown" collapses the rest of the form and is mutually exclusive
+      const unknownCb = reasonSelect.querySelector('input[value="Unknown"]');
+      const otherCbs = [...reasonSelect.querySelectorAll('input[type="checkbox"]')].filter(cb => cb !== unknownCb);
+      const extraSections = [...document.querySelectorAll('.form-section')].slice(1);
+
+      extraSections.forEach(section => {
+        section.querySelectorAll('[required]').forEach(f => { f.dataset.origRequired = 'true'; });
+      });
+
+      function setUnknownMode(active) {
+        extraSections.forEach(section => {
+          section.style.display = active ? 'none' : '';
+          if (active) {
+            section.querySelectorAll('[required]').forEach(f => { f.required = false; });
+          } else {
+            section.querySelectorAll('[data-orig-required]').forEach(f => { f.required = true; });
+          }
+        });
+        if (!active) toggleMonthlyRent();
+      }
+
+      if (unknownCb) {
+        unknownCb.addEventListener('change', function() {
+          if (this.checked) {
+            otherCbs.forEach(cb => { cb.checked = false; });
+            setUnknownMode(true);
+          } else {
+            setUnknownMode(false);
+          }
+          updateReasonLabel();
+        });
+
+        otherCbs.forEach(cb => {
+          cb.addEventListener('change', function() {
+            if (this.checked && unknownCb.checked) {
+              unknownCb.checked = false;
+              setUnknownMode(false);
+              updateReasonLabel();
+            }
+          });
+        });
+
+        if (unknownCb.checked) setUnknownMode(true);
+      }
 
       // Close when clicking outside the dropdown
       document.addEventListener('click', function(e) {
@@ -241,5 +306,14 @@
 
     // Initialize monthly rent visibility on page load
     toggleMonthlyRent();
+  });
+
+  // Close dropdown before Turbo snapshots the page so back-navigation restores a clean state
+  document.addEventListener('turbo:before-cache', function() {
+    const reasonSelect = document.getElementById('reason-checkboxes');
+    if (!reasonSelect) return;
+    const reasonToggle = reasonSelect.querySelector('.reason-multiselect__toggle');
+    reasonSelect.classList.remove('open');
+    if (reasonToggle) reasonToggle.setAttribute('aria-expanded', 'false');
   });
 </script>

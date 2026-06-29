@@ -36,6 +36,9 @@
       <span class="status-badge status-badge--<%= display_status %>">
         <%= MessagesHelper::STATUS_LABELS.fetch(display_status, display_status.to_s.capitalize) %>
       </span>
+      <% if mediation.CreatedAt.present? %>
+        <span class="mediation-card-item__opened-date">Opened <%= mediation.CreatedAt.strftime("%b %d, %Y") %></span>
+      <% end %>
     </div>
 
     <ul class="mediation-card-item__meta">
@@ -50,13 +53,23 @@
         <% end %>
       <% else %>
         <li><i class="fas fa-envelope" aria-hidden="true"></i> <%= party.Email %></li>
+        <% if mediation.active? %>
+          <% if mediation.MediatorAssigned %>
+            <li class="mediation-card-item__mediator-status mediation-card-item__mediator-status--assigned">
+              <i class="fas fa-handshake" aria-hidden="true"></i> Mediator assigned
+            </li>
+          <% elsif mediation.MediatorRequested %>
+            <li class="mediation-card-item__mediator-status mediation-card-item__mediator-status--pending">
+              <i class="fas fa-clock" aria-hidden="true"></i> Waiting for mediator
+            </li>
+          <% end %>
+        <% end %>
+      <% end %>
+      <% if mediation.requested_by.present? %>
+        <li><i class="fas fa-flag" aria-hidden="true"></i> Initiated by <%= mediation.requested_by %></li>
       <% end %>
     </ul>
 
-    <p class="mediation-card-item__substatus"><%= mediation_substatus(mediation, role) %></p>
-    <% if mediation.CreatedAt.present? %>
-      <p class="mediation-card-item__created">Case opened <%= mediation.CreatedAt.strftime("%B %d, %Y") %></p>
-    <% end %>
   </div>
 
   <div class="mediation-card-item__actions">

@@ -120,6 +120,114 @@
         </div>
       </div>
 
+      <!-- Intake Responses -->
+      <% if @intake_question || @landlord_intake_question %>
+        <div class="info-card">
+          <div class="card-header">
+            <h2><i class="fa-solid fa-clipboard-list"></i> Intake Responses</h2>
+          </div>
+          <div class="card-body">
+
+            <!-- Tenant Intake -->
+            <% if @intake_question %>
+              <h3 style="font-size: 0.9rem; text-transform: uppercase; color: #64748b; margin-bottom: 0.75rem;">Tenant</h3>
+              <div class="info-row">
+                <span class="label">Reason(s)</span>
+                <span class="value"><%= @intake_question.reasons.join(", ") %></span>
+              </div>
+              <% unless @intake_question.unknown_only? %>
+                <% if @intake_question.DescribeCause.present? %>
+                  <div class="info-row">
+                    <span class="label">Describe Cause</span>
+                    <span class="value"><%= @intake_question.DescribeCause %></span>
+                  </div>
+                <% end %>
+                <% if @intake_question.BestOption.present? %>
+                  <div class="info-row">
+                    <span class="label">Best Option</span>
+                    <span class="value"><%= @intake_question.BestOption %></span>
+                  </div>
+                <% end %>
+                <div class="info-row">
+                  <span class="label">Receives Section 8</span>
+                  <span class="value"><%= @intake_question.Section8? ? "Yes" : "No" %></span>
+                </div>
+                <% if @intake_question.MoneyOwed.present? %>
+                  <div class="info-row">
+                    <span class="label">Money Owed</span>
+                    <span class="value"><%= number_to_currency(@intake_question.MoneyOwed) %></span>
+                  </div>
+                <% end %>
+                <% if @intake_question.MonthlyRent.present? %>
+                  <div class="info-row">
+                    <span class="label">Monthly Rent</span>
+                    <span class="value"><%= number_to_currency(@intake_question.MonthlyRent) %></span>
+                  </div>
+                <% end %>
+                <% if @intake_question.DateDue.present? %>
+                  <div class="info-row">
+                    <span class="label">Rent Due</span>
+                    <span class="value"><%= @intake_question.DateDue.strftime("%B %d, %Y") %></span>
+                  </div>
+                <% end %>
+                <% if @intake_question.PayableToday.present? %>
+                  <div class="info-row">
+                    <span class="label">Payable Today</span>
+                    <span class="value"><%= number_to_currency(@intake_question.PayableToday) %></span>
+                  </div>
+                <% end %>
+              <% end %>
+            <% end %>
+
+            <!-- Landlord Intake -->
+            <% if @landlord_intake_question %>
+              <h3 style="font-size: 0.9rem; text-transform: uppercase; color: #64748b; margin-bottom: 0.75rem; <%= 'margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;' if @intake_question %>">Landlord</h3>
+              <div class="info-row">
+                <span class="label">Reason(s)</span>
+                <span class="value"><%= @landlord_intake_question.reasons.join(", ") %></span>
+              </div>
+              <% unless @landlord_intake_question.unknown_only? %>
+                <% if @landlord_intake_question.LandlordDescribeCause.present? %>
+                  <div class="info-row">
+                    <span class="label">Describe Cause</span>
+                    <span class="value"><%= @landlord_intake_question.LandlordDescribeCause %></span>
+                  </div>
+                <% end %>
+                <% if @landlord_intake_question.DesiredOutcome.present? %>
+                  <div class="info-row">
+                    <span class="label">Desired Outcome</span>
+                    <span class="value"><%= @landlord_intake_question.DesiredOutcome %></span>
+                  </div>
+                <% end %>
+                <% if @landlord_intake_question.AmountClaimed.present? %>
+                  <div class="info-row">
+                    <span class="label">Amount Claimed</span>
+                    <span class="value"><%= number_to_currency(@landlord_intake_question.AmountClaimed) %></span>
+                  </div>
+                <% end %>
+                <% if @landlord_intake_question.MonthlyRent.present? %>
+                  <div class="info-row">
+                    <span class="label">Monthly Rent</span>
+                    <span class="value"><%= number_to_currency(@landlord_intake_question.MonthlyRent) %></span>
+                  </div>
+                <% end %>
+                <% if @landlord_intake_question.DateDue.present? %>
+                  <div class="info-row">
+                    <span class="label">Rent Due</span>
+                    <span class="value"><%= @landlord_intake_question.DateDue.strftime("%B %d, %Y") %></span>
+                  </div>
+                <% end %>
+                <div class="info-row">
+                  <span class="label">Accepts Payment Plan</span>
+                  <span class="value"><%= @landlord_intake_question.AcceptPaymentPlan? ? "Yes" : "No" %></span>
+                </div>
+              <% end %>
+            <% end %>
+
+          </div>
+        </div>
+      <% end %>
+
       <!-- Signed Documents -->
       <% if @signed_files.any? %>
         <div class="info-card">

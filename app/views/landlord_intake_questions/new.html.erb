@@ -1,0 +1,261 @@
+<% content_for :body_class, 'intake-page' %>
+
+<div class="signup-container">
+  <div class="signup-card intake-card" style="max-width: 820px;">
+    <h1>Start Your Intake Questions</h1>
+    <h2>Please complete the following intake questions before proceeding with negotiation.</h2>
+
+    <%= form_with(model: @landlord_intake_question, url: landlord_intake_questions_path(conversation_id: @conversation_id), local: true, data: { turbo: false }) do |f| %>
+
+      <div class="form-section">
+        <%= f.label :Reason, "What is the reason for the dispute?", class: "required-label" %>
+        <p>Select all that apply.</p>
+
+        <div class="custom-select-wrapper reason-multiselect" id="reason-checkboxes" data-placeholder="Select reason(s)">
+          <button type="button" class="form-control reason-multiselect__toggle" aria-haspopup="listbox" aria-expanded="false">
+            <span class="reason-multiselect__label">Select reason(s)</span>
+            <i class="fas fa-chevron-down reason-toggle-caret"></i>
+          </button>
+
+          <div class="reason-multiselect__panel" role="listbox">
+            <% LandlordIntakeQuestion::REASONS.each do |reason| %>
+              <% next if reason == "Unknown" && !@show_unknown %>
+              <label class="reason-checkbox-option">
+                <%= check_box_tag "landlord_intake_question[Reason][]", reason, @landlord_intake_question.reasons.include?(reason), id: "reason_#{reason.parameterize.underscore}" %>
+                <span><%= reason %></span>
+              </label>
+            <% end %>
+            <div class="reason-scroll-hint" aria-hidden="true">
+              <i class="fas fa-chevron-down"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <%= f.label :LandlordDescribeCause, "Please describe what caused this dispute from your perspective.", class: "required-label" %>
+        <p>This information will not be shared with the Tenant. It is an opportunity for you to share your side of the story.</p>
+        <%= f.text_area :LandlordDescribeCause, rows: 5, class: "form-control", required: true %>
+      </div>
+
+      <div class="form-section">
+        <p>Most eviction disputes end with one of the following resolutions:</p>
+        <ul>
+          <li>The tenant pays the rent that is owed</li>
+          <li>The tenant vacates the property</li>
+        </ul>
+        <p>While there may be other options through conversation or mediation, these are the most common.</p>
+
+        <%= f.label :DesiredOutcome, "What outcome are you seeking?", class: "required-label" %>
+
+        <div class="custom-select-wrapper">
+          <%= f.select :DesiredOutcome, LandlordIntakeQuestion::DESIRED_OUTCOMES,
+              { prompt: "Select an option" },
+              { class: "form-control", required: true } %>
+          <i class="arrow down"></i>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <%= f.label :AmountClaimed, "How much does the tenant currently owe in rent?", class: "required-label" %>
+        <p>Please check your records or rental portal for the current balance owed.</p>
+        <%= f.number_field :AmountClaimed, step: 0.01, min: 0, inputmode: "decimal", class: "form-control", required: true, placeholder: "e.g. 1200.00" %>
+      </div>
+
+      <div class="form-section">
+        <%= f.label :MonthlyRent, "What is the total monthly rent for this unit?" %>
+        <%= f.number_field :MonthlyRent, step: 0.01, min: 0, inputmode: "decimal", class: "form-control", placeholder: "e.g. 800.00" %>
+      </div>
+
+      <div class="form-section">
+        <%= f.label :DateDue, "When was the rent due?", class: "required-label" %>
+        <%= f.date_field :DateDue, class: "form-control", required: true %>
+      </div>
+
+      <div class="form-section">
+        <%= f.label :AcceptPaymentPlan, "Would you be willing to accept a payment plan?", class: "required-label" %>
+        <label style="cursor: pointer; font-weight: normal;">
+          <%= f.radio_button :AcceptPaymentPlan, true, required: true %> Yes
+        </label>
+        <label style="cursor: pointer; font-weight: normal;">
+          <%= f.radio_button :AcceptPaymentPlan, false %> No
+        </label>
+      </div>
+
+      <div class="form-footer">
+        <%= f.submit "Submit", class: 'signup-btn' %>
+      </div>
+
+    <% end %>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('turbo:load', function() {
+    const form = document.querySelector('form[data-turbo="false"]');
+    if (!form || form.dataset.jsInitialized) return;
+    form.dataset.jsInitialized = 'true';
+
+    // Multi-select "reason for dispute" dropdown
+    const reasonSelect = document.getElementById('reason-checkboxes');
+    if (reasonSelect) {
+      const reasonToggle = reasonSelect.querySelector('.reason-multiselect__toggle');
+      const reasonLabel = reasonSelect.querySelector('.reason-multiselect__label');
+      const reasonPlaceholder = reasonSelect.dataset.placeholder || 'Select...';
+
+      function updateReasonLabel() {
+        const checked = [...reasonSelect.querySelectorAll('input[type="checkbox"]:checked')];
+        if (checked.length === 0) {
+          reasonLabel.textContent = reasonPlaceholder;
+          reasonSelect.classList.add('is-empty');
+        } else {
+          reasonLabel.textContent = checked.map(cb => cb.nextElementSibling.textContent).join(', ');
+          reasonSelect.classList.remove('is-empty');
+        }
+      }
+
+      // Scroll hint for the dropdown panel
+      const reasonPanel = reasonSelect.querySelector('.reason-multiselect__panel');
+      const reasonScrollHint = reasonSelect.querySelector('.reason-scroll-hint');
+
+      function updateReasonScrollHint() {
+        if (!reasonScrollHint || !reasonPanel) return;
+        const scrollable = reasonPanel.scrollHeight > reasonPanel.clientHeight + 4;
+        const atBottom = reasonPanel.scrollTop + reasonPanel.clientHeight >= reasonPanel.scrollHeight - 8;
+        reasonScrollHint.style.opacity = (scrollable && !atBottom) ? '1' : '0';
+      }
+
+      if (reasonPanel) reasonPanel.addEventListener('scroll', updateReasonScrollHint);
+
+      reasonToggle.addEventListener('click', function() {
+        const isOpen = reasonSelect.classList.toggle('open');
+        reasonToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        if (isOpen) requestAnimationFrame(updateReasonScrollHint);
+      });
+
+      reasonSelect.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', updateReasonLabel);
+      });
+
+      // "Unknown" collapses the rest of the form and is mutually exclusive
+      const unknownCb = reasonSelect.querySelector('input[value="Unknown"]');
+      const otherCbs = [...reasonSelect.querySelectorAll('input[type="checkbox"]')].filter(cb => cb !== unknownCb);
+      const extraSections = [...document.querySelectorAll('.form-section')].slice(1);
+
+      extraSections.forEach(section => {
+        section.querySelectorAll('[required]').forEach(f => { f.dataset.origRequired = 'true'; });
+      });
+
+      function setUnknownMode(active) {
+        extraSections.forEach(section => {
+          section.style.display = active ? 'none' : '';
+          if (active) {
+            section.querySelectorAll('[required]').forEach(f => { f.required = false; });
+          } else {
+            section.querySelectorAll('[data-orig-required]').forEach(f => { f.required = true; });
+          }
+        });
+      }
+
+      if (unknownCb) {
+        unknownCb.addEventListener('change', function() {
+          if (this.checked) {
+            otherCbs.forEach(cb => { cb.checked = false; });
+            setUnknownMode(true);
+          } else {
+            setUnknownMode(false);
+          }
+          updateReasonLabel();
+        });
+
+        otherCbs.forEach(cb => {
+          cb.addEventListener('change', function() {
+            if (this.checked && unknownCb.checked) {
+              unknownCb.checked = false;
+              setUnknownMode(false);
+              updateReasonLabel();
+            }
+          });
+        });
+
+        if (unknownCb.checked) setUnknownMode(true);
+      }
+
+      document.addEventListener('click', function(e) {
+        if (!reasonSelect.contains(e.target)) {
+          reasonSelect.classList.remove('open');
+          reasonToggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+
+      updateReasonLabel();
+    }
+
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        const requiredFields = form.querySelectorAll('[required]');
+        let firstInvalidField = null;
+        let isValid = true;
+
+        document.querySelectorAll('.form-section').forEach(section => {
+          section.style.border = '';
+          section.style.background = '';
+        });
+
+        requiredFields.forEach(field => {
+          if (field.offsetParent === null) return;
+
+          let isEmpty = false;
+          if (field.type === 'radio') {
+            const radioGroup = form.querySelectorAll(`input[name="${field.name}"]`);
+            isEmpty = ![...radioGroup].some(radio => radio.checked);
+          } else if (field.tagName === 'SELECT') {
+            isEmpty = !field.value || field.value === '';
+          } else {
+            isEmpty = !field.value.trim();
+          }
+
+          if (isEmpty) {
+            isValid = false;
+            const section = field.closest('.form-section');
+            if (section) {
+              section.style.border = '2px solid #d32f2f';
+              section.style.background = '#fff3f3';
+              if (!firstInvalidField) firstInvalidField = section;
+            }
+          }
+        });
+
+        const reasonGroup = document.getElementById('reason-checkboxes');
+        if (reasonGroup) {
+          const anyReasonChecked = reasonGroup.querySelectorAll('input[type="checkbox"]:checked').length > 0;
+          if (!anyReasonChecked) {
+            isValid = false;
+            const section = reasonGroup.closest('.form-section');
+            if (section) {
+              section.style.border = '2px solid #d32f2f';
+              section.style.background = '#fff3f3';
+              if (!firstInvalidField) firstInvalidField = section;
+            }
+          }
+        }
+
+        if (!isValid) {
+          e.preventDefault();
+          if (firstInvalidField) {
+            firstInvalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          alert('Please fill in all required fields highlighted in red.');
+        }
+      });
+    }
+  });
+
+  document.addEventListener('turbo:before-cache', function() {
+    const reasonSelect = document.getElementById('reason-checkboxes');
+    if (!reasonSelect) return;
+    const reasonToggle = reasonSelect.querySelector('.reason-multiselect__toggle');
+    reasonSelect.classList.remove('open');
+    if (reasonToggle) reasonToggle.setAttribute('aria-expanded', 'false');
+  });
+</script>
