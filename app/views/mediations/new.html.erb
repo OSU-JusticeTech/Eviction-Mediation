@@ -2,7 +2,7 @@
   <h1>Request New Negotiation</h1>
 
   <% if @user.Role == "Tenant" %>
-    <p>Select a landlord from the dropdown or enter their email address to request a negotiation.</p>
+    <p>Enter the landlord's email address to request a negotiation.</p>
     <div class="mediation-form">
       <%= render "mediations/tenant_create_mediation_form" %>
     </div>

@@ -41,18 +41,22 @@ class MediationsController < ApplicationController
     end
   end
 
-  # Create a new mediation - tenants can select landlords, landlords can select tenants
   def create
     if @user.Role == "Tenant"
       landlord_email = params[:landlord_email].to_s.strip
 
-      if params[:landlord_id].blank? && params[:landlord_email].to_s.strip.blank?
-        redirect_to new_mediation_path, alert: "Please select a landlord or enter a landlord email."
+      if landlord_email.blank?
+        redirect_to new_mediation_path, alert: "Please enter a landlord email."
         return
       end
 
-      if params[:landlord_id].blank? && !valid_email_format?(landlord_email)
+      unless valid_email_format?(landlord_email)
         redirect_to new_mediation_path, alert: "Please enter a valid landlord email."
+        return
+      end
+
+      if landlord_email == @user.Email
+        redirect_to new_mediation_path, alert: "You cannot request a negotiation with yourself."
         return
       end
 
@@ -63,13 +67,14 @@ class MediationsController < ApplicationController
         return
       end
 
-      if landlord.persisted?
-        Rails.logger.info "Landlord found: #{landlord.Email}, starting mediation and sending notification"
-        start_mediation_with_existing_landlord(landlord)
-        LandlordMailer.mediation_request_notification(landlord.Email, @user).deliver_later if landlord.notify_new_mediation_request?
-      else
-        redirect_to messages_path, alert: "An unexpected error occurred. Please try again."
+      unless landlord.Role == "Landlord"
+        redirect_to new_mediation_path, alert: "No landlord account found with that email."
+        return
       end
+
+      Rails.logger.info "Landlord found: #{landlord.Email}, starting mediation and sending notification"
+      start_mediation_with_existing_landlord(landlord)
+      LandlordMailer.mediation_request_notification(landlord.Email, @user).deliver_later if landlord.notify_new_mediation_request?
     elsif @user.Role == "Landlord"
       tenant_email = params[:tenant_email].to_s.strip
 
@@ -78,16 +83,22 @@ class MediationsController < ApplicationController
         return
       end
 
+      if tenant_email == @user.Email
+        redirect_to new_mediation_path, alert: "You cannot request a negotiation with yourself."
+        return
+      end
+
       tenant = find_existing_tenant
 
-      if tenant&.persisted?
-        Rails.logger.info "Tenant found: #{tenant.Email}, starting mediation and sending notification"
-        start_mediation_with_existing_tenant(tenant)
-        TenantMailer.invitation_email(params[:tenant_email], @user).deliver_later if tenant.notify_new_mediation_request?
-      else
+      if tenant&.Role != "Tenant"
         Rails.logger.info "No tenant found with email: #{params[:tenant_email]}, sending invitation"
         send_tenant_invitation(params[:tenant_email])
+        return
       end
+
+      Rails.logger.info "Tenant found: #{tenant.Email}, starting mediation and sending notification"
+      start_mediation_with_existing_tenant(tenant)
+      TenantMailer.invitation_email(params[:tenant_email], @user).deliver_later if tenant.notify_new_mediation_request?
     else
       redirect_to mediations_path, alert: "You are not authorized to start a negotiation."
     end
@@ -227,15 +238,7 @@ class MediationsController < ApplicationController
   private
 
   def find_existing_landlord
-    email = params[:landlord_email].to_s.strip
-
-    if params[:landlord_id].present?
-      User.find_by(UserID: params[:landlord_id])
-    elsif email.present?
-      User.find_by(Email: email)
-    else
-      nil
-    end
+    User.find_by(Email: params[:landlord_email].to_s.strip)
   end
 
   def find_existing_tenant
