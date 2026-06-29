@@ -17,12 +17,24 @@
         <i class="fa-solid fa-arrow-left"></i> Back to My Cases
       <% end %>
     <% end %>
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-      <h1>Mediation Case Details</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+      <h1 style="white-space: nowrap;">Mediation Case Details</h1>
       <% if @mediation.deleted_at.nil? && !flagged %>
-        <%= link_to message_path(@mediation.ConversationID), class: "btn btn-primary" do %>
-          <i class="fa-solid fa-comments"></i> Open Chat
-        <% end %>
+        <div style="display: flex; gap: 0.75rem; flex-shrink: 0;">
+          <%= link_to message_path(@mediation.ConversationID), class: "btn btn-primary", style: ("width: auto;" unless is_admin) do %>
+            <i class="fa-solid fa-comments"></i> Open Chat
+          <% end %>
+          <% unless is_admin %>
+            <%= button_to end_mediation_path(@mediation.ConversationID),
+                method: :patch,
+                data: { turbo: false },
+                onclick: "return confirm('Are you sure you want to end this mediation? This action cannot be undone.');",
+                class: "btn btn-outline-danger",
+                style: "width: auto;" do %>
+              <i class="fa-solid fa-ban"></i> Terminate Mediation
+            <% end %>
+          <% end %>
+        </div>
       <% end %>
     </div>
   </div>
@@ -30,9 +42,8 @@
   <% if @mediation.deleted_at.nil? %>
     <% if !flagged %>
       <div class="details-grid">
-        <!-- Left Column: Landlord & Actions -->
+        <!-- Left Column: Landlord -->
         <div class="details-column left-column">
-          <!-- Landlord Card -->
           <div class="info-card">
             <div class="card-header">
               <h2><i class="fa-solid fa-house-user"></i> Landlord</h2>
@@ -56,40 +67,131 @@
                   <span class="value"><%= @mediation.landlord.CompanyName %></span>
                 </div>
               <% end %>
+
+              <% if @mediation.landlord_intake_question %>
+                <% liq = @mediation.landlord_intake_question %>
+                <div class="screening-section">
+                  <h3>Intake Responses</h3>
+                  <div class="screening-grid">
+                    <div class="screening-item">
+                      <span class="q-label">Reason for Mediation</span>
+                      <span class="q-value"><%= liq.reasons.join(", ") %></span>
+                    </div>
+                    <% unless liq.unknown_only? %>
+                      <% if liq.LandlordDescribeCause.present? %>
+                        <div class="screening-item">
+                          <span class="q-label">Describe the Cause</span>
+                          <span class="q-value"><%= liq.LandlordDescribeCause %></span>
+                        </div>
+                      <% end %>
+                      <% if liq.DesiredOutcome.present? %>
+                        <div class="screening-item">
+                          <span class="q-label">Desired Outcome</span>
+                          <span class="q-value"><%= liq.DesiredOutcome %></span>
+                        </div>
+                      <% end %>
+                      <% if liq.AmountClaimed.present? %>
+                        <div class="screening-item">
+                          <span class="q-label">Amount Claimed</span>
+                          <span class="q-value"><%= number_to_currency(liq.AmountClaimed) %></span>
+                        </div>
+                      <% end %>
+                      <% if liq.MonthlyRent.present? %>
+                        <div class="screening-item">
+                          <span class="q-label">Monthly Rent</span>
+                          <span class="q-value"><%= number_to_currency(liq.MonthlyRent) %></span>
+                        </div>
+                      <% end %>
+                      <% if liq.DateDue.present? %>
+                        <div class="screening-item">
+                          <span class="q-label">Rent Due</span>
+                          <span class="q-value"><%= liq.DateDue.strftime("%B %d, %Y") %></span>
+                        </div>
+                      <% end %>
+                      <div class="screening-item">
+                        <span class="q-label">Accepts Payment Plan</span>
+                        <span class="q-value"><%= liq.AcceptPaymentPlan? ? "Yes" : "No" %></span>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+
+              <% if landlord_screening %>
+                <div class="screening-section">
+                  <h3>Screening Questionnaire</h3>
+                  <div class="screening-grid">
+                    <div class="screening-item">
+                      <span class="q-label">Interpreter Needed?</span>
+                      <span class="q-value <%= landlord_screening.InterpreterNeeded ? 'text-warning' : '' %>">
+                        <%= landlord_screening.InterpreterNeeded ? "Yes" : "No" %>
+                      </span>
+                      <% if landlord_screening.InterpreterNeeded %>
+                        <div class="q-detail">Language: <%= landlord_screening.InterpreterLanguage %></div>
+                      <% end %>
+                    </div>
+                    <div class="screening-item">
+                      <span class="q-label">Disability Accommodation?</span>
+                      <span class="q-value <%= landlord_screening.DisabilityAccommodation ? 'text-warning' : '' %>">
+                        <%= landlord_screening.DisabilityAccommodation ? "Yes" : "No" %>
+                      </span>
+                      <% if landlord_screening.DisabilityAccommodation %>
+                        <div class="q-detail"><%= landlord_screening.DisabilityExplanation %></div>
+                      <% end %>
+                    </div>
+                    <div class="screening-item">
+                      <span class="q-label">Conflict of Interest?</span>
+                      <span class="q-value <%= landlord_screening.ConflictOfInterest ? 'text-danger' : '' %>">
+                        <%= landlord_screening.ConflictOfInterest ? "Yes" : "No" %>
+                      </span>
+                    </div>
+                    <div class="screening-item">
+                      <span class="q-label">Can Speak on Own Behalf?</span>
+                      <span class="q-value <%= !landlord_screening.SpeakOnOwnBehalf ? 'text-warning' : '' %>">
+                        <%= landlord_screening.SpeakOnOwnBehalf ? "Yes" : "No" %>
+                      </span>
+                    </div>
+                    <div class="screening-item">
+                      <span class="q-label">Need to Consult?</span>
+                      <span class="q-value <%= landlord_screening.NeedToConsult ? 'text-info' : '' %>">
+                        <%= landlord_screening.NeedToConsult ? "Yes" : "No" %>
+                      </span>
+                      <% if landlord_screening.NeedToConsult %>
+                        <div class="q-detail"><%= landlord_screening.ConsultExplanation %></div>
+                      <% end %>
+                    </div>
+                    <% if landlord_screening.RelationshipToOtherParty.present? %>
+                      <div class="screening-item full-width">
+                        <span class="q-label">Relationship to Tenant</span>
+                        <div class="q-detail"><%= landlord_screening.RelationshipToOtherParty %></div>
+                      </div>
+                    <% end %>
+                    <div class="screening-item full-width">
+                      <span class="q-label">Feel Unsafe?</span>
+                      <span class="q-value <%= landlord_screening.Unsafe ? 'text-danger' : '' %>">
+                        <%= landlord_screening.Unsafe ? "Yes" : "No" %>
+                      </span>
+                      <% if landlord_screening.Unsafe %>
+                        <div class="q-detail warning-box">
+                          <i class="fa-solid fa-triangle-exclamation"></i>
+                          <%= landlord_screening.UnsafeExplanation %>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
             </div>
           </div>
-
-          <!-- Actions Card (mediators only; admins have read-only oversight) -->
-          <% unless is_admin %>
-            <div class="info-card">
-              <div class="card-header">
-                <h2><i class="fa-solid fa-gavel"></i> Actions</h2>
-              </div>
-              <div class="card-body">
-                <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1rem;">
-                  End the mediation if an agreement has been reached or if mediation is no longer viable.
-                </p>
-                <%= button_to end_mediation_path(@mediation.ConversationID),
-                    method: :patch,
-                    data: { turbo: false },
-                    onclick: "return confirm('Are you sure you want to end this mediation? This action cannot be undone.');",
-                    class: "btn btn-outline-danger",
-                    style: "width: 100%; justify-content: center;" do %>
-                  <i class="fa-solid fa-ban"></i> Terminate Mediation
-                <% end %>
-              </div>
-            </div>
-          <% end %>
         </div>
 
-        <!-- Right Column: Tenant Info & Intake -->
+        <!-- Right Column: Tenant -->
         <div class="details-column right-column">
           <div class="info-card">
             <div class="card-header">
               <h2><i class="fa-solid fa-user"></i> Tenant</h2>
             </div>
             <div class="card-body">
-              <!-- Contact Info -->
               <div class="info-row">
                 <span class="label">Name</span>
                 <span class="value"><%= @mediation.tenant.FName %> <%= @mediation.tenant.LName %></span>
@@ -107,52 +209,61 @@
                 <span class="value"><%= @mediation.tenant.formatted_tenant_address.presence || "N/A" %></span>
               </div>
 
-              <!-- Intake Responses -->
               <% if @mediation.intake_question %>
+                <% iq = @mediation.intake_question %>
                 <div class="screening-section">
                   <h3>Intake Responses</h3>
                   <div class="screening-grid">
                     <div class="screening-item">
                       <span class="q-label">Reason for Mediation</span>
-                      <span class="q-value"><%= @mediation.intake_question.Reason %></span>
+                      <span class="q-value"><%= iq.reasons.join(", ") %></span>
                     </div>
-                    <div class="screening-item">
-                      <span class="q-label">Describe the Cause</span>
-                      <span class="q-value"><%= @mediation.intake_question.DescribeCause.presence || "N/A" %></span>
-                    </div>
-                    <div class="screening-item">
-                      <span class="q-label">Best Option</span>
-                      <span class="q-value"><%= @mediation.intake_question.BestOption %></span>
-                    </div>
-                    <div class="screening-item">
-                      <span class="q-label">Uses Section 8?</span>
-                      <span class="q-value"><%= @mediation.intake_question.Section8 ? "Yes" : "No" %></span>
-                    </div>
-                    <div class="screening-item">
-                      <span class="q-label">Money Owed</span>
-                      <span class="q-value">$<%= @mediation.intake_question.MoneyOwed %></span>
-                    </div>
-                    <div class="screening-item">
-                      <span class="q-label">Total or Monthly?</span>
-                      <span class="q-value"><%= @mediation.intake_question.TotalCostOrMonthly ? "Monthly" : "Total" %></span>
-                    </div>
-                    <div class="screening-item">
-                      <span class="q-label">Monthly Rent</span>
-                      <span class="q-value">$<%= @mediation.intake_question.MonthlyRent || "N/A" %></span>
-                    </div>
-                    <div class="screening-item">
-                      <span class="q-label">Date Due</span>
-                      <span class="q-value"><%= @mediation.intake_question.DateDue&.strftime("%B %d, %Y") || "N/A" %></span>
-                    </div>
-                    <div class="screening-item">
-                      <span class="q-label">Payable Today</span>
-                      <span class="q-value"><%= @mediation.intake_question.PayableToday %></span>
-                    </div>
+                    <% unless iq.unknown_only? %>
+                      <% if iq.DescribeCause.present? %>
+                        <div class="screening-item">
+                          <span class="q-label">Describe the Cause</span>
+                          <span class="q-value"><%= iq.DescribeCause %></span>
+                        </div>
+                      <% end %>
+                      <% if iq.BestOption.present? %>
+                        <div class="screening-item">
+                          <span class="q-label">Best Option</span>
+                          <span class="q-value"><%= iq.BestOption %></span>
+                        </div>
+                      <% end %>
+                      <div class="screening-item">
+                        <span class="q-label">Uses Section 8?</span>
+                        <span class="q-value"><%= iq.Section8? ? "Yes" : "No" %></span>
+                      </div>
+                      <% if iq.MoneyOwed.present? %>
+                        <div class="screening-item">
+                          <span class="q-label">Money Owed</span>
+                          <span class="q-value"><%= number_to_currency(iq.MoneyOwed) %></span>
+                        </div>
+                      <% end %>
+                      <% if iq.MonthlyRent.present? %>
+                        <div class="screening-item">
+                          <span class="q-label">Monthly Rent</span>
+                          <span class="q-value"><%= number_to_currency(iq.MonthlyRent) %></span>
+                        </div>
+                      <% end %>
+                      <% if iq.DateDue.present? %>
+                        <div class="screening-item">
+                          <span class="q-label">Rent Due</span>
+                          <span class="q-value"><%= iq.DateDue.strftime("%B %d, %Y") %></span>
+                        </div>
+                      <% end %>
+                      <% if iq.PayableToday.present? %>
+                        <div class="screening-item">
+                          <span class="q-label">Payable Today</span>
+                          <span class="q-value"><%= number_to_currency(iq.PayableToday) %></span>
+                        </div>
+                      <% end %>
+                    <% end %>
                   </div>
                 </div>
               <% end %>
 
-              <!-- Screening Questionnaire (Only if exists) -->
               <% if tenant_screening %>
                 <div class="screening-section">
                   <h3>Screening Questionnaire</h3>
@@ -166,7 +277,6 @@
                         <div class="q-detail">Language: <%= tenant_screening.InterpreterLanguage %></div>
                       <% end %>
                     </div>
-
                     <div class="screening-item">
                       <span class="q-label">Disability Accommodation?</span>
                       <span class="q-value <%= tenant_screening.DisabilityAccommodation ? 'text-warning' : '' %>">
@@ -176,21 +286,18 @@
                         <div class="q-detail"><%= tenant_screening.DisabilityExplanation %></div>
                       <% end %>
                     </div>
-
                     <div class="screening-item">
                       <span class="q-label">Conflict of Interest?</span>
                       <span class="q-value <%= tenant_screening.ConflictOfInterest ? 'text-danger' : '' %>">
                         <%= tenant_screening.ConflictOfInterest ? "Yes" : "No" %>
                       </span>
                     </div>
-
                     <div class="screening-item">
                       <span class="q-label">Can Speak on Own Behalf?</span>
                       <span class="q-value <%= !tenant_screening.SpeakOnOwnBehalf ? 'text-warning' : '' %>">
                         <%= tenant_screening.SpeakOnOwnBehalf ? "Yes" : "No" %>
                       </span>
                     </div>
-
                     <div class="screening-item">
                       <span class="q-label">Need to Consult?</span>
                       <span class="q-value <%= tenant_screening.NeedToConsult ? 'text-info' : '' %>">
@@ -200,14 +307,12 @@
                         <div class="q-detail"><%= tenant_screening.ConsultExplanation %></div>
                       <% end %>
                     </div>
-
                     <% if tenant_screening.RelationshipToOtherParty.present? %>
                       <div class="screening-item full-width">
                         <span class="q-label">Relationship to Landlord</span>
                         <div class="q-detail"><%= tenant_screening.RelationshipToOtherParty %></div>
                       </div>
                     <% end %>
-
                     <div class="screening-item full-width">
                       <span class="q-label">Feel Unsafe?</span>
                       <span class="q-value <%= tenant_screening.Unsafe ? 'text-danger' : '' %>">
@@ -226,6 +331,7 @@
             </div>
           </div>
         </div>
+
       </div>
     <% else %>
       <!-- Flagged State -->
@@ -252,4 +358,3 @@
     </div>
   <% end %>
 </div>
-

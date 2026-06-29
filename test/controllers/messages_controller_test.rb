@@ -250,7 +250,7 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     get messages_path
 
     assert_response :success
-    assert_select "a[href=?]", new_landlord_intake_question_path, text: "Complete Intake Questions"
+    assert_select "a[href=?]", new_landlord_intake_question_path(conversation_id: @mediation.ConversationID), text: "Complete Intake Questions"
   end
 
   test "tenant index shows intake button when both intakes outstanding" do
@@ -260,7 +260,7 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     get messages_path
 
     assert_response :success
-    assert_select "a[href=?]", new_intake_question_path, text: "Complete Intake Questions"
+    assert_select "a[href=?]", new_intake_question_path(conversation_id: @mediation.ConversationID), text: "Complete Intake Questions"
   end
 
   test "tenant index renders an active mediation card with an access link" do

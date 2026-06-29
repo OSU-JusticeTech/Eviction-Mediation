@@ -1,12 +1,12 @@
-<div class="bg-white/10 rounded-2xl p-5 backdrop-blur-sm w-full max-w-sm flex-shrink-0">
+<div class="bg-white/10 rounded-2xl p-5 backdrop-blur-sm w-full max-w-sm flex-shrink-0 border-l-4 border-[#1c7030]">
 
   <%# Header %>
   <div class="flex items-center justify-between mb-1">
     <div class="flex items-center gap-2 text-white/60 text-xs uppercase tracking-widest font-semibold">
-      <i class="fas fa-comment-dots text-white/40"></i>
+      <i class="fas fa-comment-dots text-[#4ade80]"></i>
       Active Negotiations
     </div>
-    <span class="text-white/40 text-xs font-medium">
+    <span class="bg-[#e3f5e9] text-[#1c7030] text-xs font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-full">
       <%= @landlord_active_conversations.length %> active
     </span>
   </div>
@@ -18,9 +18,9 @@
     <% @landlord_active_conversations.each do |mediation| %>
       <% last_msg_at = mediation.linked_message_string&.LastMessageSentDate %>
       <%= link_to message_path(mediation.ConversationID),
-            class: "flex items-center justify-between bg-white/10 hover:bg-white/20 rounded-xl px-3 py-2.5 transition-all group" do %>
+            class: "flex items-center justify-between bg-[#1c7030]/10 border border-[#1c7030]/20 hover:bg-[#1c7030]/20 rounded-xl px-3 py-2.5 transition-all group" do %>
         <div class="flex items-center gap-2.5 min-w-0">
-          <div class="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 uppercase">
+          <div class="w-7 h-7 rounded-full bg-[#1c7030]/30 flex items-center justify-center text-[#a7f3c0] text-xs font-bold flex-shrink-0 uppercase">
             <%= mediation.tenant.display_name.first %>
           </div>
           <span class="text-white text-sm font-medium truncate"><%= mediation.tenant.display_name %></span>

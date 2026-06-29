@@ -31,13 +31,17 @@
         <% end %>
       </div>
 
-      <%# Right side: active panel, empty-state CTA, or role badge for other roles %>
+      <%# Right side: active → pending → empty-state CTA, or role badge for other roles %>
       <% if @user.tenant? && @active_mediation.present? %>
         <%= render "tenant_messages_panel" %>
+      <% elsif @user.tenant? && @pending_mediation.present? %>
+        <%= render "tenant_pending_panel" %>
       <% elsif @user.tenant? %>
         <%= render "tenant_no_negotiation_panel" %>
       <% elsif @user.landlord? && @landlord_active_conversations.present? %>
         <%= render "landlord_messages_panel" %>
+      <% elsif @user.landlord? && @landlord_pending_conversations.present? %>
+        <%= render "landlord_pending_panel" %>
       <% elsif @user.landlord? %>
         <%= render "landlord_no_negotiation_panel" %>
       <% else %>

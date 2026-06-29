@@ -32,11 +32,11 @@ class LandlordIntakeQuestion < ApplicationRecord
 
   has_one :primary_message_group, foreign_key: "LandlordIntakeID"
 
-  private
-
   def unknown_only?
     reasons == [ "Unknown" ]
   end
+
+  private
 
   def reasons_must_be_valid
     selected = reasons

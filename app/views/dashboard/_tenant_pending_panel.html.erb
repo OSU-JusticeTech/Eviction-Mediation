@@ -1,0 +1,62 @@
+<div class="bg-white/10 rounded-2xl p-5 backdrop-blur-sm w-full max-w-sm flex-shrink-0 border-l-4 border-[#d99100]">
+
+  <%# Header %>
+  <div class="flex items-center justify-between mb-1">
+    <div class="flex items-center gap-2 text-white/60 text-xs uppercase tracking-widest font-semibold">
+      <i class="fas fa-clock text-[#d99100]"></i>
+      Pending Negotiation
+    </div>
+    <span class="bg-[#fdf2dc] text-[#9a6700] text-xs font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-full">
+      <%= @pending_mediation_count %> pending
+    </span>
+  </div>
+
+  <p class="text-white/40 text-xs mb-4">With <%= @pending_mediation.landlord.display_name %></p>
+
+  <%# Status indicator %>
+  <% stage = @pending_mediation.pending_stage %>
+  <div class="flex items-start gap-3 bg-[#d99100]/10 border border-[#d99100]/20 rounded-xl px-3 py-3 mb-4">
+    <div class="w-8 h-8 rounded-full bg-[#d99100]/30 flex items-center justify-center text-[#fcd97d] text-xs font-bold flex-shrink-0 uppercase mt-0.5">
+      <%= @pending_mediation.landlord.display_name.first %>
+    </div>
+    <div class="min-w-0">
+      <p class="text-white text-sm font-medium truncate"><%= @pending_mediation.landlord.display_name %></p>
+      <p class="text-[#fcd97d]/80 text-xs mt-0.5">
+        <% case stage %>
+        <% when :awaiting_tenant_acceptance %>
+          Landlord sent you a request
+        <% when :awaiting_intake %>
+          <% if @pending_mediation.needs_tenant_intake? %>
+            Action needed: complete your intake
+          <% else %>
+            Waiting on landlord to complete intake
+          <% end %>
+        <% else %>
+          Waiting on landlord to accept
+        <% end %>
+      </p>
+    </div>
+  </div>
+
+  <%# CTA %>
+  <% if stage == :awaiting_tenant_acceptance %>
+    <%= link_to message_path(@pending_mediation.ConversationID),
+          class: "flex items-center justify-between bg-white text-[#102a4d] text-sm font-bold px-4 py-3 rounded-full hover:bg-white/90 transition-colors" do %>
+      <span>Respond to request</span>
+      <i class="fas fa-arrow-right text-xs"></i>
+    <% end %>
+  <% elsif stage == :awaiting_intake && @pending_mediation.needs_tenant_intake? %>
+    <%= link_to new_intake_question_path(conversation_id: @pending_mediation.ConversationID),
+          class: "flex items-center justify-between bg-white text-[#102a4d] text-sm font-bold px-4 py-3 rounded-full hover:bg-white/90 transition-colors" do %>
+      <span>Complete intake</span>
+      <i class="fas fa-arrow-right text-xs"></i>
+    <% end %>
+  <% else %>
+    <%= link_to messages_path,
+          class: "flex items-center justify-between bg-white text-[#102a4d] text-sm font-bold px-4 py-3 rounded-full hover:bg-white/90 transition-colors" do %>
+      <span>View negotiation</span>
+      <i class="fas fa-arrow-right text-xs"></i>
+    <% end %>
+  <% end %>
+
+</div>

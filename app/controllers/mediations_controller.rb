@@ -264,7 +264,8 @@ class MediationsController < ApplicationController
         EndOfConversationGoodFaithLandlord: nil,
         EndOfConversationGoodFaithTenant: nil,
         accepted_by_landlord: false,
-        accepted_by_tenant: true
+        accepted_by_tenant: true,
+        requested_by: "Tenant"
       )
 
       redirect_to mediation_path(mediation), notice: "Negotiation requested with #{landlord.CompanyName || landlord.Email}."
@@ -287,7 +288,8 @@ class MediationsController < ApplicationController
         EndOfConversationGoodFaithLandlord: nil,
         EndOfConversationGoodFaithTenant: nil,
         accepted_by_landlord: true,
-        accepted_by_tenant: false
+        accepted_by_tenant: false,
+        requested_by: "Landlord"
       )
     end
 

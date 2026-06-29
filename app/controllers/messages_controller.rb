@@ -368,6 +368,10 @@ class MessagesController < ApplicationController
       .where(TenantSignature: true, LandlordSignature: true)
       .distinct
 
+    # Fetch Intake Responses
+    @intake_question = IntakeQuestion.find_by(IntakeID: @mediation.IntakeID) if @mediation.IntakeID.present?
+    @landlord_intake_question = LandlordIntakeQuestion.find_by(LandlordIntakeID: @mediation.LandlordIntakeID) if @mediation.LandlordIntakeID.present?
+
     # Fetch Survey Responses
     @survey_responses = SurveyResponse.where(conversation_id: @mediation.ConversationID).includes(:user)
 

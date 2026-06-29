@@ -20,12 +20,15 @@
           form: { data: { turbo_confirm: "Reject this negotiation request?" } } %>
   <% when :awaiting_intake %>
     <% if mediation.needs_tenant_intake? %>
-      <%= link_to "Complete Intake Questions", new_intake_question_path, class: "card-btn card-btn--primary" %>
+      <%= link_to "Complete Intake Questions", new_intake_question_path(conversation_id: mediation.ConversationID), class: "card-btn card-btn--primary" %>
     <% else %>
       <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on landlord<br>to complete Intake Questions</span>
     <% end %>
-  <% else %>
-    <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on landlord</span>
+  <% else %> <%# :awaiting_landlord_acceptance — tenant requested, landlord hasn't responded yet %>
+    <% if mediation.needs_tenant_intake? %>
+      <%= link_to "Complete Intake Questions", new_intake_question_path(conversation_id: mediation.ConversationID), class: "card-btn card-btn--primary" %>
+    <% end %>
+    <span class="card-status-note"><i class="fas fa-clock" aria-hidden="true"></i> Waiting on landlord to accept</span>
   <% end %>
 
 <% when :past %>

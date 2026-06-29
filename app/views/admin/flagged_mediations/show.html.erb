@@ -8,7 +8,7 @@
   </div>
 
   <div class="details-grid">
-    <!-- Left Column: Landlord & Mediator Actions -->
+    <!-- Left Column: Landlord -->
     <div class="details-column left-column">
       <!-- Landlord Card -->
       <div class="info-card">
@@ -34,54 +34,61 @@
               <span class="value"><%= @landlord.CompanyName %></span>
             </div>
           <% end %>
-        </div>
-      </div>
 
-      <!-- Mediator Assignment Card -->
-      <div class="info-card mediator-card">
-        <div class="card-header">
-          <h2><i class="fa-solid fa-gavel"></i> Mediator Assignment</h2>
-        </div>
-        <div class="card-body">
-          <% if @mediator %>
-            <div class="current-mediator">
-              <span class="label">Current Mediator</span>
-              <div class="mediator-name">
-                <%= @mediator.FName %> <%= @mediator.LName %>
-              </div>
-            </div>
-          <% else %>
-            <div class="current-mediator">
-              <span class="label">Current Status</span>
-              <div class="mediator-name text-warning">
-                <i class="fa-solid fa-circle-exclamation"></i> Unassigned
+          <% if @mediation.landlord_intake_question %>
+            <% liq = @mediation.landlord_intake_question %>
+            <div class="screening-section">
+              <h3>Intake Responses</h3>
+              <div class="screening-grid">
+                <div class="screening-item">
+                  <span class="q-label">Reason for Mediation</span>
+                  <span class="q-value"><%= liq.reasons.join(", ") %></span>
+                </div>
+                <% unless liq.unknown_only? %>
+                  <% if liq.LandlordDescribeCause.present? %>
+                    <div class="screening-item">
+                      <span class="q-label">Describe the Cause</span>
+                      <span class="q-value"><%= liq.LandlordDescribeCause %></span>
+                    </div>
+                  <% end %>
+                  <% if liq.DesiredOutcome.present? %>
+                    <div class="screening-item">
+                      <span class="q-label">Desired Outcome</span>
+                      <span class="q-value"><%= liq.DesiredOutcome %></span>
+                    </div>
+                  <% end %>
+                  <% if liq.AmountClaimed.present? %>
+                    <div class="screening-item">
+                      <span class="q-label">Amount Claimed</span>
+                      <span class="q-value"><%= number_to_currency(liq.AmountClaimed) %></span>
+                    </div>
+                  <% end %>
+                  <% if liq.MonthlyRent.present? %>
+                    <div class="screening-item">
+                      <span class="q-label">Monthly Rent</span>
+                      <span class="q-value"><%= number_to_currency(liq.MonthlyRent) %></span>
+                    </div>
+                  <% end %>
+                  <% if liq.DateDue.present? %>
+                    <div class="screening-item">
+                      <span class="q-label">Rent Due</span>
+                      <span class="q-value"><%= liq.DateDue.strftime("%B %d, %Y") %></span>
+                    </div>
+                  <% end %>
+                  <div class="screening-item">
+                    <span class="q-label">Accepts Payment Plan</span>
+                    <span class="q-value"><%= liq.AcceptPaymentPlan? ? "Yes" : "No" %></span>
+                  </div>
+                <% end %>
               </div>
             </div>
           <% end %>
-
-          <div class="action-section">
-            <h3>Reassign Case</h3>
-            <%= form_with url: admin_reassign_mediator_path(@mediation), method: :patch, local: true do |f| %>
-              <div class="form-group">
-                <div class="select-wrapper">
-                  <%= f.select :new_mediator_id, 
-                      options_for_select(@eligible_mediators.map { |m| ["#{m.user.FName} #{m.user.LName} (#{m.ActiveMediations}/#{m.MediationCap} cases)", m.UserID] }), 
-                      { prompt: "Select a mediator..." }, 
-                      { class: "form-control" } 
-                  %>
-                  <i class="fa-solid fa-chevron-down"></i>
-                </div>
-              </div>
-              <%= f.button type: "submit", class: "btn btn-primary" do %>
-                <i class="fa-solid fa-user-check"></i> Assign Mediator
-              <% end %>
-            <% end %>
-          </div>
         </div>
       </div>
+
     </div>
 
-    <!-- Right Column: Tenant Info & Screening -->
+    <!-- Right Column: Tenant -->
     <div class="details-column right-column">
       <!-- Tenant Card -->
       <div class="info-card">
@@ -150,6 +157,50 @@
               </div>
             </div>
           <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full-width: Mediator Assignment -->
+    <div class="mediator-assignment-row">
+      <div class="info-card mediator-card">
+        <div class="card-header">
+          <h2><i class="fa-solid fa-gavel"></i> Mediator Assignment</h2>
+        </div>
+        <div class="card-body">
+          <% if @mediator %>
+            <div class="current-mediator">
+              <span class="label">Current Mediator</span>
+              <div class="mediator-name">
+                <%= @mediator.FName %> <%= @mediator.LName %>
+              </div>
+            </div>
+          <% else %>
+            <div class="current-mediator">
+              <span class="label">Current Status</span>
+              <div class="mediator-name text-warning">
+                <i class="fa-solid fa-circle-exclamation"></i> Unassigned
+              </div>
+            </div>
+          <% end %>
+
+          <div class="action-section">
+            <h3>Reassign Case</h3>
+            <%= form_with url: admin_reassign_mediator_path(@mediation), method: :patch, local: true do |f| %>
+              <div class="form-group">
+                <div class="select-wrapper">
+                  <%= f.select :new_mediator_id,
+                      options_for_select(@eligible_mediators.map { |m| ["#{m.user.FName} #{m.user.LName} (#{m.ActiveMediations}/#{m.MediationCap} cases)", m.UserID] }),
+                      { prompt: "Select a mediator..." },
+                      { class: "form-control" } %>
+                  <i class="fa-solid fa-chevron-down"></i>
+                </div>
+              </div>
+              <%= f.button type: "submit", class: "btn btn-primary" do %>
+                <i class="fa-solid fa-user-check"></i> Assign Mediator
+              <% end %>
+            <% end %>
+          </div>
         </div>
       </div>
     </div>

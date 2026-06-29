@@ -65,6 +65,9 @@
           <% end %>
         <% end %>
       <% end %>
+      <% if mediation.requested_by.present? %>
+        <li><i class="fas fa-flag" aria-hidden="true"></i> Initiated by <%= mediation.requested_by %></li>
+      <% end %>
     </ul>
 
   </div>

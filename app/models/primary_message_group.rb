@@ -78,11 +78,11 @@ class PrimaryMessageGroup < ApplicationRecord
   end
 
   def needs_tenant_intake?
-    accepted_by_landlord? && accepted_by_tenant? && self.IntakeID.blank?
+    !past? && accepted_by_tenant? && self.IntakeID.blank?
   end
 
   def needs_landlord_intake?
-    accepted_by_landlord? && accepted_by_tenant? && self.LandlordIntakeID.blank?
+    !past? && accepted_by_landlord? && accepted_by_tenant? && self.LandlordIntakeID.blank?
   end
 
   # Timestamp used to order mediations within a group (most recent first).

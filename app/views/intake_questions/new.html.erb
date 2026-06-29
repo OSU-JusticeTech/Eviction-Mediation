@@ -20,6 +20,7 @@
 
           <div class="reason-multiselect__panel" role="listbox">
             <% IntakeQuestion::REASONS.each do |reason| %>
+              <% next if reason == "Unknown" && !@show_unknown %>
               <label class="reason-checkbox-option">
                 <%= check_box_tag "intake_question[Reason][]", reason, @intake_question.reasons.include?(reason), id: "reason_#{reason.parameterize.underscore}" %>
                 <span><%= reason %></span>

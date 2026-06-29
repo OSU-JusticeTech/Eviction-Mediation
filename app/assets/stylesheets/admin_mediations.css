@@ -37,9 +37,17 @@
 /* Grid Layout */
 .details-grid {
   display: grid;
-  grid-template-columns: 380px 1fr; /* Left fixed, Right flexible */
+  grid-template-columns: 1fr 1fr;
   gap: 2rem;
-  align-items: start;
+  align-items: stretch;
+}
+
+.details-column .info-card {
+  flex: 1 0 auto;
+}
+
+.mediator-assignment-row {
+  grid-column: 1 / -1;
 }
 
 .details-column {
@@ -184,8 +192,6 @@
 
 /* Mediator Card Specifics - Only for admin mediation detail pages */
 .admin-mediation-details-container .mediator-card {
-  position: sticky;
-  top: 2rem;
   /* Reset styles from dashboard.css that cause layout issues */
   display: block;
   padding: 0;

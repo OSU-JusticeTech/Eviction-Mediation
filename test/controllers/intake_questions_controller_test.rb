@@ -18,6 +18,24 @@ class IntakeQuestionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "shows Unknown reason when the landlord requested the negotiation" do
+    @conversation.update!(requested_by: "Landlord")
+    log_in_as(@tenant)
+
+    get new_intake_question_path(conversation_id: @conversation.ConversationID)
+    assert_response :success
+    assert_select "#reason_unknown"
+  end
+
+  test "hides Unknown reason when the tenant requested the negotiation" do
+    @conversation.update!(requested_by: "Tenant")
+    log_in_as(@tenant)
+
+    get new_intake_question_path(conversation_id: @conversation.ConversationID)
+    assert_response :success
+    assert_select "#reason_unknown", count: 0
+  end
+
   test "creates intake question with valid params" do
     log_in_as(@tenant)
 

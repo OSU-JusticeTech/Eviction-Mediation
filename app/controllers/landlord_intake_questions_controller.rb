@@ -5,9 +5,13 @@ class LandlordIntakeQuestionsController < ApplicationController
 
   def new
     @landlord_intake_question = LandlordIntakeQuestion.new
+    @conversation_id = params[:conversation_id]
+    mediation = landlord_intake_mediation
+    @show_unknown = mediation&.requested_by == "Tenant"
   end
 
   def create
+    @conversation_id = params[:conversation_id]
     accept_payment_plan = ActiveModel::Type::Boolean.new.cast(params[:landlord_intake_question][:AcceptPaymentPlan])
 
     @landlord_intake_question = LandlordIntakeQuestion.new(landlord_intake_question_params)
@@ -16,11 +20,7 @@ class LandlordIntakeQuestionsController < ApplicationController
     @landlord_intake_question.reasons = params.dig(:landlord_intake_question, :Reason)
 
     if @landlord_intake_question.save
-      conversation = PrimaryMessageGroup.find_by(
-        LandlordID: @user.UserID,
-        deleted_at: nil,
-        LandlordIntakeID: nil
-      )
+      conversation = landlord_intake_mediation
       conversation&.update!(LandlordIntakeID: @landlord_intake_question.LandlordIntakeID)
       redirect_to messages_path, notice: "Intake questions completed successfully. You can now proceed to your negotiations."
     else
@@ -51,5 +51,14 @@ class LandlordIntakeQuestionsController < ApplicationController
       :LandlordDescribeCause, :DesiredOutcome, :AcceptPaymentPlan,
       :AmountClaimed, :MonthlyRent, :DateDue
     )
+  end
+
+  # The specific mediation this landlord is completing intake for. Scoping by the
+  # conversation (rather than grabbing any intake-less mediation) ensures we read
+  # the correct `requested_by` when the landlord has more than one pending intake.
+  def landlord_intake_mediation
+    scope = PrimaryMessageGroup.where(LandlordID: @user.UserID, deleted_at: nil, LandlordIntakeID: nil)
+    scope = scope.where(ConversationID: @conversation_id) if @conversation_id.present?
+    scope.first
   end
 end

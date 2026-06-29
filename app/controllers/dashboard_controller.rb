@@ -39,11 +39,13 @@ class DashboardController < ApplicationController
         .includes(:landlord, :linked_message_string)
         .to_a
 
-      # Only show fully active mediations — pending ones (awaiting acceptance/intake)
-      # are never surfaced on the dashboard card.
       @active_mediation = mediations
         .select(&:active?)
         .max_by { |m| m.linked_message_string&.LastMessageSentDate || m.CreatedAt || Time.at(0) }
+
+      pending = mediations.select(&:pending?)
+      @pending_mediation_count = pending.length
+      @pending_mediation = pending.max_by { |m| m.CreatedAt || Time.at(0) }
 
       return unless @active_mediation
 
@@ -73,15 +75,19 @@ class DashboardController < ApplicationController
     end
 
     def load_landlord_dashboard_data
-      # Only show fully active negotiations — pending ones (awaiting acceptance/intake)
-      # are never surfaced on the dashboard card.
-      @landlord_active_conversations = PrimaryMessageGroup
+      all_mediations = PrimaryMessageGroup
         .where(LandlordID: @user.UserID, deleted_at: nil)
         .includes(:tenant, :linked_message_string)
         .to_a
+
+      @landlord_active_conversations = all_mediations
         .select(&:active?)
         .sort_by { |m| -(m.linked_message_string&.LastMessageSentDate || m.CreatedAt || Time.at(0)).to_i }
         .first(3)
+
+      pending = all_mediations.select(&:pending?).sort_by { |m| -(m.CreatedAt || Time.at(0)).to_i }
+      @landlord_pending_count = pending.length
+      @landlord_pending_conversations = pending.first(3)
     end
 
     def require_login

@@ -5,7 +5,7 @@
     <h1>Start Your Intake Questions</h1>
     <h2>Please complete the following intake questions before proceeding with negotiation.</h2>
 
-    <%= form_with(model: @landlord_intake_question, url: landlord_intake_questions_path, local: true, data: { turbo: false }) do |f| %>
+    <%= form_with(model: @landlord_intake_question, url: landlord_intake_questions_path(conversation_id: @conversation_id), local: true, data: { turbo: false }) do |f| %>
 
       <div class="form-section">
         <%= f.label :Reason, "What is the reason for the dispute?", class: "required-label" %>
@@ -19,6 +19,7 @@
 
           <div class="reason-multiselect__panel" role="listbox">
             <% LandlordIntakeQuestion::REASONS.each do |reason| %>
+              <% next if reason == "Unknown" && !@show_unknown %>
               <label class="reason-checkbox-option">
                 <%= check_box_tag "landlord_intake_question[Reason][]", reason, @landlord_intake_question.reasons.include?(reason), id: "reason_#{reason.parameterize.underscore}" %>
                 <span><%= reason %></span>
