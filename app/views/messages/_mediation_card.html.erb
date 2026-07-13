@@ -73,6 +73,9 @@
   </div>
 
   <div class="mediation-card-item__actions">
+    <% if mediation.past? %>
+      <%= render "messages/outcome_control", mediation: mediation, context: "card" %>
+    <% end %>
     <%= render "messages/#{role.downcase}_card_actions", mediation: mediation, action: action %>
   </div>
 </article>

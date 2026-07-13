@@ -227,4 +227,77 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
     tenant_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(tenant3.Email) }
     assert_not_empty tenant_emails
   end
+
+  # --- Outcome -----------------------------------------------------
+
+  test "requester can set the outcome on an ended negotiation with no mediator" do
+    @mediation.update!(deleted_at: Time.current, MediatorAssigned: false,
+                       MediatorID: nil, requested_by: "Tenant")
+    log_in_as(@tenant)
+
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Closed with agreement" }
+
+    assert_equal "Closed with agreement", @mediation.reload.Outcome
+  end
+
+  test "non-requester cannot set the outcome when no mediator is assigned" do
+    @mediation.update!(deleted_at: Time.current, MediatorAssigned: false,
+                       MediatorID: nil, requested_by: "Tenant")
+    log_in_as(@landlord)
+
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Closed with agreement" }
+
+    assert_nil @mediation.reload.Outcome
+    assert_match(/not authorized/i, flash[:alert])
+  end
+
+  test "assigned mediator can set the outcome" do
+    mediator = users(:mediator1)
+    @mediation.update!(deleted_at: Time.current, MediatorAssigned: true,
+                       MediatorID: mediator.UserID, requested_by: "Tenant")
+    log_in_as(mediator)
+
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Closed without agreement" }
+
+    assert_equal "Closed without agreement", @mediation.reload.Outcome
+  end
+
+  test "requester cannot set the outcome once a mediator is assigned" do
+    mediator = users(:mediator1)
+    @mediation.update!(deleted_at: Time.current, MediatorAssigned: true,
+                       MediatorID: mediator.UserID, requested_by: "Tenant")
+    log_in_as(@tenant)
+
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Closed with agreement" }
+
+    assert_nil @mediation.reload.Outcome
+    assert_match(/not authorized/i, flash[:alert])
+  end
+
+  test "invalid outcome values are rejected" do
+    @mediation.update!(deleted_at: Time.current, MediatorAssigned: false,
+                       MediatorID: nil, requested_by: "Tenant")
+    log_in_as(@tenant)
+
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Bogus outcome" }
+
+    assert_nil @mediation.reload.Outcome
+    assert_match(/valid outcome/i, flash[:alert])
+  end
+
+  test "outcome cannot be set on an active mediation" do
+    @mediation.update!(deleted_at: nil, requested_by: "Tenant")
+    log_in_as(@tenant)
+
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Closed with agreement" }
+
+    assert_nil @mediation.reload.Outcome
+    assert_match(/still ongoing/i, flash[:alert])
+  end
 end

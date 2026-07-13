@@ -223,6 +223,32 @@ class MediationsController < ApplicationController
     end
   end
 
+  # Record or change the outcome of an ended mediation. Only the requester (when
+  # no mediator is assigned) or the assigned mediator may edit it; the outcome
+  # can be changed as many times as needed after the mediation has ended.
+  def update_outcome
+    @mediation = PrimaryMessageGroup.find_by(ConversationID: params[:id])
+
+    if @mediation.nil? || @mediation.deleted_at.nil?
+      redirect_back fallback_location: messages_path, alert: "Mediation not found or still ongoing."
+      return
+    end
+
+    unless @mediation.outcome_editable_by?(@user)
+      redirect_back fallback_location: messages_path, alert: "You are not authorized to set the outcome for this mediation."
+      return
+    end
+
+    outcome = params[:outcome].to_s
+    unless PrimaryMessageGroup::OUTCOMES.include?(outcome)
+      redirect_back fallback_location: messages_path, alert: "Please choose a valid outcome."
+      return
+    end
+
+    @mediation.update!(Outcome: outcome)
+    redirect_back fallback_location: mediation_summary_path(@mediation.ConversationID), notice: "Mediation outcome saved."
+  end
+
   # Good Faith Screening prompt for edge case error handling
   def prompt_screen
     @mediation = PrimaryMessageGroup.find_by(ConversationID: params[:id])

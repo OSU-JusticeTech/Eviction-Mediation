@@ -106,6 +106,9 @@ end
   # Allow tenant or landlord to terminate a negotiation or mediation
   patch "/end_mediation/:id", to: "mediations#end_conversation", as: "end_mediation"
 
+  # Record/change the outcome of an ended mediation (requester or mediator only)
+  patch "/mediation_outcome/:id", to: "mediations#update_outcome", as: "mediation_outcome"
+
   # Allow tenant and landlord to fill out good faith question
   get "/good_faith_response/:id", to: "mediations#good_faith_form", as: "good_faith_response"
   patch "/good_faith_response/:id", to: "mediations#update_good_faith"

@@ -1,0 +1,42 @@
+<%#
+  locals:
+    mediation - the ended PrimaryMessageGroup whose outcome is shown/edited
+    context   - "card" (default) or "summary"; only changes the display wrapper
+
+  Shows the recorded outcome to every participant. The authorized editor (the
+  requester when no mediator is assigned, otherwise the assigned mediator) sees
+  an inline dropdown that saves immediately on change; everyone else sees the
+  outcome as read-only text.
+%>
+<% context ||= "card" %>
+<% editable = mediation.outcome_editable_by?(@user) %>
+<% select_id = "outcome-select-#{mediation.ConversationID}" %>
+
+<% outcome_field = capture do %>
+  <% if editable %>
+    <%= form_with url: mediation_outcome_path(mediation.ConversationID), method: :patch,
+                  data: { turbo: false }, class: "mediation-outcome__form" do %>
+      <select id="<%= select_id %>" name="outcome" class="mediation-outcome__select"
+              aria-label="Mediation outcome" onchange="this.form.requestSubmit()">
+        <option value="" <%= "selected" if mediation.Outcome.blank? %> disabled>Set outcome…</option>
+        <% PrimaryMessageGroup::OUTCOMES.each do |option| %>
+          <option value="<%= option %>" <%= "selected" if mediation.Outcome == option %>><%= option %></option>
+        <% end %>
+      </select>
+    <% end %>
+  <% else %>
+    <%= mediation.Outcome.presence || "Not set" %>
+  <% end %>
+<% end %>
+
+<% if context == "summary" %>
+  <div class="info-row">
+    <span class="label">Outcome</span>
+    <span class="value"><%= outcome_field %></span>
+  </div>
+<% else %>
+  <div class="mediation-outcome">
+    <span class="mediation-outcome__label"><i class="fas fa-clipboard-check" aria-hidden="true"></i> Outcome:</span>
+    <%= outcome_field %>
+  </div>
+<% end %>

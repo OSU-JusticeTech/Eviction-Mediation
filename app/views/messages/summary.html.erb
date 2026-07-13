@@ -37,7 +37,9 @@
               <span class="value"><%= @ended_by.FName %> <%= @ended_by.LName %> (<%= @ended_by.Role %>)</span>
             </div>
           <% end %>
-          
+
+          <%= render "messages/outcome_control", mediation: @mediation, context: "summary" %>
+
           <div class="screening-section" style="margin-top: 1.5rem;">
             <h3>Feedback</h3>
             <div class="screening-grid">
