@@ -677,13 +677,13 @@
 
   .system-message__text {
     display: inline-block;
-    background: rgba(16, 42, 77, 0.06);
-    border: 1px solid rgba(16, 42, 77, 0.09);
+    background: rgba(16, 42, 77, 0.10);
+    border: 1px solid rgba(16, 42, 77, 0.20);
     border-radius: 999px;
     padding: 0.3rem 0.9rem;
-    font-size: 0.78rem;
-    color: rgba(16, 42, 77, 0.55);
-    font-weight: 500;
+    font-size: 0.85rem;
+    color: rgba(16, 42, 77, 0.85);
+    font-weight: 600;
     line-height: 1.4;
   }
 
