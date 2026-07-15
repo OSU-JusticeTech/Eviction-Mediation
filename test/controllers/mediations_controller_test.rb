@@ -1,7 +1,6 @@
 require "test_helper"
 
 class MediationsControllerTest < ActionDispatch::IntegrationTest
-  include ActiveJob::TestHelper
   setup do
     @tenant = users(:tenant1)
     @landlord = users(:landlord1)
@@ -15,23 +14,24 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
     assert_response(:success) if expect_success
   end
 
-  test "tenant can create mediation" do
+  test "tenant requesting an existing landlord is sent to intake before the request is created" do
     log_in_as(@tenant)
-    assert_difference("PrimaryMessageGroup.count") do
+    assert_no_difference("PrimaryMessageGroup.count") do
       post mediations_path, params: { landlord_email: @landlord[:Email] }
     end
 
-    new_mediation = PrimaryMessageGroup.order(:ConversationID).last
-    assert_redirected_to mediation_path(new_mediation)
+    assert_redirected_to new_intake_question_path
+    assert_equal @landlord[:Email], session[:pending_mediation_request]["target_email"]
   end
 
-  test "landlord can create mediation" do
+  test "landlord requesting an existing tenant is sent to intake before the request is created" do
     log_in_as(@landlord)
-    assert_difference("PrimaryMessageGroup.count") do
+    assert_no_difference("PrimaryMessageGroup.count") do
       post mediations_path, params: { tenant_email: @tenant[:Email] }
     end
 
-    assert_redirected_to messages_path
+    assert_redirected_to new_landlord_intake_question_path
+    assert_equal @tenant[:Email], session[:pending_mediation_request]["target_email"]
   end
 
   test "landlord requesting an unregistered tenant email sends an invitation" do
@@ -214,61 +214,10 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "You are not authorized to submit this survey.", flash[:alert]
   end
 
-  # --- Notification preference enforcement ---
-
-  test "does not email landlord mediation request notification when preference is off" do
-    @landlord.update!(notify_new_mediation_request: false)
-    tenant2 = users(:tenant2)
-    log_in_as(tenant2)
-
-    ActionMailer::Base.deliveries.clear
-    post mediations_path, params: { landlord_email: @landlord[:Email] }
-
-    landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(@landlord.Email) }
-    assert_empty landlord_emails
-  end
-
-  test "emails landlord mediation request notification when preference is on" do
-    @landlord.update!(notify_new_mediation_request: true)
-    tenant2 = users(:tenant2)
-    log_in_as(tenant2)
-
-    ActionMailer::Base.deliveries.clear
-    perform_enqueued_jobs do
-      post mediations_path, params: { landlord_email: @landlord[:Email] }
-    end
-
-    landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(@landlord.Email) }
-    assert_not_empty landlord_emails
-  end
-
-  test "does not email tenant mediation request notification when preference is off" do
-    tenant3 = users(:tenant3)
-    tenant3.update!(notify_new_mediation_request: false)
-    landlord2 = users(:landlord2)
-    log_in_as(landlord2)
-
-    ActionMailer::Base.deliveries.clear
-    post mediations_path, params: { tenant_email: tenant3.Email }
-
-    tenant_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(tenant3.Email) }
-    assert_empty tenant_emails
-  end
-
-  test "emails tenant mediation request notification when preference is on" do
-    tenant3 = users(:tenant3)
-    tenant3.update!(notify_new_mediation_request: true)
-    landlord2 = users(:landlord2)
-    log_in_as(landlord2)
-
-    ActionMailer::Base.deliveries.clear
-    perform_enqueued_jobs do
-      post mediations_path, params: { tenant_email: tenant3.Email }
-    end
-
-    tenant_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(tenant3.Email) }
-    assert_not_empty tenant_emails
-  end
+  # Notification-preference enforcement now happens once the request is
+  # actually created (after intake), so that coverage lives in
+  # test/controllers/intake_questions_controller_test.rb and
+  # test/controllers/landlord_intake_questions_controller_test.rb.
 
   # --- Outcome -----------------------------------------------------
 
