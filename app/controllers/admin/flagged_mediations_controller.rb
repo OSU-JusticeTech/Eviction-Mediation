@@ -4,18 +4,24 @@ class Admin::FlaggedMediationsController < ApplicationController
   before_action :authorize_admin # Ensures Only Admins Can deal with flagged mediations
 
   def index
-    # Show all mediations that have requested/assigned a mediator, plus every
-    # ended mediation regardless of mediator involvement (for archive visibility).
+    # Show every active mediation system-wide (mirrors PrimaryMessageGroup#active?),
+    # plus any mediation with a mediator requested (even before intake completes),
+    # plus every ended mediation regardless of mediator involvement (for archive
+    # visibility). Without the "active" clause, ordinary negotiations that never
+    # requested a mediator would never appear here even though the admin
+    # dashboard's "Active Mediations" count includes them.
     mediations = PrimaryMessageGroup
       .where(MediatorRequested: true)
       .or(PrimaryMessageGroup.where.not(deleted_at: nil))
+      .or(PrimaryMessageGroup.where(accepted_by_landlord: true, accepted_by_tenant: true, deleted_at: nil)
+            .where.not(IntakeID: nil).where.not(LandlordIntakeID: nil))
       .includes(:tenant, :landlord, :mediator)
-      .sort_by { |m| [ m.past? ? 2 : (m.MediatorAssigned? ? 1 : 0), -(m.last_activity_at.to_i) ] }
+      .sort_by { |m| [ m.past? ? 2 : (m.MediatorRequested? && !m.MediatorAssigned? ? 0 : 1), -(m.last_activity_at.to_i) ] }
 
     @grouped_mediations  = mediations.group_by do |m|
       if m.past?
         :past
-      elsif !m.MediatorAssigned?
+      elsif m.MediatorRequested? && !m.MediatorAssigned?
         :needs_assignment
       else
         :active
