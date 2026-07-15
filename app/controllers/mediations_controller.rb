@@ -90,9 +90,14 @@ class MediationsController < ApplicationController
 
       tenant = find_existing_tenant
 
-      if tenant&.Role != "Tenant"
+      if tenant.nil?
         Rails.logger.info "No tenant found with email: #{params[:tenant_email]}, sending invitation"
         send_tenant_invitation(params[:tenant_email])
+        return
+      end
+
+      unless tenant.Role == "Tenant"
+        redirect_to new_mediation_path, alert: "No tenant account found with that email."
         return
       end
 

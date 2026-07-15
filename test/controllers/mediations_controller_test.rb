@@ -34,6 +34,48 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to messages_path
   end
 
+  test "landlord requesting an unregistered tenant email sends an invitation" do
+    log_in_as(@landlord)
+    ActionMailer::Base.deliveries.clear
+
+    assert_no_difference("PrimaryMessageGroup.count") do
+      post mediations_path, params: { tenant_email: "not_registered@example.com" }
+    end
+
+    assert_redirected_to messages_path
+    assert_match(/Invitation email sent/, flash[:notice])
+    tenant_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?("not_registered@example.com") }
+    assert_not_empty tenant_emails
+  end
+
+  test "landlord requesting a tenant email that belongs to a non-tenant account is blocked" do
+    mediator = users(:mediator1)
+    log_in_as(@landlord)
+    ActionMailer::Base.deliveries.clear
+
+    assert_no_difference("PrimaryMessageGroup.count") do
+      post mediations_path, params: { tenant_email: mediator.Email }
+    end
+
+    assert_redirected_to new_mediation_path
+    assert_equal "No tenant account found with that email.", flash[:alert]
+    assert_empty ActionMailer::Base.deliveries.select { |m| m.to.include?(mediator.Email) }
+  end
+
+  test "tenant requesting a landlord email that belongs to a non-landlord account is blocked" do
+    admin = users(:admin1)
+    log_in_as(@tenant)
+    ActionMailer::Base.deliveries.clear
+
+    assert_no_difference("PrimaryMessageGroup.count") do
+      post mediations_path, params: { landlord_email: admin.Email }
+    end
+
+    assert_redirected_to new_mediation_path
+    assert_equal "No landlord account found with that email.", flash[:alert]
+    assert_empty ActionMailer::Base.deliveries.select { |m| m.to.include?(admin.Email) }
+  end
+
   test "non-tenant/non-landlord cannot create mediation" do
     mediator = users(:mediator1)
     log_in_as(mediator)
