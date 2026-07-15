@@ -48,6 +48,23 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
     assert_not_empty tenant_emails
   end
 
+  test "tenant requesting an unregistered landlord email sends an invitation, bypassing intake" do
+    log_in_as(@tenant)
+    ActionMailer::Base.deliveries.clear
+
+    assert_no_difference("PrimaryMessageGroup.count") do
+      post mediations_path, params: { landlord_email: "not_registered@example.com" }
+    end
+
+    assert_redirected_to messages_path
+    assert_match(/Invitation email sent/, flash[:notice])
+    assert_nil session[:pending_mediation_request]
+
+    landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?("not_registered@example.com") }
+    assert_not_empty landlord_emails
+    assert_match(/invited to join/i, landlord_emails.first.subject)
+  end
+
   test "landlord requesting a tenant email that belongs to a non-tenant account is blocked" do
     mediator = users(:mediator1)
     log_in_as(@landlord)

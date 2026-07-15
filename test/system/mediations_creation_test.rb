@@ -70,6 +70,24 @@ class MediationsCreationTest < ApplicationSystemTestCase
     assert_selector ".flash-notice", text: "Negotiation requested with #{@landlord.CompanyName}"
   end
 
+  test "tenant requesting an unregistered landlord email sends an invitation without going through intake" do
+    sign_in_as(@tenant)
+    visit new_mediation_path
+    dismiss_terms_modal_if_present
+
+    ActionMailer::Base.deliveries.clear
+
+    fill_in "landlord_email", with: "not_registered@example.com"
+    click_button "Request Negotiation"
+
+    assert_current_path messages_path
+    assert_selector ".flash-notice", text: "Invitation email sent to not_registered@example.com"
+
+    invite_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?("not_registered@example.com") }
+    assert_equal 1, invite_emails.size
+    assert_match(/invited to join/i, invite_emails.first.subject)
+  end
+
   private
 
   def check_reason(reason_id)
