@@ -25,7 +25,8 @@
          data-group="<%= board_group %>"
          data-status="<%= display_status %>"
          data-date="<%= mediation.last_activity_at&.strftime("%Y-%m-%d") %>"
-         data-search="<%= mediation_search_terms(mediation, role) %>">
+         data-search="<%= mediation_search_terms(mediation, role) %>"
+         data-awaiting-feedback="<%= mediation.past? && (mediation.EndOfConversationGoodFaithLandlord.nil? || mediation.EndOfConversationGoodFaithTenant.nil?) %>">
   <div class="mediation-card-item__main">
     <div class="mediation-card-item__header">
       <% if is_observer %>
