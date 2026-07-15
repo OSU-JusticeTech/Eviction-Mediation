@@ -18,7 +18,7 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
   test "tenant can create mediation" do
     log_in_as(@tenant)
     assert_difference("PrimaryMessageGroup.count") do
-      post mediations_path, params: { landlord_id: @landlord[:UserID] }
+      post mediations_path, params: { landlord_email: @landlord[:Email] }
     end
 
     new_mediation = PrimaryMessageGroup.order(:ConversationID).last
@@ -222,7 +222,7 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
     log_in_as(tenant2)
 
     ActionMailer::Base.deliveries.clear
-    post mediations_path, params: { landlord_id: @landlord[:UserID] }
+    post mediations_path, params: { landlord_email: @landlord[:Email] }
 
     landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(@landlord.Email) }
     assert_empty landlord_emails
@@ -235,7 +235,7 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
 
     ActionMailer::Base.deliveries.clear
     perform_enqueued_jobs do
-      post mediations_path, params: { landlord_id: @landlord[:UserID] }
+      post mediations_path, params: { landlord_email: @landlord[:Email] }
     end
 
     landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(@landlord.Email) }
