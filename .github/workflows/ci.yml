@@ -86,9 +86,8 @@ jobs:
 
       - name: Make workspace writable by the container user
         run: |
-          mkdir -p log tmp storage coverage app/assets/builds
-          sudo chown -R 1000:1000 log tmp storage db coverage app/assets/builds
-
+          sudo chown -R 1000:1000 "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Start database
         run: docker compose up -d --wait db
