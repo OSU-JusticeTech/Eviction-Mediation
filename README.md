@@ -82,6 +82,14 @@ Both flags can be combined — e.g. `make test TEST=test/system TEST_ALL=true` t
 
 Coverage is generated via SimpleCov and should remain at or above 80%.
 
+## Deployment
+
+To deploy, run `make up`. This pulls the published web image from the public Docker Hub repository and starts the app container, eliminating the need to build the image on the server and the ability to deploy this app through serverless container services.
+
+The image and tag are controlled by the `WEB_IMAGE` and `WEB_TAG` variables, which resolve to `WEB_IMAGE_REF`. Override them in `env.mk` to deploy a different image or tag.
+
+A GitHub Action already builds and pushes the image on merge to `main`, so most deployments require no manual publishing. To push a one-off image (for example, testing a change on a specific tag before merging), set `DOCKER_USERNAME` and `DOCKER_TOKEN` in `env.mk` and run `make publish`.
+
 ## Contributing
 
 This project is maintained by Justice Tech at The Ohio State University. For future development teams:

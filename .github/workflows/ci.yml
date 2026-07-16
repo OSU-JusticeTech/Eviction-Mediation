@@ -63,142 +63,43 @@ jobs:
           # Skip importmap audit - not all Rails apps use importmap
           echo "Importmap audit skipped - using custom asset pipeline"
 
-  # Test Rails App against SQL Server
+  # Run tests
   test:
     runs-on: ubuntu-latest
-    services:
-      sqlserver:
-        image: mcr.microsoft.com/azure-sql-edge
-        env:
-          ACCEPT_EULA: Y
-          MSSQL_SA_PASSWORD: YourStrong@Passw0rd
-        ports:
-          - 1433:1433
-        options: >-
-          --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -Q 'SELECT 1' || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Install system dependencies for tiny_tds
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install --no-install-recommends -y \
-            build-essential \
-            git \
-            pkg-config \
-            freetds-dev \
-            unixodbc-dev \
-            curl \
-            gnupg2
-
-      - name: Install SQL Server tools
-        run: |
-          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-          curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
-          sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools unixodbc-dev
-          echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
-          export PATH="$PATH:/opt/mssql-tools/bin"
-
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: 3.3.4
-          bundler-cache: true
-
-      - name: Wait for SQL Server
-        run: |
-          export PATH="$PATH:/opt/mssql-tools/bin"
-          for i in {1..30}; do
-            sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -Q "SELECT 1" && break
-            echo "SQL Server not ready yet..."
-            sleep 2
-          done
-
-      - name: Create test database
-        run: |
-          export PATH="$PATH:/opt/mssql-tools/bin"
-          sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -Q "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'EVICTION_TEST') CREATE DATABASE [EVICTION_TEST];"
-
-      - name: Setup DB with Custom Schema
-        run: |
-          cp config/database.yml.ci config/database.yml
-          echo "=== Database Configuration ==="
-          cat config/database.yml
-          echo "=== Running Custom DB Setup ==="
-          export PATH="$PATH:/opt/mssql-tools/bin"
-          # Initialize with custom schema (script will drop/create tables)
-          sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -d EVICTION_TEST -i "DBInitTest.sql"
-          echo "=== Running Rails migrations to sync schema ==="
-          RAILS_ENV=test bundle exec rails db:migrate
-          echo "=== Database setup complete ==="
-        env:
-          RAILS_ENV: test
-          DATABASE_HOST: localhost
-          DATABASE_PORT: 1433
-          DATABASE_USERNAME: sa
-          DATABASE_PASSWORD: YourStrong@Passw0rd
-          DATABASE_NAME: EVICTION_TEST
-
-      - name: Run Tests
-        run: PARALLEL_WORKERS=1 bundle exec rails test
-        env:
-          RAILS_ENV: test
-
-  # Build & Push Docker Image
-  docker:
-    runs-on: ubuntu-latest
-    needs: test
-    permissions:
-      contents: read
-      packages: write
+    env:
+      DB_PASSWORD: StrongPassword1
     steps:
       - uses: actions/checkout@v3
 
-      # Login to GitHub Container Registry
-      - name: Log in to GHCR
-        uses: docker/login-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build web image (cached)
+        uses: docker/build-push-action@v6
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          context: .
+          file: Dockerfile.dev
+          tags: eviction-mediation-web-development
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # Build & Push
-      - name: Build and Push Docker image
-        run: |
-          REPO_LOWERCASE=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE_NAME=ghcr.io/${REPO_LOWERCASE}/rails-app
-          docker build -t $IMAGE_NAME:${{ github.sha }} .
-          docker push $IMAGE_NAME:${{ github.sha }}
+      - name: Start database
+        run: docker compose up -d --wait db
 
-      - name: Generate docker-compose.yml
+      - name: Create and initialize test database
         run: |
-          cat > docker-compose.yml <<'EOF'
-          version: "3.8"
-          services:
-            db:
-              image: mcr.microsoft.com/azure-sql-edge
-              environment:
-                ACCEPT_EULA: "Y"
-                MSSQL_SA_PASSWORD: "YourStrong@Passw0rd"
-              ports:
-                - "1433:1433"
-              volumes:
-                - ./SQLData:/var/opt/mssql
-            web:
-              image: ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')/rails-app:${{ github.sha }}
-              command: bundle exec rails s -b 0.0.0.0 -p 3000
-              ports:
-                - "3000:3000"
-              depends_on:
-                - db
-              environment:
-                DATABASE_HOST: db
-                DATABASE_PORT: 1433
-                DATABASE_USERNAME: sa
-                DATABASE_PASSWORD: YourStrong@Passw0rd
-                DATABASE_NAME: EVICTION_PROD
-          EOF
+          docker compose run --rm -e RAILS_ENV=test web bin/rails db:create
+          docker compose cp DBInitTest.sql db:/tmp/DBInitTest.sql
+          docker compose exec -T db /opt/mssql-tools/bin/sqlcmd \
+            -S localhost -U sa -P "$DB_PASSWORD" -d EVICTION_TEST -i /tmp/DBInitTest.sql
+          docker compose run --rm -e RAILS_ENV=test web bin/rails db:migrate
+
+      - name: Start web and browser
+        run: docker compose up -d --wait web chrome
+
+      - name: Run tests (unit, integration, system)
+        run: |
+          docker compose exec -T web sh -lc 'rm -f coverage/.resultset.json coverage/.last_run.json'
+          docker compose exec -T -e RAILS_ENV=test web bin/rails test
+          docker compose exec -T -e RAILS_ENV=test web bin/rails test test/system

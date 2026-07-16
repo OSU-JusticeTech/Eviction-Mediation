@@ -1,13 +1,10 @@
 # Default configuration variables - override defaults in env.mk
-export COMPOSE_FILE := docker-compose.yml
 export DB_PASSWORD := StrongPassword1
 export DB_USER := sa
 export DB_HOST := localhost
 export DB_INIT_FILE := DBInitTest.sql
 export DB_SOURCE_NAME := EVICTION_TEST
 export DB_TARGET_NAME := EVICTION_DEVELOPMENT
-export DOCKER_CMD := docker
-export COMPOSE_CMD := $(DOCKER_CMD) compose
 export WEB_SERVICE := web
 export DB_SERVICE := db
 export WEB_PORT := 3000
@@ -23,11 +20,24 @@ export APP_PROTOCOL := http
 export EXPORT_FILE := db_export.bak
 export TEST_ALL ?= true
 
+# DOCKER UTILS
+export COMPOSE_FILE := docker-compose.yml
+export DOCKER_CMD := docker
+export COMPOSE_CMD := $(DOCKER_CMD) compose
+
+# IMAGE
+export WEB_IMAGE := novelminds/justice-tech-eviction-mediation
+export WEB_TAG := latest
+export WEB_IMAGE_REF := $(WEB_IMAGE):$(WEB_TAG)
+export DOCKER_REGISTRY :=
+export DOCKER_USERNAME := novelminds
+export DOCKER_TOKEN :=
+
 # Import environment-specific overrides if available
 -include env.mk
 
 # Ensures make ignores file/directory name collisions for these targets
-.PHONY: test pull-images css
+.PHONY: test pull-images css publish build-prod
 
 dev-setup: down-clean
 	$(COMPOSE_CMD) build
@@ -43,6 +53,7 @@ dev-setup: down-clean
 	@echo "Setup complete! Your app is running at http://localhost:3000"
 
 up:
+	$(COMPOSE_CMD) pull $(WEB_SERVICE)
 	$(COMPOSE_CMD) up -d
 
 down:
@@ -128,6 +139,16 @@ css:
 
 credentials:
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails credentials:edit
+
+# For Staging / Production
+
+build-prod:
+	RAILS_ENV=production $(DOCKER_CMD) build -f Dockerfile -t $(WEB_IMAGE_REF) .
+
+publish: build-prod
+	@test -n "$(DOCKER_TOKEN)" || { echo "DOCKER_TOKEN is not set (add it to env.mk)"; exit 1; }
+	@printf '%s' '$(DOCKER_TOKEN)' | $(DOCKER_CMD) login $(DOCKER_REGISTRY) -u '$(DOCKER_USERNAME)' --password-stdin
+	$(DOCKER_CMD) push $(WEB_IMAGE_REF)
 
 migrate:
 	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:migrate
