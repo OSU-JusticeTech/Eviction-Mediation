@@ -232,4 +232,42 @@ class PrimaryMessageGroupTest < ActiveSupport::TestCase
 
     assert_not pmg.outcome_editable_by?(nil)
   end
+
+  # --- Closing permission ------------------------------------------
+
+  test "only the requester can close when no mediator is assigned" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: nil, MediatorAssigned: false,
+                          MediatorID: nil, requested_by: "Tenant")
+
+    assert pmg.closable_by?(users(:tenant1))
+    assert_not pmg.closable_by?(users(:landlord1))
+    assert_not pmg.closable_by?(users(:mediator1))
+  end
+
+  test "the requester and the assigned mediator can close when a mediator is assigned" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: nil, MediatorAssigned: true,
+                          MediatorID: users(:mediator1).UserID, requested_by: "Landlord")
+
+    assert pmg.closable_by?(users(:landlord1))
+    assert pmg.closable_by?(users(:mediator1))
+    assert_not pmg.closable_by?(users(:tenant1))
+  end
+
+  test "closable_by? is false once the mediation has ended" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: Time.current, MediatorAssigned: false,
+                          MediatorID: nil, requested_by: "Tenant")
+
+    assert_not pmg.closable_by?(users(:tenant1))
+  end
+
+  test "closable_by? is false for a nil user" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: nil, MediatorAssigned: false,
+                          MediatorID: nil, requested_by: "Tenant")
+
+    assert_not pmg.closable_by?(nil)
+  end
 end

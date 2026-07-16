@@ -28,7 +28,7 @@ class MessagesShowActionsTest < ApplicationSystemTestCase
 
   test "landlord can end negotiation from message actions" do
     activate_mediation(@mediation)
-    @mediation.update!(MediatorRequested: false, MediatorAssigned: false)
+    @mediation.update!(MediatorRequested: false, MediatorAssigned: false, requested_by: "Landlord")
     @message_string.update!(deleted_at: nil)
 
     sign_in_as(@landlord)

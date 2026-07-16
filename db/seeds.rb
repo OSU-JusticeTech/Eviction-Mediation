@@ -96,6 +96,7 @@ def submit_feedback!(mediation, user)
     liked_most: "Clear, structured communication.",
     should_improve: "Nothing major."
   )
+  mediation.update!(Outcome: "Closed with agreement")
 end
 
 def seed_messages!(mediation, landlord:, tenant:, mediator:)

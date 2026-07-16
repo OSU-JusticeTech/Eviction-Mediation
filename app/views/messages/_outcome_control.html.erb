@@ -3,13 +3,14 @@
     mediation - the ended PrimaryMessageGroup whose outcome is shown/edited
     context   - "card" (default) or "summary"; only changes the display wrapper
 
-  Shows the recorded outcome to every participant. The authorized editor (the
-  requester when no mediator is assigned, otherwise the assigned mediator) sees
-  an inline dropdown that saves immediately on change; everyone else sees the
-  outcome as read-only text.
+  The outcome is first captured as a required question in the End of Mediation
+  Survey. Afterwards it can be updated from the Mediation Summary (detail) view
+  by the authorized editor — the party who requested the negotiation, or the
+  assigned mediator when one is present. Everyone else, and the messages-list
+  card, sees the outcome as read-only text.
 %>
 <% context ||= "card" %>
-<% editable = mediation.outcome_editable_by?(@user) %>
+<% editable = context == "summary" && mediation.outcome_editable_by?(@user) %>
 <% select_id = "outcome-select-#{mediation.ConversationID}" %>
 
 <% outcome_field = capture do %>

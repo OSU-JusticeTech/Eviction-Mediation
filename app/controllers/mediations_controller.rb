@@ -121,6 +121,13 @@ class MediationsController < ApplicationController
   # end the negotiation/mediation
   def end_conversation
     @mediation = PrimaryMessageGroup.find(params[:id])
+
+    unless @mediation.closable_by?(@user)
+      redirect_back fallback_location: messages_path,
+                    alert: "Only the person who initiated this mediation can close it."
+      return
+    end
+
     if @mediation.deleted_at.nil?
       @mediation.update(deleted_at: Time.current, EndedBy: @user.UserID)
       @mediation.linked_message_string&.update(deleted_at: Time.current)
@@ -223,7 +230,15 @@ class MediationsController < ApplicationController
       user_role: @user.Role
     ))
 
+    outcome = params[:outcome].to_s
+    unless PrimaryMessageGroup::OUTCOMES.include?(outcome)
+      @survey.errors.add(:base, "Please select the outcome of this mediation.")
+      render "mediations/survey_form", alert: "Please complete all required fields."
+      return
+    end
+
     if @survey.save
+      @mediation.update(Outcome: outcome)
       redirect_to messages_path, notice: "Thank you for completing the survey!"
     else
       render "mediations/survey_form", alert: "Please complete all required fields."

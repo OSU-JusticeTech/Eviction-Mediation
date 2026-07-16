@@ -3,7 +3,10 @@
   <%= link_to "View Summary", mediation_summary_path(mediation.ConversationID), class: "card-btn card-btn--secondary" %>
 <% else %>
   <%= link_to "View Mediation", mediator_case_path(mediation), class: "card-btn card-btn--primary" %>
+  <% can_close = mediation.closable_by?(@user) %>
   <%= button_to "End Mediation", end_mediation_path(mediation.ConversationID), method: :patch,
         class: "card-btn card-btn--ghost",
+        disabled: !can_close,
+        title: (can_close ? nil : "Only the person who initiated this mediation can close it."),
         form: { data: { turbo_confirm: "End this mediation? This cannot be undone." } } %>
 <% end %>

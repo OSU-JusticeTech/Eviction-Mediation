@@ -151,6 +151,22 @@ class PrimaryMessageGroup < ApplicationRecord
     end
   end
 
+  # Whether the given user is allowed to close (end) this mediation while it is
+  # still active. The party who requested the negotiation (identified by
+  # `requested_by`) may always close it; when a mediator is assigned, that
+  # mediator may close it too. Everyone else is blocked.
+  def closable_by?(user)
+    return false if user.nil? || past?
+
+    return true if self.MediatorAssigned && self.MediatorID.present? && user.UserID == self.MediatorID
+
+    case requested_by
+    when "Tenant"   then user.UserID == self.TenantID
+    when "Landlord" then user.UserID == self.LandlordID
+    else false
+    end
+  end
+
   private
 
   # Did this save touch a column that determines whether the mediation counts

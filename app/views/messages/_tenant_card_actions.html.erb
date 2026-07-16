@@ -7,8 +7,11 @@
           class: "card-btn card-btn--secondary",
           form: { data: { turbo_confirm: "Request a mediator to join this negotiation?" } } %>
   <% end %>
+  <% can_close = mediation.closable_by?(@user) %>
   <%= button_to "End Mediation", end_mediation_path(mediation.ConversationID), method: :patch,
         class: "card-btn card-btn--ghost",
+        disabled: !can_close,
+        title: (can_close ? nil : "Only the person who initiated this negotiation can close it."),
         form: { data: { turbo_confirm: "End this negotiation? This cannot be undone." } } %>
 
 <% when :pending %>

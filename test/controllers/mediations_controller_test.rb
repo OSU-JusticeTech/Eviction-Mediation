@@ -177,6 +177,28 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Mediation terminated.", flash[:notice]
   end
 
+  test "initiator can end an active negotiation with no mediator" do
+    @mediation.update!(deleted_at: nil, MediatorAssigned: false,
+                       MediatorID: nil, requested_by: "Tenant")
+    log_in_as(@tenant)
+
+    patch end_mediation_path(@mediation)
+
+    assert_redirected_to mediation_survey_path(@mediation.ConversationID)
+    assert_not_nil @mediation.reload.deleted_at
+  end
+
+  test "non-initiator cannot end the negotiation" do
+    @mediation.update!(deleted_at: nil, MediatorAssigned: false,
+                       MediatorID: nil, requested_by: "Tenant")
+    log_in_as(@landlord)
+
+    patch end_mediation_path(@mediation)
+
+    assert_nil @mediation.reload.deleted_at
+    assert_match(/only the person who initiated/i, flash[:alert])
+  end
+
   test "tenant good faith update writes landlord feedback field" do
     @mediation.update!(deleted_at: Time.current)
     log_in_as(@tenant)
