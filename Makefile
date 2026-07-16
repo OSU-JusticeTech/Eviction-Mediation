@@ -12,6 +12,7 @@ export WEB_SERVICE := web
 export DB_SERVICE := db
 export WEB_PORT := 3000
 export DB_PORT := 1433
+export DB_HOST_PORT := $(DB_PORT)
 export RAILS_ENV := development
 export DB_ADAPTER := sqlserver
 export RAILS_MASTER_KEY := 
@@ -20,15 +21,15 @@ export RAILS_SERVE_STATIC_FILES := true
 export APP_URL := localhost:$(WEB_PORT)
 export APP_PROTOCOL := http
 export EXPORT_FILE := db_export.bak
+export TEST_ALL ?= true
 
 # Import environment-specific overrides if available
 -include env.mk
 
 # Ensures make ignores file/directory name collisions for these targets
-.PHONY: test test-all test-system test-system-headed pull-images css
+.PHONY: test pull-images css
 
 dev-setup: down-clean
-	@test -f config/database.yml || cp config/database.yml.docker config/database.yml
 	$(COMPOSE_CMD) build
 	$(COMPOSE_CMD) up -d --wait --remove-orphans
 	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:create
@@ -62,36 +63,30 @@ pull-images:
 	@NO_PROXY="*" $(COMPOSE_CMD) pull --ignore-buildable
 
 test:
+ifeq ($(TEST_ALL),true)
+	$(COMPOSE_CMD) up -d db chrome web
+	$(COMPOSE_CMD) exec -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:create
+	$(COMPOSE_CMD) exec -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:prepare
+	$(COMPOSE_CMD) exec -e RAILS_ENV=test $(WEB_SERVICE) sh -lc 'rm -f coverage/.resultset.json coverage/.last_run.json'
+	@echo "Open http://localhost:7900/?autoconnect=1&resize=scale to watch browser actions"
+	@if [ -z "$(TEST)" ]; then \
+		$(COMPOSE_CMD) exec -e RAILS_ENV=test -e SYSTEM_TEST_HEADLESS=false $(WEB_SERVICE) bin/rails test; \
+		$(COMPOSE_CMD) exec -e RAILS_ENV=test -e SYSTEM_TEST_HEADLESS=false $(WEB_SERVICE) bin/rails test test/system; \
+	else \
+		$(COMPOSE_CMD) exec -e RAILS_ENV=test -e SYSTEM_TEST_HEADLESS=false $(WEB_SERVICE) bin/rails test $(TEST); \
+	fi
+else
 	$(COMPOSE_CMD) up -d db
-	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:create 
+	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:create
 	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:prepare
 	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) sh -lc 'rm -f coverage/.resultset.json coverage/.last_run.json'
-	@if [ "$(TEST)" = "test:all" ]; then \
+	@if [ -z "$(TEST)" ]; then \
 		$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test; \
 		$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test test/system; \
 	else \
 		$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test $(TEST); \
 	fi
-
-#Test unit tests and system tests
-test-all:
-	$(MAKE) test TEST=test:all
-
-#Test system tests only (headless)
-test-system:
-	$(COMPOSE_CMD) up -d db
-	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:create
-	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:prepare
-	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) sh -lc 'rm -f coverage/.resultset.json coverage/.last_run.json'
-	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test test/system
-
-#Test with a headed version of Chrome to witness tests live on port 7900
-test-system-headed:
-	$(COMPOSE_CMD) up -d db chrome web
-	$(COMPOSE_CMD) exec -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:create
-	$(COMPOSE_CMD) exec -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:prepare
-	@echo "Open http://localhost:7900/?autoconnect=1&resize=scale to watch browser actions"
-	$(COMPOSE_CMD) exec -e RAILS_ENV=test -e SYSTEM_TEST_HEADLESS=false $(WEB_SERVICE) bin/rails test $(or $(TEST),test/system)
+endif
 
 web-shell:
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) /bin/bash

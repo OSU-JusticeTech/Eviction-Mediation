@@ -4,7 +4,7 @@
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y make && cp config/database.yml.docker config/database.yml",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y make",
   "forwardPorts": [3000, 1433],
   "portsAttributes": {
     "3000": {

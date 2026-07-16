@@ -6,6 +6,18 @@ A Ruby on Rails application facilitating early-stage dispute resolution between 
 
 The Eviction Mediation Platform provides an online mediation space to reduce court filings, promote fair agreements, and support both parties in resolving rental disputes efficiently. The platform serves tenants, landlords, mediators, and administrators with role-specific features and workflows.
 
+## Technology Stack
+
+These technologies and libraries (except for Docker) are managed by Rails (Gems) and do not need to be installed independently.
+
+- **Backend:** Ruby on Rails 8.0.1
+- **Database:** Microsoft SQL Server (Azure SQL Edge)
+- **Real-Time:** ActionCable (WebSockets)
+- **Frontend:** ERB views, plain JavaScript
+- **Email:** ActionMailer with SMTP
+- **SMS:** Twilio API
+- **Containerization:** Docker
+
 ## Key Features
 
 - **Two-Factor Authentication** - SMS-based verification for enhanced security
@@ -18,94 +30,65 @@ The Eviction Mediation Platform provides an online mediation space to reduce cou
 - **Resources Hub** - Educational content, FAQ, and guided resource locator
 - **Admin Tools** - Mediator management, case assignment, availability tracking, and screening workflows
 
-## Quick Start
+## Development
 
-### Prerequisites
+### Dependencies
 
-- Make
-- Docker
+This application makes use of <a href="https://docs.docker.com/engine/install/" target="_blank" >Docker</a> for dev and production purposes and to track infrastructure dependencies (IaC). <a href="https://en.wikipedia.org/wiki/Make_(software)" target="_blank" >Make</a> and Docker are the only software packages needed to develop this app, as Docker and Rails will fetch and install software libraries and dependencies the app needs. Rails includes a web server (Puma) which can be used as is, however, a reverse proxy is recommended for staging and production deployments.
 
 ### Development Setup
 
-1. Clone the repository
-2. Run `make dev-setup`
-3. Your app will be available on localhost:3000
+**ENVIRONMENT VARIABLES**
+
+Certain environment variables are declared in the Makefile and served to Docker Compose files. These can be overriden by creating a file called `env.mk` in your root directory (i.e. `export RAILS_ENV=production`). Makefile commands (targets) can also be overriden by creating a file called `env-targets.mk`.
+
+**DO NOT EDIT THE MAKEFILE DIRECTLY, USE OVERRIDES INSTEAD. MAKEFILE EDITS MAY BE ADDED, BUT REQUIRE APPROVAL FROM THE PRIMARY MAINTAINER**
+
+### Quick Start
+
+1. Ensure your dev environment has Make and Docker installed
+2. Clone the repository
+3. Run `make dev-setup`
+4. Your app will be available on localhost:3000
 
 If using a remote dev environment like Github Codespaces, open the Ports tab and open the Rails App port.You can also share your app by setting the port's visibility to public.
 
 For detailed setup instructions involving non-docker software installation, see the **Developer Manual** in `docs/_posts/`.
 
-## Documentation
+### Manual Setup (Docker-less)
 
 Comprehensive documentation is available in the `docs/` directory:
 
 - **[Developer Manual](docs/_posts/2025-03-04-developer-manual.markdown)** - Setup, architecture, deployment, and handoff information
 - **[User Manual](docs/_posts/2025-04-02-user-manual.markdown)** - End-user guide for all roles
 
-### For Future Development Teams
+### Testing
 
-The Developer Manual includes critical handoff information:
+Run the full test suite (unit, integration, and system tests) via Docker:
 
-- **Credentials Setup** - Required SMTP and Twilio account setup
-- **Environment Configuration** - All required environment variables
-- **Project Status** - Completed milestones, known issues, and what's left to do
-- **Feature Roadmap** - Prioritized list of future enhancements
-- **Testing** - Running the test suite
+`make test`
 
-## Testing
+By default this runs headless. To run with a headed Chrome instance (viewable at `http://localhost:7900/?autoconnect=1&resize=scale`):
 
-Run the full test suite, including system (browser/Chrome) tests, via Docker:
+`make test TEST_ALL=true`
 
-```bash
-make test-all
-```
+Run a specific test file or directory:
 
-This spins up the database and a headless Chrome container, runs the Rails unit/integration suite plus the `test/system` browser tests, and generates a SimpleCov coverage report. All tests must pass, and coverage should remain at or above 80% (see [Contributing](#contributing)).
 
-To run a narrower slice of tests during day-to-day development (for example, a single file), use `make test TEST=path/to/test_file.rb` instead.
+- `make test TEST=test/controllers/messages_controller_test.rb`
+- `make test TEST=test/system`
 
-## Technology Stack
+Both flags can be combined — e.g. `make test TEST=test/system TEST_ALL=true` to watch system tests live in the browser.
 
-- **Backend:** Ruby on Rails 8.0.1
-- **Database:** Microsoft SQL Server (Azure SQL Edge)
-- **Real-Time:** ActionCable (WebSockets)
-- **Frontend:** ERB views, plain JavaScript
-- **Email:** ActionMailer with SMTP
-- **SMS:** Twilio API
-- **Containerization:** Docker
-
-## Project Status
-
-### Completed (Fall 2024 - Autumn 2025)
-
-- Core mediation workflows
-- Two-factor authentication
-- Email notification system
-- Document management with e-signatures
-- Resources page with educational content
-- Admin and mediator tools, including mediator availability tracking
-- Mediation outcome tracking and resolution recording
-- Streamlined mediation request/intake forms
-- Accessibility improvements (ARIA roles, keyboard navigation) across navigation and messaging views
-- Comprehensive test suite
-- Production deployment infrastructure
-
-### Future Enhancements
-
-- SMS notifications for mediation events
-- Admin analytics dashboard
-- Automated data deletion (1-year retention)
-- Chat escalation suggestions (AI-powered)
-- Mobile applications (iOS/Android)
-- Multi-language support
+Coverage is generated via SimpleCov and should remain at or above 80%.
 
 ## Contributing
 
-This project is maintained as part of CSE 5911 at The Ohio State University. For future development teams:
+This project is maintained by Justice Tech at The Ohio State University. For future development teams:
 
-1. Review the Developer Manual thoroughly
+1. Review this README and Project documentation thoroughly
 2. Set up all required credentials (SMTP, Twilio, database)
-3. Run the test suite to verify your environment
+3. Run `make dev-setup` and the test suite to verify your environment
 4. Contact stakeholders at Franklin County Municipal Court
 
 ### Before Submitting a Pull Request
@@ -113,16 +96,24 @@ This project is maintained as part of CSE 5911 at The Ohio State University. For
 Every PR must pass the following checks locally before it's submitted for review:
 
 1. **`make dev-setup`** - confirm the app builds and boots successfully from a clean environment.
-2. **`make test-all`** - run the full test suite, including system tests that exercise the app in Chrome. A PR should not be opened with failing tests.
-3. **Code coverage** - maintain at least 80% overall coverage (reported by SimpleCov after `make test-all`). Write or update tests for every new feature or bug fix so coverage doesn't regress.
+2. **`make test`** - run the full test suite, including system tests that exercise the app in Chrome. A PR should not be opened with failing tests.
+3. **Code coverage** - maintain at least **80% overall coverage** (reported by SimpleCov after `make test`). Write or update tests for every new feature or bug fix so coverage doesn't regress.
+
 
 ## Contact
 
-For questions about the platform or development:
+For questions about the platform or development, contact a member of the Justice Tech team:
 
-- Franklin County Municipal Court: [Contact Information]
-- Course Instructor: Felix Engelmann (engelmann.17@osu.edu)
+- Justice Tech: https://moritzlaw.osu.edu/faculty-research/justicetech-program
+- LinkedIn Page: linkedin.com/company/105874275/
+
+
+### Additional Contributors
+
+Novel Minds LLC - Development Contractor
+- https://novelminds.io/
+- 608.284.8513
+- info@novelminds.io
 
 ---
 
-**Note:** Detailed setup instructions, architecture documentation, and handoff information are in the Developer Manual. Start there for all development activities.
