@@ -57,6 +57,7 @@ jobs:
         uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804
         with:
           images: ${{ env.IMAGE_REF }}
+          github-token: ""
           tags: |
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
