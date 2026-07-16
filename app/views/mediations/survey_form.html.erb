@@ -8,7 +8,18 @@
 
     <%= form_with model: @survey, url: mediation_survey_path(@mediation.ConversationID), method: :post, local: true do |f| %>
       
-      <!-- Question 1: Tool Ease -->
+      <!-- Question 1: Mediation Outcome -->
+      <div class="form-section">
+        <label class="required-label">What was the outcome of this mediation?</label>
+        <% PrimaryMessageGroup::OUTCOMES.each_with_index do |option, index| %>
+          <label style="display: block; margin-top: <%= index.zero? ? 10 : 8 %>px; cursor: pointer; font-weight: normal;">
+            <%= radio_button_tag "outcome", option, false, required: index.zero?, id: "outcome_#{index}", style: "margin-right: 8px; vertical-align: middle;" %>
+            <span style="vertical-align: middle;"><%= option %></span>
+          </label>
+        <% end %>
+      </div>
+
+      <!-- Question 2: Tool Ease -->
       <div class="form-section">
         <%= f.label :tool_ease, "How easy was the tool to use?", class: "required-label" %>
         <label style="display: block; margin-top: 10px; cursor: pointer; font-weight: normal;">
@@ -185,6 +196,7 @@
     if (form) {
       form.addEventListener("submit", function (event) {
         // Check all required fields
+        const outcome = document.querySelector('input[name="outcome"]:checked');
         const toolEase = document.querySelector('input[name="survey_response[tool_ease]"]:checked');
         const infoClear = document.querySelector('input[name="survey_response[info_clear]"]:checked');
         const understoodMediation = document.querySelector('input[name="survey_response[understood_mediation]"]:checked');
@@ -194,7 +206,7 @@
         const wouldRecommend = document.querySelector('input[name="survey_response[would_recommend]"]:checked');
         const deviceUsed = document.querySelector('input[name="survey_response[device_used]"]:checked');
 
-        if (!toolEase || !infoClear || !understoodMediation || !otherParticipated || 
+        if (!outcome || !toolEase || !infoClear || !understoodMediation || !otherParticipated || 
             !goodFaith || !helpedCommunicate || !wouldRecommend || !deviceUsed) {
           alert("Please answer all required questions before submitting.");
           event.preventDefault();

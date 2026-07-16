@@ -1,9 +1,20 @@
 class PrimaryMessageGroup < ApplicationRecord
   self.table_name = "PrimaryMessageGroups"
   self.primary_key = "ConversationID"
+
+  # The three terminal outcomes a party or mediator can record once a
+  # mediation has ended. Stored verbatim in the Outcome column; a nil/blank
+  # value means no outcome has been chosen yet.
+  OUTCOMES = [
+    "Closed with agreement",
+    "Closed without agreement",
+    "Closed without mediation"
+  ].freeze
+
   validates :ConversationID, :TenantID, :LandlordID, presence: true
   validates :accepted_by_landlord, inclusion: { in: [ true, false ] }
   validates :accepted_by_tenant, inclusion: { in: [ true, false ] }
+  validates :Outcome, inclusion: { in: OUTCOMES }, allow_nil: true
   belongs_to :intake_question, foreign_key: "IntakeID", optional: true
   belongs_to :landlord_intake_question, foreign_key: "LandlordIntakeID", optional: true
   belongs_to :tenant, class_name: "User", foreign_key: "TenantID"
@@ -119,6 +130,41 @@ class PrimaryMessageGroup < ApplicationRecord
     return :feedback if past? && feedback_pending
 
     nil
+  end
+
+  # Whether the given user is allowed to set or change this mediation's outcome.
+  # The outcome is only recorded once a mediation has ended. When a mediator is
+  # assigned to the case, only that mediator may edit it; otherwise the party who
+  # requested the negotiation (identified by `requested_by`) is the sole editor.
+  # Everyone else may see the outcome but cannot change it.
+  def outcome_editable_by?(user)
+    return false if user.nil? || !past?
+
+    if self.MediatorAssigned && self.MediatorID.present?
+      user.UserID == self.MediatorID
+    else
+      case requested_by
+      when "Tenant"   then user.UserID == self.TenantID
+      when "Landlord" then user.UserID == self.LandlordID
+      else false
+      end
+    end
+  end
+
+  # Whether the given user is allowed to close (end) this mediation while it is
+  # still active. The party who requested the negotiation (identified by
+  # `requested_by`) may always close it; when a mediator is assigned, that
+  # mediator may close it too. Everyone else is blocked.
+  def closable_by?(user)
+    return false if user.nil? || past?
+
+    return true if self.MediatorAssigned && self.MediatorID.present? && user.UserID == self.MediatorID
+
+    case requested_by
+    when "Tenant"   then user.UserID == self.TenantID
+    when "Landlord" then user.UserID == self.LandlordID
+    else false
+    end
   end
 
   private

@@ -36,9 +36,8 @@ public/userFiles
 /config/master.key
 
 
-# Ignore database.yml and db init
+# Ignore db init
 app/DBInitTest.sql
-/config/database.yml
 
 db/schema.rb
 db/schema1.rb

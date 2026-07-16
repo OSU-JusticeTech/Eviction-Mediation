@@ -2,7 +2,7 @@
 
   <%# Header %>
   <div class="flex items-center justify-between mb-1">
-    <div class="flex items-center gap-2 text-white/60 text-xs uppercase tracking-widest font-semibold">
+    <div class="flex items-center gap-2 text-white text-xs uppercase tracking-widest font-semibold">
       <i class="fas fa-comment-dots text-[#4ade80]"></i>
       Active Negotiations
     </div>
@@ -11,7 +11,7 @@
     </span>
   </div>
 
-  <p class="text-white/40 text-xs mb-4">Most recently active conversations</p>
+  <p class="text-white/85 text-xs mb-4">Most recent active conversations</p>
 
   <%# Conversation rows %>
   <div class="flex flex-col gap-1.5 mb-4">
@@ -27,11 +27,11 @@
         </div>
         <div class="flex items-center gap-2 flex-shrink-0 ml-2">
           <% if last_msg_at %>
-            <span class="text-white/40 text-xs whitespace-nowrap"><%= time_ago_in_words(last_msg_at) %> ago</span>
+            <span class="text-white/90 text-xs whitespace-nowrap"><%= time_ago_in_words(last_msg_at) %> ago</span>
           <% else %>
-            <span class="text-white/30 text-xs italic whitespace-nowrap">No messages</span>
+            <span class="text-white/80 text-xs italic whitespace-nowrap">No messages</span>
           <% end %>
-          <i class="fas fa-chevron-right text-white/30 text-xs group-hover:text-white/60 transition-colors"></i>
+          <i class="fas fa-chevron-right text-white/70 text-xs group-hover:text-white transition-colors"></i>
         </div>
       <% end %>
     <% end %>

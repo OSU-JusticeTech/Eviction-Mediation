@@ -2,7 +2,7 @@
 
   <%# Header row: label + active badge %>
   <div class="flex items-center justify-between mb-4">
-    <div class="flex items-center gap-2 text-white/60 text-xs uppercase tracking-widest font-semibold">
+    <div class="flex items-center gap-2 text-white text-xs uppercase tracking-widest font-semibold">
       <i class="fas fa-comment-dots text-[#4ade80]"></i>
       Messages
     </div>
@@ -21,22 +21,22 @@
         <p class="text-white font-semibold text-sm leading-tight truncate">
           <% if @message_sender&.UserID == @user.UserID %>You<% else %><%= @message_sender&.display_name || "Unknown" %><% end %>
         </p>
-        <p class="text-white/50 text-xs mt-0.5">
+        <p class="text-white/90 text-xs mt-0.5">
           <%= @active_mediation.landlord.display_name %> &middot; <%= @latest_message.MessageDate.strftime("%-m/%-d, %-I:%M %p") %>
         </p>
       </div>
     </div>
 
-    <p class="text-white/70 text-sm italic leading-snug mb-4 line-clamp-2">
+    <p class="text-white text-sm italic leading-snug mb-4 line-clamp-2">
       &ldquo;<%= truncate(@latest_message.Contents, length: 90) %>&rdquo;
     </p>
   <% else %>
-    <p class="text-white/50 text-sm italic mb-4 leading-relaxed">No messages yet in this conversation.</p>
+    <p class="text-white/85 text-sm italic mb-4 leading-relaxed">No messages yet in this conversation.</p>
   <% end %>
 
   <%# Unread count %>
   <% if @new_message_count.to_i > 0 %>
-    <p class="text-[#a7f3c0] text-xs font-semibold mb-3">
+    <p class="text-[#6ee7b7] text-xs font-semibold mb-3">
       <i class="fas fa-circle text-[4px] align-middle mr-1"></i>
       <%= @new_message_count %> unread <%= "message".pluralize(@new_message_count) %>
     </p>

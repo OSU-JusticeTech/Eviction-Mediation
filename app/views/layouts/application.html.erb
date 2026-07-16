@@ -48,6 +48,18 @@
   <%= stylesheet_link_tag "account_view", "data-turbo-track": "reload" %>
   <%= stylesheet_link_tag "admin_mediations", "data-turbo-track": "reload" %>
   <%# Removed fallback to `application.css` to avoid double-link with .erb %>
+  <% if Rails.env.test? %>
+    <%# Disable CSS animations/transitions for system tests %>
+    <style>
+      *, *::before, *::after {
+        animation-duration: 0s !important;
+        animation-delay: 0s !important;
+        transition-duration: 0s !important;
+        transition-delay: 0s !important;
+        scroll-behavior: auto !important;
+      }
+    </style>
+  <% end %>
   </head>
 
   <body class="<%= content_for?(:body_class) ? yield(:body_class) : '' %>">

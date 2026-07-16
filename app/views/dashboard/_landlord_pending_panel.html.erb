@@ -2,7 +2,7 @@
 
   <%# Header %>
   <div class="flex items-center justify-between mb-1">
-    <div class="flex items-center gap-2 text-white/60 text-xs uppercase tracking-widest font-semibold">
+    <div class="flex items-center gap-2 text-white text-xs uppercase tracking-widest font-semibold">
       <i class="fas fa-clock text-[#d99100]"></i>
       Pending Negotiations
     </div>
@@ -11,7 +11,7 @@
     </span>
   </div>
 
-  <p class="text-white/40 text-xs mb-4">Awaiting acceptance or intake completion</p>
+  <p class="text-white/85 text-xs mb-4">Awaiting acceptance or intake completion</p>
 
   <%# Conversation rows %>
   <div class="flex flex-col gap-1.5 mb-4">
@@ -33,7 +33,7 @@
           </div>
           <div class="min-w-0">
             <span class="text-white text-sm font-medium truncate block"><%= mediation.tenant.display_name %></span>
-            <span class="text-xs <%= needs_action ? 'text-[#fcd97d]/80' : 'text-white/40' %>">
+            <span class="text-xs <%= needs_action ? 'text-[#fcd97d]' : 'text-white/85' %>">
               <% if needs_action %>
                 <% case stage %>
                 <% when :awaiting_landlord_acceptance %>
@@ -50,7 +50,7 @@
         <% if needs_action %>
           <span class="w-2 h-2 rounded-full bg-[#d99100] flex-shrink-0 ml-2"></span>
         <% end %>
-        <i class="fas fa-chevron-right text-white/30 text-xs group-hover:text-white/60 transition-colors ml-2"></i>
+        <i class="fas fa-chevron-right text-white/70 text-xs group-hover:text-white transition-colors ml-2"></i>
       <% end %>
     <% end %>
   </div>

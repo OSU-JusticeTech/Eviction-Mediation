@@ -19,13 +19,21 @@ export default class extends Controller {
   static values = { perPage: { type: Number, default: 10 } }
 
   connect() {
-    const saved = this.#loadState()
+    const fromUrl = this.#loadFromUrl()
+    const saved = Object.keys(fromUrl).length ? fromUrl : this.#loadState()
     this.status = saved.status ?? "all"
     this.query = saved.query ?? ""
+    this.group = saved.group ?? null
+    this.feedback = saved.feedback ?? false
     this.dateFrom = saved.dateFrom ?? null
     this.dateTo = saved.dateTo ?? null
     this.sort = saved.sort ?? null
     this.page = saved.page ?? 1
+
+    // A deep link (e.g. from a dashboard card) is a one-time instruction: apply
+    // it, persist it as the new saved state, then drop it from the URL so a
+    // later reload falls back to sessionStorage instead of re-applying it.
+    if (Object.keys(fromUrl).length) this.#clearUrlParams()
 
     if (this.hasSearchTarget) this.searchTarget.value = this.query
     if (this.hasDateFromTarget) this.dateFromTarget.value = this.dateFrom ?? ""
@@ -69,6 +77,8 @@ export default class extends Controller {
   clearFilters() {
     this.status = "all"
     this.query = ""
+    this.group = null
+    this.feedback = false
     this.dateFrom = null
     this.dateTo = null
     this.sort = null
@@ -108,7 +118,8 @@ export default class extends Controller {
   // Sorting by date also flattens the list, since a global date order cuts
   // across the Active / Pending / Past groups.
   get isFiltering() {
-    return this.status !== "all" || this.query !== "" || this.dateFrom !== null || this.dateTo !== null || this.sort !== null
+    return this.status !== "all" || this.query !== "" || this.dateFrom !== null || this.dateTo !== null ||
+      this.sort !== null || this.group !== null || this.feedback
   }
 
   apply() {
@@ -178,11 +189,13 @@ export default class extends Controller {
 
   #matches(card) {
     const matchesStatus = this.status === "all" || card.dataset.status === this.status
+    const matchesGroup = !this.group || card.dataset.group === this.group
+    const matchesFeedback = !this.feedback || card.dataset.awaitingFeedback === "true"
     const matchesQuery = this.query === "" || (card.dataset.search || "").includes(this.query)
     const date = card.dataset.date || ""
     const matchesFrom = !this.dateFrom || (date !== "" && date >= this.dateFrom)
     const matchesTo = !this.dateTo || (date !== "" && date <= this.dateTo)
-    return matchesStatus && matchesQuery && matchesFrom && matchesTo
+    return matchesStatus && matchesGroup && matchesFeedback && matchesQuery && matchesFrom && matchesTo
   }
 
   #renderPagination(total, totalPages, perPage) {
@@ -247,6 +260,27 @@ export default class extends Controller {
     this.element.scrollIntoView({ behavior: "smooth", block: "start" })
   }
 
+  // Reads deep-link filters off the query string, e.g. links from the admin
+  // dashboard's summary cards: ?status=past&feedback=true. Only keys that are
+  // actually present are included, so callers can layer this over defaults.
+  #loadFromUrl() {
+    const params = new URLSearchParams(window.location.search)
+    const state = {}
+    if (params.has("status")) state.status = params.get("status")
+    if (params.has("group")) state.group = params.get("group")
+    if (params.has("feedback")) state.feedback = params.get("feedback") === "true"
+    if (params.has("query")) state.query = params.get("query")
+    if (params.has("dateFrom")) state.dateFrom = params.get("dateFrom")
+    if (params.has("dateTo")) state.dateTo = params.get("dateTo")
+    return state
+  }
+
+  #clearUrlParams() {
+    const url = new URL(window.location.href)
+    url.search = ""
+    window.history.replaceState({}, "", url)
+  }
+
   #storageKey() {
     return `mediationFilter:${window.location.pathname}`
   }
@@ -256,6 +290,8 @@ export default class extends Controller {
       const state = {
         status: this.status,
         query: this.query,
+        group: this.group,
+        feedback: this.feedback,
         dateFrom: this.dateFrom,
         dateTo: this.dateTo,
         sort: this.sort,

@@ -29,6 +29,7 @@ class MediationsSurveyTest < ApplicationSystemTestCase
 
     assert_selector "h1", text: "End of Mediation Survey"
 
+    choose "outcome_0"
     choose "ease_easy"
     choose "info_yes"
     choose "understood_yes"
@@ -44,6 +45,7 @@ class MediationsSurveyTest < ApplicationSystemTestCase
     assert_current_path messages_path
     assert_text "Thank you for completing the survey!"
     assert_equal 1, SurveyResponse.where(conversation_id: @mediation.ConversationID, user_id: @tenant.UserID).count
+    assert_equal PrimaryMessageGroup::OUTCOMES.first, @mediation.reload.Outcome
   end
 
   test "landlord can submit survey for ended mediation" do
@@ -55,6 +57,7 @@ class MediationsSurveyTest < ApplicationSystemTestCase
 
     assert_selector "h1", text: "End of Mediation Survey"
 
+    choose "outcome_0"
     choose "ease_neutral"
     choose "info_somewhat"
     choose "understood_yes"

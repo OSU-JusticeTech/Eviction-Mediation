@@ -175,4 +175,99 @@ class PrimaryMessageGroupTest < ActiveSupport::TestCase
     pmg.assign_attributes(accepted_by_landlord: true, accepted_by_tenant: true, IntakeID: 1, LandlordIntakeID: 1, deleted_at: nil)
     assert_nil pmg.pending_action_for("Tenant", feedback_pending: true)
   end
+
+  # --- Outcome -----------------------------------------------------
+
+  test "Outcome rejects values outside the defined set" do
+    pmg = primary_message_groups(:one)
+    pmg.Outcome = "Something else"
+
+    assert_not pmg.valid?
+    assert_includes pmg.errors.attribute_names.map(&:to_s), "Outcome"
+  end
+
+  test "Outcome accepts the three defined outcomes and nil" do
+    pmg = primary_message_groups(:one)
+
+    pmg.Outcome = nil
+    assert pmg.valid?
+
+    PrimaryMessageGroup::OUTCOMES.each do |outcome|
+      pmg.Outcome = outcome
+      assert pmg.valid?, "expected #{outcome.inspect} to be a valid outcome"
+    end
+  end
+
+  test "outcome is not editable while the mediation is still active" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: nil, MediatorAssigned: false, MediatorID: nil, requested_by: "Tenant")
+
+    assert_not pmg.outcome_editable_by?(users(:tenant1))
+  end
+
+  test "only the assigned mediator can edit the outcome when a mediator is assigned" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: Time.current, MediatorAssigned: true,
+                          MediatorID: users(:mediator1).UserID, requested_by: "Tenant")
+
+    assert pmg.outcome_editable_by?(users(:mediator1))
+    assert_not pmg.outcome_editable_by?(users(:tenant1))
+    assert_not pmg.outcome_editable_by?(users(:landlord1))
+  end
+
+  test "only the requester can edit the outcome when no mediator is assigned" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: Time.current, MediatorAssigned: false,
+                          MediatorID: nil, requested_by: "Landlord")
+
+    assert pmg.outcome_editable_by?(users(:landlord1))
+    assert_not pmg.outcome_editable_by?(users(:tenant1))
+    assert_not pmg.outcome_editable_by?(users(:mediator1))
+  end
+
+  test "outcome_editable_by? is false for a nil user" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: Time.current, MediatorAssigned: false,
+                          MediatorID: nil, requested_by: "Tenant")
+
+    assert_not pmg.outcome_editable_by?(nil)
+  end
+
+  # --- Closing permission ------------------------------------------
+
+  test "only the requester can close when no mediator is assigned" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: nil, MediatorAssigned: false,
+                          MediatorID: nil, requested_by: "Tenant")
+
+    assert pmg.closable_by?(users(:tenant1))
+    assert_not pmg.closable_by?(users(:landlord1))
+    assert_not pmg.closable_by?(users(:mediator1))
+  end
+
+  test "the requester and the assigned mediator can close when a mediator is assigned" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: nil, MediatorAssigned: true,
+                          MediatorID: users(:mediator1).UserID, requested_by: "Landlord")
+
+    assert pmg.closable_by?(users(:landlord1))
+    assert pmg.closable_by?(users(:mediator1))
+    assert_not pmg.closable_by?(users(:tenant1))
+  end
+
+  test "closable_by? is false once the mediation has ended" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: Time.current, MediatorAssigned: false,
+                          MediatorID: nil, requested_by: "Tenant")
+
+    assert_not pmg.closable_by?(users(:tenant1))
+  end
+
+  test "closable_by? is false for a nil user" do
+    pmg = primary_message_groups(:one)
+    pmg.assign_attributes(deleted_at: nil, MediatorAssigned: false,
+                          MediatorID: nil, requested_by: "Tenant")
+
+    assert_not pmg.closable_by?(nil)
+  end
 end

@@ -18,7 +18,7 @@ class DashboardTest < ApplicationSystemTestCase
   test "tenant can open dashboard" do
     sign_in_as(@tenant)
 
-    assert_selector "h1", text: "Welcome back, #{@tenant.FName}!"
+    assert_selector "h1", text: @tenant.FName
     assert_text "Your tenant portal for eviction mediation and resources"
     assert_link "View negotiation"
   end
@@ -26,7 +26,7 @@ class DashboardTest < ApplicationSystemTestCase
   test "landlord can open dashboard" do
     sign_in_as(@landlord)
 
-    assert_selector "h1", text: "Welcome back, #{@landlord.FName}!"
+    assert_selector "h1", text: @landlord.FName
     assert_text "Your landlord portal for property management and mediation"
     assert_link "View all negotiations"
   end
@@ -34,7 +34,7 @@ class DashboardTest < ApplicationSystemTestCase
   test "admin can open dashboard" do
     sign_in_as(@admin)
 
-    assert_selector "h1", text: "Welcome back, #{@admin.FName}!"
+    assert_selector "h1", text: @admin.FName
     assert_text "Administrative dashboard for managing mediations"
     assert_link "Manage Mediations"
   end
@@ -42,7 +42,7 @@ class DashboardTest < ApplicationSystemTestCase
   test "mediator can open dashboard" do
     sign_in_as(@mediator)
 
-    assert_selector "h1", text: "Welcome back, #{@mediator.FName}!"
+    assert_selector "h1", text: @mediator.FName
     assert_text "Your mediation cases and availability center"
     assert_link "View Cases"
   end

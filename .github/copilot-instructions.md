@@ -34,6 +34,6 @@
 - When altering authentication or chat behavior, prefer integration specs in `test/controllers`/`test/system` so the GitHub workflow exercises the full Hotwire + ActionCable stack.
 
 ## Deployment & Ops
-- The multi-stage `Dockerfile` precompiles assets, copies `config/database.yml.docker`, and runs `./bin/rails db:prepare` inside `bin/docker-entrypoint`; keep new dependencies compatible with that flow.
+- The multi-stage `Dockerfile` precompiles assets and runs `./bin/rails db:prepare` inside `bin/docker-entrypoint`; `config/database.yml` is committed (env-var driven) and copied in with the app source, so keep new dependencies compatible with that flow.
 - `docker-compose.yml` pairs the web app with Azure SQL Edge; Kamal and `k8s/` manifests assume the same env vars and port 3000/1433 mappings—update all three when credentials change.
 - README defers to the docs site, so capture any new architectural decisions or setup gotchas here and in `docs/_posts` to keep future contributors unblocked.

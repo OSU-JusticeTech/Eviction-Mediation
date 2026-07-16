@@ -39,7 +39,6 @@ Rails.application.configure do
   config.action_mailer.smtp_settings = {
     address: ENV.fetch('MAILPIT_HOST', 'localhost'),
     port: ENV.fetch('MAILPIT_PORT', 1025),
-    authentication: :plain,
     enable_starttls_auto: false,
     open_timeout: 5,
     read_timeout: 5

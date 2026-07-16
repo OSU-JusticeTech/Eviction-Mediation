@@ -1,7 +1,6 @@
 require "test_helper"
 
 class MediationsControllerTest < ActionDispatch::IntegrationTest
-  include ActiveJob::TestHelper
   setup do
     @tenant = users(:tenant1)
     @landlord = users(:landlord1)
@@ -15,23 +14,83 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
     assert_response(:success) if expect_success
   end
 
-  test "tenant can create mediation" do
+  test "tenant requesting an existing landlord is sent to intake before the request is created" do
     log_in_as(@tenant)
-    assert_difference("PrimaryMessageGroup.count") do
-      post mediations_path, params: { landlord_id: @landlord[:UserID] }
+    assert_no_difference("PrimaryMessageGroup.count") do
+      post mediations_path, params: { landlord_email: @landlord[:Email] }
     end
 
-    new_mediation = PrimaryMessageGroup.order(:ConversationID).last
-    assert_redirected_to mediation_path(new_mediation)
+    assert_redirected_to new_intake_question_path
+    assert_equal @landlord[:Email], session[:pending_mediation_request]["target_email"]
   end
 
-  test "landlord can create mediation" do
+  test "landlord requesting an existing tenant is sent to intake before the request is created" do
     log_in_as(@landlord)
-    assert_difference("PrimaryMessageGroup.count") do
+    assert_no_difference("PrimaryMessageGroup.count") do
       post mediations_path, params: { tenant_email: @tenant[:Email] }
     end
 
+    assert_redirected_to new_landlord_intake_question_path
+    assert_equal @tenant[:Email], session[:pending_mediation_request]["target_email"]
+  end
+
+  test "landlord requesting an unregistered tenant email sends an invitation" do
+    log_in_as(@landlord)
+    ActionMailer::Base.deliveries.clear
+
+    assert_no_difference("PrimaryMessageGroup.count") do
+      post mediations_path, params: { tenant_email: "not_registered@example.com" }
+    end
+
     assert_redirected_to messages_path
+    assert_match(/Invitation email sent/, flash[:notice])
+    tenant_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?("not_registered@example.com") }
+    assert_not_empty tenant_emails
+  end
+
+  test "tenant requesting an unregistered landlord email sends an invitation, bypassing intake" do
+    log_in_as(@tenant)
+    ActionMailer::Base.deliveries.clear
+
+    assert_no_difference("PrimaryMessageGroup.count") do
+      post mediations_path, params: { landlord_email: "not_registered@example.com" }
+    end
+
+    assert_redirected_to messages_path
+    assert_match(/Invitation email sent/, flash[:notice])
+    assert_nil session[:pending_mediation_request]
+
+    landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?("not_registered@example.com") }
+    assert_not_empty landlord_emails
+    assert_match(/invited to join/i, landlord_emails.first.subject)
+  end
+
+  test "landlord requesting a tenant email that belongs to a non-tenant account is blocked" do
+    mediator = users(:mediator1)
+    log_in_as(@landlord)
+    ActionMailer::Base.deliveries.clear
+
+    assert_no_difference("PrimaryMessageGroup.count") do
+      post mediations_path, params: { tenant_email: mediator.Email }
+    end
+
+    assert_redirected_to new_mediation_path
+    assert_equal "No tenant account found with that email.", flash[:alert]
+    assert_empty ActionMailer::Base.deliveries.select { |m| m.to.include?(mediator.Email) }
+  end
+
+  test "tenant requesting a landlord email that belongs to a non-landlord account is blocked" do
+    admin = users(:admin1)
+    log_in_as(@tenant)
+    ActionMailer::Base.deliveries.clear
+
+    assert_no_difference("PrimaryMessageGroup.count") do
+      post mediations_path, params: { landlord_email: admin.Email }
+    end
+
+    assert_redirected_to new_mediation_path
+    assert_equal "No landlord account found with that email.", flash[:alert]
+    assert_empty ActionMailer::Base.deliveries.select { |m| m.to.include?(admin.Email) }
   end
 
   test "non-tenant/non-landlord cannot create mediation" do
@@ -118,6 +177,28 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Mediation terminated.", flash[:notice]
   end
 
+  test "initiator can end an active negotiation with no mediator" do
+    @mediation.update!(deleted_at: nil, MediatorAssigned: false,
+                       MediatorID: nil, requested_by: "Tenant")
+    log_in_as(@tenant)
+
+    patch end_mediation_path(@mediation)
+
+    assert_redirected_to mediation_survey_path(@mediation.ConversationID)
+    assert_not_nil @mediation.reload.deleted_at
+  end
+
+  test "non-initiator cannot end the negotiation" do
+    @mediation.update!(deleted_at: nil, MediatorAssigned: false,
+                       MediatorID: nil, requested_by: "Tenant")
+    log_in_as(@landlord)
+
+    patch end_mediation_path(@mediation)
+
+    assert_nil @mediation.reload.deleted_at
+    assert_match(/only the person who initiated/i, flash[:alert])
+  end
+
   test "tenant good faith update writes landlord feedback field" do
     @mediation.update!(deleted_at: Time.current)
     log_in_as(@tenant)
@@ -172,59 +253,81 @@ class MediationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "You are not authorized to submit this survey.", flash[:alert]
   end
 
-  # --- Notification preference enforcement ---
+  # Notification-preference enforcement now happens once the request is
+  # actually created (after intake), so that coverage lives in
+  # test/controllers/intake_questions_controller_test.rb and
+  # test/controllers/landlord_intake_questions_controller_test.rb.
 
-  test "does not email landlord mediation request notification when preference is off" do
-    @landlord.update!(notify_new_mediation_request: false)
-    tenant2 = users(:tenant2)
-    log_in_as(tenant2)
+  # --- Outcome -----------------------------------------------------
 
-    ActionMailer::Base.deliveries.clear
-    post mediations_path, params: { landlord_id: @landlord[:UserID] }
+  test "requester can set the outcome on an ended negotiation with no mediator" do
+    @mediation.update!(deleted_at: Time.current, MediatorAssigned: false,
+                       MediatorID: nil, requested_by: "Tenant")
+    log_in_as(@tenant)
 
-    landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(@landlord.Email) }
-    assert_empty landlord_emails
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Closed with agreement" }
+
+    assert_equal "Closed with agreement", @mediation.reload.Outcome
   end
 
-  test "emails landlord mediation request notification when preference is on" do
-    @landlord.update!(notify_new_mediation_request: true)
-    tenant2 = users(:tenant2)
-    log_in_as(tenant2)
+  test "non-requester cannot set the outcome when no mediator is assigned" do
+    @mediation.update!(deleted_at: Time.current, MediatorAssigned: false,
+                       MediatorID: nil, requested_by: "Tenant")
+    log_in_as(@landlord)
 
-    ActionMailer::Base.deliveries.clear
-    perform_enqueued_jobs do
-      post mediations_path, params: { landlord_id: @landlord[:UserID] }
-    end
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Closed with agreement" }
 
-    landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(@landlord.Email) }
-    assert_not_empty landlord_emails
+    assert_nil @mediation.reload.Outcome
+    assert_match(/not authorized/i, flash[:alert])
   end
 
-  test "does not email tenant mediation request notification when preference is off" do
-    tenant3 = users(:tenant3)
-    tenant3.update!(notify_new_mediation_request: false)
-    landlord2 = users(:landlord2)
-    log_in_as(landlord2)
+  test "assigned mediator can set the outcome" do
+    mediator = users(:mediator1)
+    @mediation.update!(deleted_at: Time.current, MediatorAssigned: true,
+                       MediatorID: mediator.UserID, requested_by: "Tenant")
+    log_in_as(mediator)
 
-    ActionMailer::Base.deliveries.clear
-    post mediations_path, params: { tenant_email: tenant3.Email }
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Closed without agreement" }
 
-    tenant_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(tenant3.Email) }
-    assert_empty tenant_emails
+    assert_equal "Closed without agreement", @mediation.reload.Outcome
   end
 
-  test "emails tenant mediation request notification when preference is on" do
-    tenant3 = users(:tenant3)
-    tenant3.update!(notify_new_mediation_request: true)
-    landlord2 = users(:landlord2)
-    log_in_as(landlord2)
+  test "requester cannot set the outcome once a mediator is assigned" do
+    mediator = users(:mediator1)
+    @mediation.update!(deleted_at: Time.current, MediatorAssigned: true,
+                       MediatorID: mediator.UserID, requested_by: "Tenant")
+    log_in_as(@tenant)
 
-    ActionMailer::Base.deliveries.clear
-    perform_enqueued_jobs do
-      post mediations_path, params: { tenant_email: tenant3.Email }
-    end
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Closed with agreement" }
 
-    tenant_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(tenant3.Email) }
-    assert_not_empty tenant_emails
+    assert_nil @mediation.reload.Outcome
+    assert_match(/not authorized/i, flash[:alert])
+  end
+
+  test "invalid outcome values are rejected" do
+    @mediation.update!(deleted_at: Time.current, MediatorAssigned: false,
+                       MediatorID: nil, requested_by: "Tenant")
+    log_in_as(@tenant)
+
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Bogus outcome" }
+
+    assert_nil @mediation.reload.Outcome
+    assert_match(/valid outcome/i, flash[:alert])
+  end
+
+  test "outcome cannot be set on an active mediation" do
+    @mediation.update!(deleted_at: nil, requested_by: "Tenant")
+    log_in_as(@tenant)
+
+    patch mediation_outcome_path(@mediation.ConversationID),
+          params: { outcome: "Closed with agreement" }
+
+    assert_nil @mediation.reload.Outcome
+    assert_match(/still ongoing/i, flash[:alert])
   end
 end

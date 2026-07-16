@@ -47,7 +47,9 @@ def ensure_mediator!(user, cap: 5)
   mediator
 end
 
-# Valid intake answers, required before a mediation can be "active".
+# Valid tenant intake answers. A mediation needs BOTH the tenant intake
+# (IntakeID) and the landlord intake (LandlordIntakeID) before it counts as
+# "active" — see PrimaryMessageGroup#active?.
 def build_intake!(tenant)
   IntakeQuestion.create!(
     UserID: tenant.UserID,
@@ -60,6 +62,22 @@ def build_intake!(tenant)
     PayableToday: 400,
     DateDue: Date.current - 10
   )
+end
+
+# Valid landlord intake answers, the second form required for an active mediation.
+def build_landlord_intake!(landlord)
+  intake = LandlordIntakeQuestion.new(
+    UserID: landlord.UserID,
+    LandlordDescribeCause: "Tenant fell behind on rent; seeking a repayment arrangement.",
+    DesiredOutcome: "Receive Payment",
+    AcceptPaymentPlan: true,
+    AmountClaimed: 1_800,
+    MonthlyRent: 900,
+    DateDue: Date.current - 10
+  )
+  intake.reasons = [ "Failure to Pay Rent" ]
+  intake.save!
+  intake
 end
 
 def submit_feedback!(mediation, user)
@@ -78,6 +96,7 @@ def submit_feedback!(mediation, user)
     liked_most: "Clear, structured communication.",
     should_improve: "Nothing major."
   )
+  mediation.update!(Outcome: "Closed with agreement")
 end
 
 def seed_messages!(mediation, landlord:, tenant:, mediator:)
@@ -151,6 +170,7 @@ def build_mediation!(landlord:, tenant:, status:, mediator: nil,
     attrs[:accepted_by_landlord] = true
     attrs[:accepted_by_tenant] = true
     attrs[:IntakeID] = build_intake!(tenant).IntakeID
+    attrs[:LandlordIntakeID] = build_landlord_intake!(landlord).LandlordIntakeID
     attrs[:requested_by] = requested_by
   end
 
@@ -277,22 +297,46 @@ elsif PrimaryMessageGroup.where(LandlordID: primary_landlord.UserID).none?
 
   # Active negotiation, no mediator yet (with a short message thread).
   build_mediation!(landlord: primary_landlord, tenant: primary_tenant,
-                   status: :active, created_at: 10.days.ago, with_messages: true)
+                   status: :active, created_at: 10.days.ago, with_messages: true,
+                   requested_by: "Landlord")
 
   # Active negotiation WITH a mediator assigned (broadcast thread).
   build_mediation!(landlord: primary_landlord, tenant: primary_tenant,
                    status: :active_with_mediator, mediator: primary_mediator,
-                   created_at: 14.days.ago, with_messages: true)
+                   created_at: 14.days.ago, with_messages: true, requested_by: "Tenant")
 
   # Past negotiation where the landlord has already left feedback but the
   # tenant has not (so each side sees a different feedback state).
   past_with_feedback = build_mediation!(landlord: primary_landlord, tenant: primary_tenant,
-                                        status: :past, created_at: 60.days.ago, ended_at: 50.days.ago)
+                                        status: :past, created_at: 60.days.ago, ended_at: 50.days.ago,
+                                        requested_by: "Landlord")
   submit_feedback!(past_with_feedback, primary_landlord)
 
   # Past negotiation with feedback still outstanding for both.
   build_mediation!(landlord: primary_landlord, tenant: primary_tenant,
-                   status: :past, created_at: 90.days.ago, ended_at: 80.days.ago)
+                   status: :past, created_at: 90.days.ago, ended_at: 80.days.ago,
+                   requested_by: "Tenant")
+
+  # --- Multiple active negotiations between the primary landlord and various
+  # tenants, some with a mediator assigned and some without, so landlord@test.com
+  # sees a healthy mix of active cases on the board. The mediator rotation is
+  # nil -> primary -> second, so two of every three are unmediated. ---
+  active_mediators = [ nil, primary_mediator, second_mediator ]
+  6.times do |i|
+    n = format("%02d", i + 1)
+    active_tenant = upsert_user!(
+      email: "active-tenant-#{n}@test.com", fname: "Active", lname: "Tenant #{n}",
+      role: "Tenant", AddressLine1: "#{200 + i} Negotiation Blvd", City: "Columbus",
+      State: "Ohio", ZipCode: "43215", PhoneNumber: "614-558-#{format('%04d', i)}"
+    )
+    mediator = active_mediators[i % active_mediators.length]
+    build_mediation!(
+      landlord: primary_landlord, tenant: active_tenant,
+      status: mediator ? :active_with_mediator : :active,
+      mediator: mediator, created_at: (3 + i).days.ago, with_messages: true,
+      requested_by: [ "Landlord", "Tenant" ][i % 2]
+    )
+  end
 
   # --- Bulk data so each primary board spans ~3 pages (10 cards/page) ---
   bulk_count = 20
@@ -308,10 +352,11 @@ elsif PrimaryMessageGroup.where(LandlordID: primary_landlord.UserID).none?
     created = (14 + i * 9).days.ago
     if i.even? # mostly past, with spread-out end dates for date-filter testing
       build_mediation!(landlord: primary_landlord, tenant: tenant, status: :past,
-                       created_at: created, ended_at: created + 5.days)
+                       created_at: created, ended_at: created + 5.days,
+                       requested_by: "Landlord")
     else
       build_mediation!(landlord: primary_landlord, tenant: tenant, status: :active,
-                       created_at: created)
+                       created_at: created, requested_by: "Landlord")
     end
   end
 
@@ -325,10 +370,11 @@ elsif PrimaryMessageGroup.where(LandlordID: primary_landlord.UserID).none?
     created = (12 + i * 8).days.ago
     if i.even?
       build_mediation!(landlord: landlord, tenant: primary_tenant, status: :past,
-                       created_at: created, ended_at: created + 5.days)
+                       created_at: created, ended_at: created + 5.days,
+                       requested_by: "Tenant")
     else
       build_mediation!(landlord: landlord, tenant: primary_tenant, status: :active,
-                       created_at: created)
+                       created_at: created, requested_by: "Tenant")
     end
   end
 

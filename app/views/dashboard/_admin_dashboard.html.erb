@@ -11,17 +11,17 @@
 
 <!-- System Overview -->
 <div class="stats-grid">
-  <div class="stat-card">
+  <%= link_to admin_mediations_path(status: "active"), class: "stat-card" do %>
     <div class="stat-icon stat-icon--active">
       <i class="fas fa-gavel"></i>
     </div>
     <div class="stat-content">
-      <h3><%= PrimaryMessageGroup.where(accepted_by_landlord: true, accepted_by_tenant: true, deleted_at: nil).where.not(IntakeID: nil).count %></h3>
+      <h3><%= PrimaryMessageGroup.where(accepted_by_landlord: true, accepted_by_tenant: true, deleted_at: nil).where.not(IntakeID: nil).where.not(LandlordIntakeID: nil).count %></h3>
       <p>Active Mediations</p>
     </div>
-  </div>
+  <% end %>
 
-  <div class="stat-card">
+  <%= link_to admin_mediations_path(group: "needs_assignment"), class: "stat-card" do %>
     <div class="stat-icon stat-icon--unassigned">
       <i class="fas fa-user-clock"></i>
     </div>
@@ -29,19 +29,20 @@
       <h3><%= PrimaryMessageGroup.where(MediatorRequested: true, MediatorAssigned: false, deleted_at: nil).count %></h3>
       <p>Unassigned Requests</p>
     </div>
-  </div>
+  <% end %>
 
-  <div class="stat-card">
+  <% ended_this_week_cutoff = 7.days.ago.to_date %>
+  <%= link_to admin_mediations_path(status: "past", dateFrom: ended_this_week_cutoff.iso8601), class: "stat-card" do %>
     <div class="stat-icon stat-icon--ended">
       <i class="fas fa-flag-checkered"></i>
     </div>
     <div class="stat-content">
-      <h3><%= PrimaryMessageGroup.where("deleted_at >= ?", 7.days.ago).count %></h3>
+      <h3><%= PrimaryMessageGroup.where("deleted_at >= ?", ended_this_week_cutoff).count %></h3>
       <p>Ended This Week</p>
     </div>
-  </div>
+  <% end %>
 
-  <div class="stat-card">
+  <%= link_to admin_mediations_path(status: "past", feedback: "true"), class: "stat-card" do %>
     <div class="stat-icon stat-icon--feedback">
       <i class="fas fa-comment-dots"></i>
     </div>
@@ -49,7 +50,7 @@
       <h3><%= PrimaryMessageGroup.where.not(deleted_at: nil).where(EndOfConversationGoodFaithLandlord: nil).or(PrimaryMessageGroup.where.not(deleted_at: nil).where(EndOfConversationGoodFaithTenant: nil)).count %></h3>
       <p>Awaiting Feedback</p>
     </div>
-  </div>
+  <% end %>
 </div>
 
 <!-- Mediator Availability -->

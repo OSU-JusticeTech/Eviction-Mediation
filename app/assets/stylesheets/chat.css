@@ -677,13 +677,13 @@
 
   .system-message__text {
     display: inline-block;
-    background: rgba(16, 42, 77, 0.06);
-    border: 1px solid rgba(16, 42, 77, 0.09);
+    background: rgba(16, 42, 77, 0.10);
+    border: 1px solid rgba(16, 42, 77, 0.20);
     border-radius: 999px;
     padding: 0.3rem 0.9rem;
-    font-size: 0.78rem;
-    color: rgba(16, 42, 77, 0.55);
-    font-weight: 500;
+    font-size: 0.85rem;
+    color: rgba(16, 42, 77, 0.85);
+    font-weight: 600;
     line-height: 1.4;
   }
 
@@ -1403,6 +1403,44 @@
     width: auto;
     min-width: 140px;
     justify-content: center;
+  }
+
+  /* Mediation outcome — inline display shown above the card action buttons and
+     on the summary page. In the card it sits at the top of the actions column
+     with a divider separating it from the buttons below. */
+  .mediation-outcome {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.8rem;
+    color: #334155;
+  }
+
+  .mediation-outcome__label {
+    font-weight: 600;
+    color: #475569;
+  }
+
+  .mediation-outcome__value {
+    color: #0b172d;
+  }
+
+  .mediation-outcome__form {
+    margin: 0;
+  }
+
+  /* Inline dropdown that saves the outcome immediately on change. */
+  .mediation-outcome__select {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: #0b172d;
+    background: #fff;
+    cursor: pointer;
   }
 
   /* Document Preview Overlay */

@@ -1,6 +1,7 @@
 <% mediation_requested = @mediation&.MediatorRequested.present? %>
 <% mediation_assigned = @mediation&.MediatorRequested && @mediation&.MediatorAssigned %>
 <% can_request_mediator = @mediation && !mediation_requested && !mediation_assigned %>
+<% can_close = @mediation.present? && @mediation.closable_by?(@user) %>
 
 <div class="conversation-toolbar__actions" data-chat-actions>
   <% if can_request_mediator %>
@@ -30,7 +31,8 @@
 
   <button type="button"
           class="conversation-cta conversation-cta--danger"
-          data-end-modal-open>
+          data-end-modal-open
+          <% unless can_close %>disabled aria-disabled="true" title="Only the person who initiated this <%= mediation_assigned ? 'mediation' : 'negotiation' %> can close it."<% end %>>
     <span class="conversation-cta__icon"><i class="fa-solid fa-circle-xmark"></i></span>
     <span class="conversation-cta__label">End <%= mediation_assigned ? 'Mediation' : 'Negotiation' %></span>
   </button>

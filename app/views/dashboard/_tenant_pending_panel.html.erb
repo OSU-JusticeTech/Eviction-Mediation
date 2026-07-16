@@ -2,7 +2,7 @@
 
   <%# Header %>
   <div class="flex items-center justify-between mb-1">
-    <div class="flex items-center gap-2 text-white/60 text-xs uppercase tracking-widest font-semibold">
+    <div class="flex items-center gap-2 text-white text-xs uppercase tracking-widest font-semibold">
       <i class="fas fa-clock text-[#d99100]"></i>
       Pending Negotiation
     </div>
@@ -11,7 +11,7 @@
     </span>
   </div>
 
-  <p class="text-white/40 text-xs mb-4">With <%= @pending_mediation.landlord.display_name %></p>
+  <p class="text-white/85 text-xs mb-4">With <%= @pending_mediation.landlord.display_name %></p>
 
   <%# Status indicator %>
   <% stage = @pending_mediation.pending_stage %>
@@ -21,7 +21,7 @@
     </div>
     <div class="min-w-0">
       <p class="text-white text-sm font-medium truncate"><%= @pending_mediation.landlord.display_name %></p>
-      <p class="text-[#fcd97d]/80 text-xs mt-0.5">
+      <p class="text-[#fcd97d] text-xs mt-0.5">
         <% case stage %>
         <% when :awaiting_tenant_acceptance %>
           Landlord sent you a request

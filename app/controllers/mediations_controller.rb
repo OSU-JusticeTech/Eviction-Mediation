@@ -1,4 +1,6 @@
 class MediationsController < ApplicationController
+  include MediationRequestSupport
+
   before_action :require_login
   before_action :set_user
   before_action :require_tenant_or_landlord_role, only: [ :create, :accept ]
@@ -60,7 +62,7 @@ class MediationsController < ApplicationController
         return
       end
 
-      landlord = find_existing_landlord
+      landlord = find_existing_landlord(landlord_email)
 
       unless landlord
         send_landlord_invitation(params[:landlord_email])
@@ -72,9 +74,9 @@ class MediationsController < ApplicationController
         return
       end
 
-      Rails.logger.info "Landlord found: #{landlord.Email}, starting mediation and sending notification"
-      start_mediation_with_existing_landlord(landlord)
-      LandlordMailer.mediation_request_notification(landlord.Email, @user).deliver_later if landlord.notify_new_mediation_request?
+      Rails.logger.info "Landlord found: #{landlord.Email}, requesting intake before sending request"
+      session[:pending_mediation_request] = { "target_email" => landlord.Email }
+      redirect_to new_intake_question_path
     elsif @user.Role == "Landlord"
       tenant_email = params[:tenant_email].to_s.strip
 
@@ -88,17 +90,22 @@ class MediationsController < ApplicationController
         return
       end
 
-      tenant = find_existing_tenant
+      tenant = find_existing_tenant(tenant_email)
 
-      if tenant&.Role != "Tenant"
+      if tenant.nil?
         Rails.logger.info "No tenant found with email: #{params[:tenant_email]}, sending invitation"
         send_tenant_invitation(params[:tenant_email])
         return
       end
 
-      Rails.logger.info "Tenant found: #{tenant.Email}, starting mediation and sending notification"
-      start_mediation_with_existing_tenant(tenant)
-      TenantMailer.invitation_email(params[:tenant_email], @user).deliver_later if tenant.notify_new_mediation_request?
+      unless tenant.Role == "Tenant"
+        redirect_to new_mediation_path, alert: "No tenant account found with that email."
+        return
+      end
+
+      Rails.logger.info "Tenant found: #{tenant.Email}, requesting intake before sending request"
+      session[:pending_mediation_request] = { "target_email" => tenant.Email }
+      redirect_to new_landlord_intake_question_path
     else
       redirect_to mediations_path, alert: "You are not authorized to start a negotiation."
     end
@@ -114,6 +121,13 @@ class MediationsController < ApplicationController
   # end the negotiation/mediation
   def end_conversation
     @mediation = PrimaryMessageGroup.find(params[:id])
+
+    unless @mediation.closable_by?(@user)
+      redirect_back fallback_location: messages_path,
+                    alert: "Only the person who initiated this mediation can close it."
+      return
+    end
+
     if @mediation.deleted_at.nil?
       @mediation.update(deleted_at: Time.current, EndedBy: @user.UserID)
       @mediation.linked_message_string&.update(deleted_at: Time.current)
@@ -216,11 +230,45 @@ class MediationsController < ApplicationController
       user_role: @user.Role
     ))
 
+    outcome = params[:outcome].to_s
+    unless PrimaryMessageGroup::OUTCOMES.include?(outcome)
+      @survey.errors.add(:base, "Please select the outcome of this mediation.")
+      render "mediations/survey_form", alert: "Please complete all required fields."
+      return
+    end
+
     if @survey.save
+      @mediation.update(Outcome: outcome)
       redirect_to messages_path, notice: "Thank you for completing the survey!"
     else
       render "mediations/survey_form", alert: "Please complete all required fields."
     end
+  end
+
+  # Record or change the outcome of an ended mediation. Only the requester (when
+  # no mediator is assigned) or the assigned mediator may edit it; the outcome
+  # can be changed as many times as needed after the mediation has ended.
+  def update_outcome
+    @mediation = PrimaryMessageGroup.find_by(ConversationID: params[:id])
+
+    if @mediation.nil? || @mediation.deleted_at.nil?
+      redirect_back fallback_location: messages_path, alert: "Mediation not found or still ongoing."
+      return
+    end
+
+    unless @mediation.outcome_editable_by?(@user)
+      redirect_back fallback_location: messages_path, alert: "You are not authorized to set the outcome for this mediation."
+      return
+    end
+
+    outcome = params[:outcome].to_s
+    unless PrimaryMessageGroup::OUTCOMES.include?(outcome)
+      redirect_back fallback_location: messages_path, alert: "Please choose a valid outcome."
+      return
+    end
+
+    @mediation.update!(Outcome: outcome)
+    redirect_back fallback_location: mediation_summary_path(@mediation.ConversationID), notice: "Mediation outcome saved."
   end
 
   # Good Faith Screening prompt for edge case error handling
@@ -236,68 +284,6 @@ class MediationsController < ApplicationController
   end
 
   private
-
-  def find_existing_landlord
-    User.find_by(Email: params[:landlord_email].to_s.strip)
-  end
-
-  def find_existing_tenant
-    email = params[:tenant_email].to_s.strip
-
-    if email.present?
-      User.find_by(Email: email)
-    else
-      nil
-    end
-  end
-
-  def start_mediation_with_existing_landlord(landlord)
-    ActiveRecord::Base.transaction do
-      message_string = MessageString.create!(Role: "Primary")
-      conversation_id = message_string.ConversationID
-
-      mediation = PrimaryMessageGroup.create!(
-        ConversationID: conversation_id,
-        TenantID: @user.UserID,
-        LandlordID: landlord.UserID,
-        CreatedAt: Time.current,
-        GoodFaith: false,
-        MediatorRequested: false,
-        MediatorAssigned: false,
-        EndOfConversationGoodFaithLandlord: nil,
-        EndOfConversationGoodFaithTenant: nil,
-        accepted_by_landlord: false,
-        accepted_by_tenant: true,
-        requested_by: "Tenant"
-      )
-
-      redirect_to mediation_path(mediation), notice: "Negotiation requested with #{landlord.CompanyName || landlord.Email}."
-    end
-  end
-
-  def start_mediation_with_existing_tenant(tenant)
-    ActiveRecord::Base.transaction do
-      message_string = MessageString.create!(Role: "Primary")
-      conversation_id = message_string.ConversationID
-
-      PrimaryMessageGroup.create!(
-        ConversationID: conversation_id,
-        TenantID: tenant.UserID,
-        LandlordID: @user.UserID,
-        CreatedAt: Time.current,
-        GoodFaith: false,
-        MediatorRequested: false,
-        MediatorAssigned: false,
-        EndOfConversationGoodFaithLandlord: nil,
-        EndOfConversationGoodFaithTenant: nil,
-        accepted_by_landlord: true,
-        accepted_by_tenant: false,
-        requested_by: "Landlord"
-      )
-    end
-
-    redirect_to messages_path, notice: "Negotiation request sent to #{tenant.Email}. If they have an account, they can accept your request. Otherwise, they'll be invited to join the site."
-  end
 
   def send_landlord_invitation(email)
     LandlordMailer.invitation_email(email, @user).deliver_now
