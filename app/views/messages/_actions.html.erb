@@ -82,33 +82,4 @@
     </div>
   <% end %>
 
-  <% if @user&.Role != "Mediator" %>
-    <dialog class="conversation-modal chat-disclaimer-modal" data-disclaimer-modal data-user-role="<%= @user.Role %>" tabindex="-1" aria-labelledby="disclaimer-modal-title">
-      <div class="conversation-modal__content">
-        <div class="conversation-modal__header">
-          <h3 id="disclaimer-modal-title">Chat Terms</h3>
-          <button type="button" class="conversation-modal__close" data-disclaimer-modal-close aria-label="Close disclaimer">
-            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-          </button>
-        </div>
-        <div class="conversation-modal__body">
-          <p>
-            Messages shared in this chat box are used for mediation and negotiation purposes only.
-          </p>
-          <p>
-            The mediator may review these messages to <strong>help guide the conversation</strong>, but they <strong>do not represent either party</strong> and cannot give legal advice.
-          </p>
-          <p>
-            To act in good faith, users are expected to respond to messages within <strong>3 business days</strong>.
-          </p>
-          <p>
-            By continuing to use this chat, you agree to these terms.
-          </p>
-        </div>
-        <div class="conversation-modal__actions">
-          <button type="button" class="conversation-action conversation-action--primary" data-disclaimer-modal-close>I Understand</button>
-        </div>
-      </div>
-    </dialog>
-  <% end %>
 </div>
