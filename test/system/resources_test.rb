@@ -15,20 +15,6 @@ class ResourcesTest < ApplicationSystemTestCase
     assert_text "Learn the eviction process"
   end
 
-  test "tenant can switch to faq and negotiation tabs" do
-    sign_in_as(@tenant)
-    visit resources_path(tab: "guide")
-    dismiss_terms_modal_if_present
-
-    click_link "FAQs"
-    assert_current_path resources_path(tab: "faqs")
-    assert_text "Frequently Asked Questions"
-
-    click_link "Negotiation & Mediation"
-    assert_current_path resources_path(tab: "negotiation")
-    assert_text "Negotiation & Mediation: What They Are and How They Can Help"
-  end
-
   test "landlord can view landlord resources guide tab" do
     sign_in_as(@landlord)
     visit resources_path(tab: "guide")
@@ -38,55 +24,47 @@ class ResourcesTest < ApplicationSystemTestCase
     assert_text "Learn the process and how early communication can save time, fees, and turnover."
   end
 
-  test "landlord can switch to faq and negotiation tabs" do
+  test "guide tab renders the FAQ accordion above the resources guide" do
+    sign_in_as(@tenant)
+    visit resources_path(tab: "guide")
+    dismiss_terms_modal_if_present
+
+    assert_text "Frequently Asked Questions"
+    assert_text "Tenant Resources"
+  end
+
+  test "tenant can open a resource card to reveal its panel" do
+    sign_in_as(@tenant)
+    visit resources_path(tab: "guide")
+    dismiss_terms_modal_if_present
+
+    # The first card's panel is opened on load, so this one starts hidden.
+    assert_no_text "Security deposits"
+    find(".resx-card", text: "Other housing issues").click
+    assert_text "Security deposits"
+  end
+
+  test "landlord can open a resource card to reveal its panel" do
     sign_in_as(@landlord)
     visit resources_path(tab: "guide")
     dismiss_terms_modal_if_present
 
-    click_link "FAQs"
-    assert_current_path resources_path(tab: "faqs")
-    assert_text "Frequently Asked Questions"
-
-    click_link "Negotiation & Mediation"
-    assert_current_path resources_path(tab: "negotiation")
-    assert_text "Negotiation & Mediation: What They Are and How They Can Help"
+    assert_no_text "I want to start a conversation with my tenant"
+    find(".resx-card", text: "Start a conversation").click
+    assert_text "I want to start a conversation with my tenant"
   end
 
-  test "tenant navbar dropdown links to main resources tab" do
+  test "navbar resources link opens the resources page" do
     sign_in_as(@tenant)
     visit dashboard_path
     dismiss_terms_modal_if_present
 
-    open_nav_dropdown
-    click_link "Main Resources"
-    assert_current_path resources_path(tab: "guide")
-  end
-
-  test "tenant navbar dropdown links to faqs tab" do
-    sign_in_as(@tenant)
-    visit dashboard_path
-    dismiss_terms_modal_if_present
-
-    open_nav_dropdown
-    click_link "FAQs", match: :first
-    assert_current_path resources_path(tab: "faqs")
-  end
-
-  test "tenant navbar dropdown links to negotiation and mediation tab" do
-    sign_in_as(@tenant)
-    visit dashboard_path
-    dismiss_terms_modal_if_present
-
-    open_nav_dropdown
-    click_link "Negotiation and Mediation"
-    assert_current_path resources_path(tab: "negotiation")
+    click_link "Resources"
+    assert_current_path resources_path
+    assert_text "Tenant Resources"
   end
 
   private
-
-  def open_nav_dropdown
-    page.execute_script("document.querySelector('.nav-dropdown-menu').style.display = 'block'")
-  end
 
   def sign_in_as(user)
     visit login_path
