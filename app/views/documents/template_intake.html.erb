@@ -482,18 +482,37 @@
 
 .payment-row {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) 36px;
   gap: 16px;
   align-items: end;
   margin-bottom: 12px;
   padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
   background: #fff;
   border-radius: 8px;
   border: 1px solid #e7eefb;
 }
 
+.payment-row > .form-group,
+.payment-row .input-with-prefix,
+.payment-row .form-input {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.payment-row .form-input {
+  box-sizing: border-box;
+}
+
+.payment-row input[type="date"] {
+  padding-left: 10px;
+  padding-right: 8px;
+}
+
 .btn-remove {
   width: 36px;
+  min-width: 36px;
   height: 36px;
   border: none;
   background: #fee2e2;
@@ -504,6 +523,7 @@
   cursor: pointer;
   transition: background 0.2s ease;
   margin-bottom: 20px;
+  flex: 0 0 36px;
 }
 
 .btn-remove:hover {
