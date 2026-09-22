@@ -249,6 +249,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to documents_path
     assert_equal "Document generated successfully.", flash[:notice]
+    assert FileDraft.exists?(FileName: "#{@tenant.FName} #{@tenant.LName} - Agree to Vacate")
   end
 
   test "generate_from_intake handles invalid negotiation date" do
@@ -332,6 +333,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to documents_path
     assert_equal "Document generated.", flash[:notice]
+    assert FileDraft.exists?(FileName: "#{@tenant.FName} #{@tenant.LName} - Agree to Vacate")
   end
 
   test "generate_filled_template supports pay and stay template" do
