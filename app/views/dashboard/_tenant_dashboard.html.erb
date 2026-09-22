@@ -1,9 +1,5 @@
 <!-- Quick Actions -->
 <div class="action-cards-grid">
-  <%= render "action_card", path: resources_path, icon: "fa-book-open",
-        title: "Resources", description: "Learn about mediation, your rights, and get help",
-        label: "Explore Resources" %>
-
   <%= render "action_card", path: documents_path, icon: "fa-file-alt",
         title: "Documents", description: "Manage your agreements and important files",
         label: "View Documents" %>
@@ -44,17 +40,5 @@
         <p>Work together to find a solution that works for both parties and avoid eviction proceedings.</p>
       </div>
     </div>
-  </div>
-</div>
-
-<!-- Resources Highlight -->
-<div class="highlight-section">
-  <div class="highlight-content">
-    <h3><i class="fas fa-graduation-cap"></i> Learn About Your Rights</h3>
-    <p>Understanding tenant rights and the mediation process can help you achieve better outcomes. Our comprehensive resources include guides, videos, and FAQs.</p>
-    <%= link_to "Access Learning Center", resources_path, class: "highlight-btn" %>
-  </div>
-  <div class="highlight-visual">
-    <i class="fas fa-shield-alt"></i>
   </div>
 </div>
