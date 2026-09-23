@@ -1,4 +1,4 @@
-import { setupChatDisclaimer } from "chat/chat_disclaimer";
+
 
 const MIN_HEIGHT = '38px';
 
@@ -196,8 +196,6 @@ const setupMediatorForms = () => {
 const initializeMediatorChat = () => {
   setupTextareaAutoExpand();
   setupMediatorForms();
-
-  setupChatDisclaimer();
 };
 
 const eagerInitializeMediatorChat = () => {

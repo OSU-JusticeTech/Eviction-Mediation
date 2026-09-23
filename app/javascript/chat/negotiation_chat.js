@@ -1,4 +1,4 @@
-import { setupChatDisclaimer } from "chat/chat_disclaimer";
+
 
 const MIN_HEIGHT = '38px';
 let negotiationSubmitListenerBound = false;
@@ -207,8 +207,6 @@ const initializeNegotiationChat = () => {
     document.addEventListener('submit', handleNegotiationSubmit);
     negotiationSubmitListenerBound = true;
   }
-
-  setupChatDisclaimer();
 };
 
 const eagerInitializeNegotiationChat = () => {
