@@ -4,6 +4,7 @@ class ResourcesController < ApplicationController
 
     faq_categories = {
       "General" => Rails.root.join("db", "faq_general.txt"),
+      "Eviction & Housing Help" => Rails.root.join("db", "faq_evictionhousinghelp.txt"),
       "Data Privacy" => Rails.root.join("db", "faq_privacy.txt")
     }
 
@@ -49,7 +50,9 @@ class ResourcesController < ApplicationController
     formatted = lines.map do |line|
       escaped_line = CGI.escapeHTML(line)
       escaped_line.gsub!(/\*\*(.*?)\*\*/, '<strong>\1</strong>')
-      # indentations
+      # regex for [text](url) links 
+      escaped_line.gsub!(/\[([^\]]+)\]\(([^)\s]+)\)/, '<a href="\2" target="_blank" rel="noopener noreferrer">\1</a>')
+      # regex indentations
       indent_level = (line[/\A[\t ]*/] || "").gsub("    ", "\t").count("\t")
       "<div style='margin-left: #{indent_level * 20}px;'>#{escaped_line}</div>"
     end

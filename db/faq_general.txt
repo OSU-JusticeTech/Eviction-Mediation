@@ -1,95 +1,66 @@
-Q: What is Mediation?
-A: Mediation is a way to end disagreements by bringing in a person who is not involved in the situation. This person, who is called a Mediator, will listen to both sides of the story. Then, using this information, the Mediator will try to help each person better understand the other. The Mediator is there to help guide the conversation forward and help work towards an agreement. However, the Mediator will not force anyone to agree to anything. It is ultimately up to you and the person who you are in disagreement with to decide what you will or will not agree to. The Mediator is simply there to help you and the other person work through the issues you are facing.
+Q: What is Mediation? 
+A: 
+Mediation is a way to work through a disagreement with help from a neutral person called a **mediator.** The mediator listens to both sides and helps them talk about the problem and possible solutions. 
+ 
+The mediator does not take sides, decide who is right or wrong, or force anyone to agree. The mediator is also not your lawyer and cannot give legal advice. However, they may direct you to other resources if you need legal information or help. 
+ 
+You and the other person decide whether you can reach an agreement. 
+ 
+Q: How does this tool work? 
+A:   
+This tool lets landlords and tenants talk through rental problems by text, on their own time. 
+ 
+You and the other person first try to **negotiate**, which means talking directly to each other to try to solve the problem. You can share information, discuss possible solutions, and work toward an agreement. 
+ 
+If you need more help, a neutral mediator may join the conversation to help you communicate and work toward a solution. 
+ 
+The goal is to help both sides reach an agreement without having to go to court. 
+ 
+Q: When can I use this tool? 
+A: 
+You can use this tool to work through landlord-tenant problems **before an eviction is filed.** This may include: 
+	- Unpaid rent  
+	- Repairs or maintenance  
+	- Lease questions  
+	- Communication problems  
+	- Other landlord-tenant disagreements  
+Mediation may also be available **after an eviction is filed but before the court hearing.**
 
-Q: Why Mediate?
-A: Mediation puts you and the other disputing person in control of the outcome. Having the courts resolve a dispute is expensive, time-consuming, emotionally draining, and often unpredictable. Mediation is an opportunity to reach an agreement that will benefit both the tenant and the landlord. Please consider the following costs of eviction:
-**Landlord Cost**
-	- Total Cost: $5,000 + 
-		- Court Filing Fees: $128 - $165 
-		- Attorney's Fees $150 
-		- Writ of Restitution (Red Tag): $35 
-		- Set Out Costs: $45 
-		- Remediation/Restoration of Premises: $3,000
-		- Lost Rent: Will Vary
-		- Money lost due to time off from work to attend court
-	- Time: 1-2 Months (Lost Rent)
-		- Eviction Proceeding: 4-5 weeks (Notice to Set Out) 
-		- Restoration of Premises: 1-3 weeks 
-	- Time Cost 
-		- Travel to and from the court
-		- Time spent in the court
-**Tenant Cost** 
-	- Eviction Record 
-		If eviction is filed, your record will show other landlords of this and make it extremely difficult to find housing in the future. 
-	- Money Cost 
-		- Past Rent Due: All rent that has not been paid, any property damage, and interest 
-		- Transportation Cost: Parking or bus ticket to the Franklin County Municipal Court
-		- Money lost due to time off from work to attend court
-	- Time Cost 
-		- Travel to and from the court
-		- Time spent in the court
-	- Emotional Cost
-		- Stress that comes with attending court
-
-Q: Do I have to Mediate?
-A: Mediation is a voluntary process. This means that you, the other person, or the Mediator can end the mediation at any time. You are not forced to mediate. Instead, all who are involved in the dispute must agree to participate in mediation for it to be used. Mediation is highly recommended and encouraged as it has proven to help people understand the person they are in disagreement with and can often fix the problem.
-
-Q: Is the Mediator on my side?
-A: Mediators are neutral, third parties. This means that they do not take sides in a disagreement. Instead, they try to help both people better understand one another. The Mediator’s goal is to help each person communicate, understand, problem-solve, and eventually reach an agreement that both people can accept to end the dispute. 
-
-Q: Can the Mediator give legal advice?
-A: No, the Mediator is **NOT** your attorney and will **NOT** give you any legal advice. The Mediator may be able to point you in the direction of additional resources for more information.
-
-Q: Are my messages private in Mediation?
-A: Mediators are required to keep any information learned in mediation private with a few exceptions. This means that the Mediator will not tell anyone about the things that are shared in mediation unless they are required or permitted to do so by law. A Mediator **MAY** share any of the following: \n
-	- A signed mediation agreement
-	- Something said in a mediation that is either open to the public or part of a public record 
-	- A threat of bodily injury or a crime of violence 
-	- When mediation is intentionally used to plan, attempt to commit, commit, or conceal a crime 
-	- Malpractice or professional misconduct by a mediator, a party, a participant, or a party representative 
-	- Child abuse 
-	- Something said in mediation when offered in a felony proceeding or a delinquent child proceeding based on what would have been a felony if the child were an adult 
-	- Knowledge of a felony as required under Ohio Revised Code Section 2921.22 
-	- In addition, a judge will determine whether mediation is privileged when the proceeding at issue involves a misdemeanor or a contract arising from the mediation. 
-Mediations are privileged. This means that what is said in mediation can not be used in a formal proceeding, such as in a court case. What happens in mediation is considered privileged unless one of the two things happens. First, the person who has the power to keep someone from testifying decides to allow them to testify, or second, what a person wants to testify about falls under an exception, such as child abuse, malpractice, or violent crimes. This means that unless one of the two things occurs, what happens in mediation cannot be shared in a legal or other formal proceeding.
-**Mediations are NOT confidential.** This means that the other person in the mediation (not the Mediator) can share what happened in the mediation with others, including friends, family members, social media posts, or news media. Do NOT share any sensitive information, specifically any information that you are not comfortable with other people knowing or having access to. If you would like to make the mediation confidential, everyone participating must make a separate agreement addressing this.
-
-Q: Who will decide if I am right?
-A: Mediation is not about deciding who is “right” or “wrong” in a dispute. The Mediator is not a judge and will not decide anything to end the argument. Instead, it is up to the landlord and tenant to determine any outcomes. If both reach an agreement, they will formally sign a mediation agreement that explains what each person is agreeing to. Once signed, the landlord and tenant must follow through and actually do what they committed to. 
-
-Q: What happens if I sign a mediation agreement and then break it by not doing what I have agreed to?
-A: A mediation agreement is a contract. This means that it can be legally enforced by the courts and breaking your commitment could lead to you paying additional money or being forced to take an action, such as being evicted. The mediation agreement signed may describe what will happen if you do not follow through on your commitments.
-
-Q: Will Mediation resolve my dispute?
-A: There is no guarantee that mediation will end in an agreement. Since no one is required to participate in mediation and anyone can stop mediating at any time, mediation will only last as long as the people involved are willing to participate. Additionally, it is the landlord and tenant who must work together to reach an agreement. The mediator cannot and will not decide any outcomes. Mediation has proven to help resolve disputes, however, it is up to you and the other party to come up with an agreement that you will both accept.
-
-Q: What is Pre-File Mediation (Supported by This Platform)?
-A: Pre-file mediation is mediation that happens *before* anyone files an eviction or lawsuit in court. It gives both sides a chance to address problems early—before court costs, legal stress, or an eviction filing appear on anyone’s record.
-
-Why it matters:
-	- Early communication helps prevent misunderstandings from turning into formal eviction filings or long-term disputes.
-	- Both sides get space to talk openly, share concerns, and explore solutions without the pressure of a courtroom.
-	- It allows tenants and landlords to stay in control of the outcome instead of leaving decisions to a judge.
-
-Best for:
-	- Communication problems or misunderstandings
-	- Nonpayment concerns
-	- Repair and maintenance disputes
-	- Lease misunderstandings
-	- Cases where both sides want privacy, control, and less stress
-	- Situations where landlords and tenants want to avoid court costs and public records
-	- Any issue both parties are willing to resolve *before* going to court
-
-Q: What is Post-Filing (Pre-Hearing) Mediation?
-A: Post-filing mediation happens after an eviction case has been filed, but before the first court hearing. It gives both sides an opportunity to resolve the case without appearing before a judge.
-
-Why it matters:
-	- It can stop the case from going further into the legal system.
-	- It allows both parties to avoid the stress, time, and uncertainty of a court hearing.
-	- It creates space for negotiation even after the case has already started.
-
-Best for:
-	- Cases where both sides are still willing to negotiate
-	- Situations where parties want to resolve issues quickly
-	- Disputes where more time is needed to work out payment plans or repairs
-	- Situations where communication has broken down but both sides prefer avoiding a judge’s decision
+Q: Do I have to mediate? 
+A: 
+No. Mediation is voluntary. Everyone involved must agree to participate. You, the other person, or the mediator may end the mediation at any time. 
+ 
+Q: Why should I try mediation? 
+A: 
+Mediation gives landlords and tenants a chance to solve problems together. Going to court can take time, cost money, and cause stress. Mediation may help both sides avoid some of the costs of an eviction.  
+ 
+**Possible Costs for Landlords** 
+	- **Total cost:** $5,000+ 
+	- **Court filing fees:** $128–$165
+	- **Attorney fees:** About $150
+	- **Writ of Restitution (Red Tag):** $35
+	- **Set-out costs:** $45
+	- **Cleaning or repairs:** About $3,000
+	- **Lost rent:** varies
+	- **Missed work:** Time away from work to attend court
+	- **Time:** An eviction may take several weeks or longer
+ 
+**Possible Costs for Tenants**
+	- **Eviction record:** An eviction filing may appear in court records and may affect future housing applications.
+	- **Past-due rent:** You may still owe unpaid rent, property damage costs, or interest.
+	- **Transportation:** Parking, bus fare, or other costs to get to court.
+	- **Missed work:** You may lose income from taking time off for court.
+	- **Time:** Traveling to court and attending hearings takes time.
+	- **Stress:** Going through an eviction case can be stressful.
+ 
+Mediation may help landlords and tenants avoid some of these costs by working toward a solution before the dispute goes further.  
+ 
+Q: What happens if we reach an agreement? 
+A: 
+You and the other person decide what you agree to. The mediator can help put the agreement in writing so everyone understands what they agreed to do. 
+ 
+The agreement is **not filed with or enforced by the court.** Instead, both people are expected to follow through on what they agreed to. The process depends on trust, communication, and accountability from both sides. 
+ 
+Q: What if mediation does not work? 
+A:  
+Mediation does not always end in an agreement. Either person can decide to stop participating. If you cannot reach an agreement, you may still have other options for handling the dispute. 

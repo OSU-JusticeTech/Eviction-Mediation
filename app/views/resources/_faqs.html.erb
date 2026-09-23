@@ -4,20 +4,21 @@
   <!-- FAQ Category Tabs -->
   <div class="faq-tabs">
     <% @faqs.keys.each do |category| %>
-      <a href="<%= resources_path(tab: 'faqs', category: category.parameterize) %>"
+      <a href="<%= resources_path(tab: params[:tab], category: category.parameterize) %>"
          class="<%= 'active' if params[:category] == category.parameterize %>">
         <%= category %>
       </a>
     <% end %>
   </div>
 
-  <% selected_category = params[:category] || @faqs.keys.first.parameterize %>
-  <% if @faqs[selected_category.titleize] %>
+  <% selected_slug = params[:category].presence || @faqs.keys.first.to_s.parameterize %>
+  <% selected_category = @faqs.keys.find { |category| category.parameterize == selected_slug } %>
+  <% if selected_category %>
     <div class="accordion">
-      <% @faqs[selected_category.titleize].each_with_index do |faq, index| %>
+      <% @faqs[selected_category].each_with_index do |faq, index| %>
         <div class="accordion-item">
-          <input type="checkbox" id="faq-<%= selected_category %>-<%= index + 1 %>" class="accordion-toggle">
-          <label for="faq-<%= selected_category %>-<%= index + 1 %>" class="accordion-header">
+          <input type="checkbox" id="faq-<%= selected_slug %>-<%= index + 1 %>" class="accordion-toggle">
+          <label for="faq-<%= selected_slug %>-<%= index + 1 %>" class="accordion-header">
             Q: <%= faq[:question] %>
           </label>
           <div class="accordion-content">
