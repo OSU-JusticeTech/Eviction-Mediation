@@ -162,7 +162,7 @@ class DocumentsController < ApplicationController
     pk_name, pk_value = next_filedraft_pk_value
     attrs = {
       FileID: file_id,
-      FileName: "Generated Agreement",
+      FileName: generated_document_name(template),
       FileTypes: "html",
       FileURLPath: "userFiles/#{file_id}#{ext}",
       CreatorID: @user[:UserID],
@@ -636,7 +636,7 @@ class DocumentsController < ApplicationController
 
     attrs = {
       FileID: file_id,
-      FileName: "Generated Agreement",
+      FileName: generated_document_name(template),
       FileTypes: "pdf",
       FileURLPath: "userFiles/#{file_id}#{ext}",
       CreatorID: @user[:UserID],
@@ -652,6 +652,19 @@ class DocumentsController < ApplicationController
 
 
   private
+
+  def generated_document_name(template)
+    creator_name = [ @user[:FName], @user[:LName] ].compact.join(" ").squeeze(" ").strip
+    creator_name = @user[:CompanyName].presence || "Creator" if creator_name.blank?
+    safe_creator_name = creator_name.gsub(/[^\w\- ]/, "").squeeze(" ").strip
+    document_type = {
+      "a" => "Agree to Vacate",
+      "b" => "Pay and Stay Agreement",
+      "c" => "Mediation Agreement"
+    }.fetch(template.to_s, "Agreement")
+
+    [ safe_creator_name.presence, document_type ].join(" - ")
+  end
 
   def delete_physical_file(file)
     rel = Pathname.new(file.FileURLPath.to_s).cleanpath

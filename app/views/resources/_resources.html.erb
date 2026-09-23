@@ -783,9 +783,9 @@
       background: rgba(255,255,255,0.08);
     }
 
-    /* ---- Resources section ---- */
-    .lp-resources {
-      max-width: 1080px;
+    /* ---- FAQ section ---- */
+    .lp-faq {
+      max-width: 820px;
       margin: 0 auto;
       padding: 56px 24px 48px;
     }
@@ -815,224 +815,90 @@
       line-height: 1.6;
     }
 
-    /* ---- Role selector ---- */
-    .lp-role-selector {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      max-width: 640px;
-      margin: 0 auto 36px;
-    }
-    .lp-role-btn {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 18px 20px;
-      border-radius: 16px;
-      border: 2px solid #e2e8f0;
-      background: #ffffff;
-      cursor: pointer;
-      text-align: left;
-      transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
-    }
-    .lp-role-btn:hover {
-      border-color: #0b2b4b;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(11,43,75,0.10);
-    }
-    .lp-role-btn.is-active {
-      border-color: #0b2b4b;
-      box-shadow: 0 8px 24px rgba(11,43,75,0.14);
-    }
-    .lp-role-btn-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
-      background: #eff6ff;
-      color: #0b2b4b;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      flex-shrink: 0;
-    }
-    .lp-role-btn.is-active .lp-role-btn-icon {
-      background: #0b2b4b;
-      color: #ffffff;
-    }
-    .lp-role-btn-label {
-      font-size: 15px;
-      font-weight: 700;
-      color: #111827;
-      display: block;
-      margin-bottom: 2px;
-    }
-    .lp-role-btn-sub {
-      font-size: 13px;
-      color: #6b7280;
-    }
-
-    /* ---- Role content panels ---- */
-    .lp-role-content {
-      display: none;
-    }
-    .lp-role-content.is-active {
-      display: block;
-    }
-
-    /* ---- resx card/panel system (needed for public view) ---- */
-    .resx-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 18px;
-      margin-bottom: 24px;
-    }
-    .resx-card {
-      border-radius: 16px;
-      background: #ffffff;
-      border: 2px solid #e2e8f0;
-      padding: 18px 18px 16px;
+    /* ---- Accordion (native <details>, no JS) ---- */
+    .faq-list {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      box-shadow: 0 4px 14px rgba(15,23,42,0.05);
-      cursor: pointer;
-      transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+      gap: 12px;
     }
-    .resx-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 14px 26px rgba(15,23,42,0.10);
-      border-color: #0b2b4b;
-    }
-    .resx-card.is-active {
-      border-color: #0b2b4b;
-      box-shadow: 0 14px 26px rgba(15,23,42,0.14);
-    }
-    .resx-card-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 12px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background: #eff6ff;
-      color: #0b2b4b;
-      font-size: 16px;
-      margin-bottom: 4px;
-    }
-    .resx-card.is-active .resx-card-icon {
-      background: #0b2b4b;
-      color: #ffffff;
-    }
-    .resx-card-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: #111827;
-    }
-    .resx-card-text {
-      font-size: 13px;
-      color: #6b7280;
-      line-height: 1.5;
-    }
-    .resx-panel {
-      display: none;
-      margin-bottom: 24px;
-      padding: 24px 26px 20px;
-      border-radius: 16px;
+    .faq-item {
       background: #ffffff;
       border: 1px solid #e2e8f0;
-      box-shadow: 0 10px 22px rgba(15,23,42,0.06);
-      animation: resxFadeIn 0.18s ease-out;
+      border-radius: 14px;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+      overflow: hidden;
+      transition: border-color 0.16s ease, box-shadow 0.16s ease;
     }
-    .resx-panel.is-active { display: block; }
-    .resx-panel h2 {
-      font-size: 19px;
-      font-weight: 700;
-      color: #0b2b4b;
-      margin: 0 0 10px;
+    .faq-item[open] {
+      border-color: #0b2b4b;
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
     }
-    .resx-panel p {
-      font-size: 15px;
-      color: #475569;
-      margin-bottom: 10px;
-      line-height: 1.6;
-    }
-    .resx-steps {
-      margin-left: 20px;
-      margin-bottom: 10px;
-      font-size: 15px;
-      color: #475569;
-      line-height: 1.6;
-    }
-    .resx-steps li { margin-bottom: 6px; }
-    .resx-steps ul { margin-top: 4px; margin-left: 16px; list-style: disc; }
-    .resx-btn {
-      border-radius: 999px;
-      border: none;
-      padding: 10px 20px;
-      font-size: 14px;
-      font-weight: 600;
+    .faq-item > summary {
+      list-style: none;
       cursor: pointer;
-      text-decoration: none;
+      padding: 16px 48px 16px 20px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #111827;
+      line-height: 1.5;
+      position: relative;
+    }
+    .faq-item > summary::-webkit-details-marker { display: none; }
+    .faq-item > summary::after {
+      content: "\f078"; /* chevron-down */
+      font-family: "Font Awesome 6 Free", "Font Awesome 5 Free";
+      font-weight: 900;
+      font-size: 13px;
+      color: #0b2b4b;
+      position: absolute;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      transition: transform 0.18s ease;
+    }
+    .faq-item[open] > summary::after {
+      transform: translateY(-50%) rotate(180deg);
+    }
+    .faq-item > summary:hover { background: #f8fafc; }
+    .faq-answer {
+      padding: 0 20px 18px;
+      font-size: 15px;
+      color: #475569;
+      line-height: 1.7;
+    }
+    .faq-answer p { margin: 0 0 10px; }
+    .faq-answer p:last-child { margin-bottom: 0; }
+    .faq-answer ul, .faq-answer ol {
+      margin: 0 0 10px 20px;
+      padding: 0;
+    }
+    .faq-answer li { margin-bottom: 6px; }
+    .faq-answer a { color: #0b2b4b; font-weight: 600; }
+
+    /* ---- More FAQs button ---- */
+    .lp-faq-more {
+      display: flex;
+      justify-content: center;
+      margin-top: 32px;
+    }
+    .lp-faq-more-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-    }
-    .resx-btn-primary {
+      gap: 10px;
       background: #0b2b4b;
       color: #ffffff;
-      box-shadow: 0 6px 16px rgba(15,23,42,0.25);
-    }
-    .resx-btn-primary:hover { background: #0d3460; }
-    .resx-panel-cta { margin-top: 16px; }
-    .resx-cta-row {
-      margin-top: 16px;
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 8px 14px;
-    }
-    .lp-login-link {
-      font-size: 14px;
-      color: #475569;
-    }
-    .lp-login-link a {
-      color: #0b2b4b;
-      font-weight: 600;
-      text-decoration: underline;
-    }
-    @keyframes resxFadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ---- More resources links ---- */
-    .lp-more-tabs {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      justify-content: center;
-      padding: 28px 0 0;
-      border-top: 1px solid #e2e8f0;
-      margin-top: 12px;
-    }
-    .lp-more-tab {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 20px;
       border-radius: 999px;
-      border: 1px solid #cbd5e1;
-      background: #f8fafc;
-      color: #0b2b4b;
-      font-size: 14px;
-      font-weight: 600;
+      padding: 14px 30px;
+      font-size: 15px;
+      font-weight: 700;
       text-decoration: none;
-      transition: background 0.15s ease, border-color 0.15s ease;
+      box-shadow: 0 8px 20px rgba(11, 43, 75, 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
     }
-    .lp-more-tab:hover {
-      background: #e2e8f0;
-      border-color: #0b2b4b;
+    .lp-faq-more-btn:hover {
+      background: #0d3460;
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(11, 43, 75, 0.35);
     }
 
     /* ---- Disclaimer ---- */
@@ -1046,10 +912,6 @@
       line-height: 1.6;
     }
     .lp-disclaimer a { color: #0b2b4b; }
-
-    @media (max-width: 520px) {
-      .lp-role-selector { grid-template-columns: 1fr; }
-    }
   </style>
 
   <!-- Hero -->
@@ -1067,290 +929,66 @@
     </div>
   </div>
 
-  <!-- Resources -->
-  <div class="lp-resources">
-    <p class="lp-section-label">Resources</p>
-    <h2 class="lp-section-title">Understand your rights and options</h2>
-    <p class="lp-section-sub">Select your role to see guides tailored to your situation.</p>
+  <!-- FAQs -->
+  <div class="lp-faq">
+    <p class="lp-section-label">FAQs</p>
+    <h2 class="lp-section-title">Common questions</h2>
+    <p class="lp-section-sub">Short answers to the questions we hear most from tenants and landlords.</p>
 
-    <!-- Role selector -->
-    <div class="lp-role-selector">
-      <button class="lp-role-btn is-active" data-role="tenant" type="button">
-        <div class="lp-role-btn-icon"><i class="fas fa-user"></i></div>
-        <div>
-          <span class="lp-role-btn-label">I'm a Tenant</span>
-          <span class="lp-role-btn-sub">Facing or concerned about eviction</span>
-        </div>
-      </button>
-      <button class="lp-role-btn" data-role="landlord" type="button">
-        <div class="lp-role-btn-icon"><i class="fas fa-building-user"></i></div>
-        <div>
-          <span class="lp-role-btn-label">I'm a Landlord</span>
-          <span class="lp-role-btn-sub">Managing a property or tenant dispute</span>
-        </div>
-      </button>
-    </div>
+    <%#
+      ============================================================
+      ADD / EDIT QUESTIONS BELOW
 
-    <!-- Tenant resources -->
-    <div class="lp-role-content is-active" data-role="tenant">
-      <div class="resx-cards" id="tenant-cards">
-        <div class="resx-card" data-panel="pub-t-eviction">
-          <div class="resx-card-icon"><i class="fas fa-scale-balanced"></i></div>
-          <div class="resx-card-title">Learn the eviction process</div>
-          <div class="resx-card-text">Steps, timing &amp; what to expect.</div>
-        </div>
-        <div class="resx-card" data-panel="pub-t-facing">
-          <div class="resx-card-icon"><i class="fas fa-triangle-exclamation"></i></div>
-          <div class="resx-card-title">I'm facing eviction</div>
-          <div class="resx-card-text">Know your options and next steps.</div>
-        </div>
-        <div class="resx-card" data-panel="pub-t-other">
-          <div class="resx-card-icon"><i class="fas fa-house-chimney"></i></div>
-          <div class="resx-card-title">Other housing issues</div>
-          <div class="resx-card-text">Repairs, deposits, utilities &amp; more.</div>
-        </div>
-        <div class="resx-card" data-panel="pub-t-options">
-          <div class="resx-card-icon"><i class="fas fa-list-check"></i></div>
-          <div class="resx-card-title">Learn about your options</div>
-          <div class="resx-card-text">Compare mediation, court, or doing nothing.</div>
-        </div>
-      </div>
-      <div class="resx-panels" id="tenant-panels">
-        <div id="panel-pub-t-eviction" class="resx-panel">
-          <h2>Eviction process – overview</h2>
-          <p>The eviction process usually has four steps: <strong>notice, filing of an eviction, a court hearing, and a judgment.</strong></p>
-          <ol class="resx-steps">
-            <li><strong>Notice</strong>
-              <ul>
-                <li>Your landlord must give you a written "Notice to Leave the Premises".</li>
-                <li>It explains why you are being asked to leave and gives a few days to fix the issue or move out.</li>
-                <li>Common notices include a 3-day notice for not paying rent or a notice for violating the lease.</li>
-              </ul>
-            </li>
-            <li><strong>Filing the eviction case</strong>
-              <ul>
-                <li>If the problem is not fixed and you do not move out, your landlord can file an eviction in court.</li>
-                <li>You will receive a summons with the date of your hearing.</li>
-              </ul>
-            </li>
-            <li><strong>Court hearing</strong>
-              <ul>
-                <li>The hearing usually happens 2–3 weeks after filing.</li>
-                <li>You and your landlord can explain your positions, bring documents, and bring witnesses.</li>
-              </ul>
-            </li>
-            <li><strong>Judgment</strong>
-              <ul>
-                <li>If the landlord wins, they receive a Writ of Restitution allowing them to retake the property.</li>
-                <li>If you win, you may stay or be awarded money for certain issues.</li>
-              </ul>
-            </li>
-          </ol>
-          <p>For step-by-step housing help, visit <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>.</p>
-          <div class="resx-cta-row">
-            <%= link_to "Create a free account to use the mediation tool", signup_path, class: "resx-btn resx-btn-primary" %>
-            <span class="lp-login-link">Have an account? <%= link_to "Log In", login_path %></span>
+      Each question is one block:
+
+        <details class="faq-item">
+          <summary>Your question here?</summary>
+          <div class="faq-answer">
+            <p>Your answer here.</p>
           </div>
-        </div>
+        </details>
 
-        <div id="panel-pub-t-facing" class="resx-panel">
-          <h2>I'm facing eviction</h2>
-          <p><strong>Are you behind on rent or did you get a notice from your landlord?</strong></p>
-          <p><strong>Yes.</strong> You may be in the early stages of the eviction process. Our text-based mediation tool lets you communicate with your landlord and try to solve the dispute before an eviction is filed.</p>
-          <p><strong>No.</strong> If you think you may fall behind soon, you can still use the mediation tool to talk with your landlord before an issue turns into a case.</p>
-          <div class="resx-cta-row">
-            <%= link_to "Create a free account to talk with your landlord", signup_path, class: "resx-btn resx-btn-primary" %>
-            <span class="lp-login-link">Have an account? <%= link_to "Log In", login_path %></span>
-          </div>
-        </div>
+      Inside .faq-answer you can use <p>, <ul>/<li>, <strong>, and <a>.
+      Keep this list short — longer / less common questions belong on the
+      full FAQ page at app/views/faqs/index.html.erb, linked by the button below.
+      ============================================================
+    %>
 
-        <div id="panel-pub-t-other" class="resx-panel">
-          <h2>Other housing issues</h2>
-          <p>If your issue is not about eviction, you can find step-by-step help at <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>. They can assist with:</p>
-          <ul class="resx-steps">
-            <li>Problems with repairs</li>
-            <li>Security deposits</li>
-            <li>Discrimination and fair housing</li>
-            <li>Rent increases</li>
-            <li>Utility shutoffs</li>
-            <li>Issues with neighbors and more</li>
+    <div class="faq-list">
+      <details class="faq-item">
+        <summary>What is Mediation?</summary>
+        <div class="faq-answer">
+          <p>Mediation is a way to work through a disagreement with help from a neutral person called a <b>mediator</b>. The mediator listens to both sides and helps them talk about the problem and possible solutions. The mediator does not take sides, decide who is right or wrong, or force anyone to agree. The mediator is also not your lawyer and cannot give legal advice. However, they may direct you to other resources if you need legal information or help. You and the other person decide whether you can reach an agreement. </p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>How does this tool work?</summary>
+        <div class="faq-answer">
+          <p>This tool lets landlords and tenants talk through rental problems by text, on their own time. You and the other person first try to <b>negotiate</b>, which means talking directly to each other to try to solve the problem. You can share information, discuss possible solutions, and work toward an agreement. If you need more help, a neutral mediator may join the conversation to help you communicate and work toward a solution. The goal is to help both sides reach an agreement without having to go to court. </p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>When can I use this tool?</summary>
+        <div class="faq-answer">
+          <p>You can use this tool to work through landlord-tenant problems <b>before an eviction is filed.</b> This may include:</p>
+          <ul>
+            <li>Unpaid rent</li>
+            <li>Repairs or maintenance</li>
+            <li>Lease questions</li>
+            <li>Communication problems</li>
+            <li>Other landlord-tenant disagreements</li>
           </ul>
+          <p>Mediation may also be available <b>after an eviction is filed but before the court hearing.</b></p>
         </div>
+      </details>
 
-        <div id="panel-pub-t-options" class="resx-panel">
-          <h2>Learn about your options</h2>
-          <p>Before deciding what to do next, it's important to understand the different paths available — mediation, going to court, or taking no action.</p>
-          <p>For a full breakdown including pros, risks, and what to expect, download the PDF below.</p>
-          <div class="resx-panel-cta">
-            <a href="/mediation_options.pdf" target="_blank" class="resx-btn resx-btn-primary">
-              📄 View PDF – Mediation vs. Court vs. Doing Nothing
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Landlord resources -->
-    <div class="lp-role-content" data-role="landlord">
-      <div class="resx-cards" id="landlord-cards">
-        <div class="resx-card" data-panel="pub-l-eviction">
-          <div class="resx-card-icon"><i class="fas fa-scale-balanced"></i></div>
-          <div class="resx-card-title">Learn the eviction process</div>
-          <div class="resx-card-text">Notice, filing, hearing, judgment.</div>
-        </div>
-        <div class="resx-card" data-panel="pub-l-convo">
-          <div class="resx-card-icon"><i class="fas fa-comments"></i></div>
-          <div class="resx-card-title">Start a conversation</div>
-          <div class="resx-card-text">Use the messaging tool before filing.</div>
-        </div>
-        <div class="resx-card" data-panel="pub-l-other">
-          <div class="resx-card-icon"><i class="fas fa-warehouse"></i></div>
-          <div class="resx-card-title">Other property issues</div>
-          <div class="resx-card-text">Fair housing, repairs, deposits, etc.</div>
-        </div>
-        <div class="resx-card" data-panel="pub-l-options">
-          <div class="resx-card-icon"><i class="fas fa-list-check"></i></div>
-          <div class="resx-card-title">Learn about your options</div>
-          <div class="resx-card-text">Compare mediation, court, or doing nothing.</div>
-        </div>
-      </div>
-      <div class="resx-panels" id="landlord-panels">
-        <div id="panel-pub-l-eviction" class="resx-panel">
-          <h2>Eviction process – overview</h2>
-          <p>The eviction process usually has four steps: <strong>notice, filing of an eviction, a court hearing, and a judgment.</strong></p>
-          <ol class="resx-steps">
-            <li><strong>Notice</strong>
-              <ul>
-                <li>You must give the tenant written notice called a "Notice to Leave the Premises".</li>
-                <li>It explains why the tenant is being asked to leave and gives them a few days to fix the issue or move out.</li>
-                <li>Most notices are 3-day notices for non-payment of rent.</li>
-              </ul>
-            </li>
-            <li><strong>Filing the eviction case</strong>
-              <ul>
-                <li>If the issue is not fixed or the tenant does not move out, you may file an eviction case with the court.</li>
-                <li>The court schedules a hearing and sends a summons to the tenant.</li>
-              </ul>
-            </li>
-            <li><strong>Court hearing</strong>
-              <ul>
-                <li>At the hearing, both you and the tenant can explain what happened.</li>
-                <li>You may bring documents, witnesses, or other information.</li>
-              </ul>
-            </li>
-            <li><strong>Judgment</strong>
-              <ul>
-                <li>If the eviction is granted, the court issues a Writ of Restitution allowing you to retake the property.</li>
-                <li>If the tenant wins, they can stay and may be awarded money for certain issues.</li>
-              </ul>
-            </li>
-          </ol>
-          <p>For more information, visit <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>.</p>
-          <div class="resx-cta-row">
-            <%= link_to "Create a free account to use the mediation tool", signup_path, class: "resx-btn resx-btn-primary" %>
-            <span class="lp-login-link">Have an account? <%= link_to "Log In", login_path %></span>
-          </div>
-        </div>
-
-        <div id="panel-pub-l-convo" class="resx-panel">
-          <h2>Start a conversation with your tenant</h2>
-          <p>Our online mediation tool allows landlords and tenants to communicate <strong>before</strong> filing an eviction. You can use it to:</p>
-          <ul class="resx-steps">
-            <li>Talk with a tenant about late rent</li>
-            <li>Clarify misunderstandings about the lease</li>
-            <li>Try to reach a payment plan or other resolution</li>
-            <li>Avoid the cost and stress of filing an eviction</li>
-          </ul>
-          <div class="resx-cta-row">
-            <%= link_to "Create a free account to start a conversation", signup_path, class: "resx-btn resx-btn-primary" %>
-            <span class="lp-login-link">Have an account? <%= link_to "Log In", login_path %></span>
-          </div>
-        </div>
-
-        <div id="panel-pub-l-other" class="resx-panel">
-          <h2>Other housing or property issues</h2>
-          <p>If your issue is not mainly about eviction or mediation — for example: repairs, fair housing, security deposits, neighbor disputes, or housing vouchers — you can find clear information at <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>.</p>
-        </div>
-
-        <div id="panel-pub-l-options" class="resx-panel">
-          <h2>Learn about your options</h2>
-          <p>Before deciding what to do next, it's important to understand the different paths available — mediation, going to court, or taking no action.</p>
-          <p>For a full breakdown including pros, risks, and what to expect, download the PDF below.</p>
-          <div class="resx-panel-cta">
-            <a href="/mediation_options.pdf" target="_blank" class="resx-btn resx-btn-primary">
-             // 📄 View PDF – Mediation vs. Court vs. Doing Nothing
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Links to other resource tabs -->
-    <div class="lp-more-tabs">
-      <%= link_to resources_path(tab: "faqs"), class: "lp-more-tab" do %>
-        <i class="fas fa-circle-question"></i> FAQs
-      <% end %>
-      <%= link_to resources_path(tab: "negotiation"), class: "lp-more-tab" do %>
-        <i class="fas fa-handshake"></i> Negotiation &amp; Mediation Guide
+    <div class="lp-faq-more">
+      <%= link_to faqs_path, class: "lp-faq-more-btn" do %>
+        <i class="fas fa-circle-question"></i> See all FAQs
       <% end %>
     </div>
   </div>
 
-  <!-- Disclaimer -->
-  <div class="lp-disclaimer">
-    <strong>Disclaimer:</strong> This page provides general information only and is not legal advice.
-    For legal help, please consult a lawyer or visit <a href="https://www.ohiolegalhelp.org/guide/housing" target="_blank" rel="noopener noreferrer">Ohio Legal Help</a>.
-  </div>
-
-  <script>
-    function initLandingPage() {
-      // ---- Role selector ----
-      const roleButtons = document.querySelectorAll(".lp-role-btn");
-      const roleContents = document.querySelectorAll(".lp-role-content");
-
-      roleButtons.forEach(btn => {
-        btn.addEventListener("click", () => {
-          const role = btn.dataset.role;
-          roleButtons.forEach(b => b.classList.toggle("is-active", b.dataset.role === role));
-          roleContents.forEach(c => c.classList.toggle("is-active", c.dataset.role === role));
-          // Re-init cards for the newly visible section
-          initRoleCards(role);
-        });
-      });
-
-      // ---- Card/panel init per role ----
-      function initRoleCards(role) {
-        const container = document.querySelector(`.lp-role-content[data-role="${role}"]`);
-        if (!container) return;
-
-        const cards  = container.querySelectorAll(".resx-card");
-        const panels = container.querySelectorAll(".resx-panel");
-        if (!cards.length || !panels.length) return;
-
-        if (cards[0].dataset.initialized) return;
-        cards[0].dataset.initialized = "true";
-
-        function activate(panelKey) {
-          cards.forEach(c => c.classList.toggle("is-active", c.dataset.panel === panelKey));
-          panels.forEach(p => p.classList.toggle("is-active", p.id === "panel-" + panelKey));
-        }
-
-        activate(cards[0].dataset.panel);
-
-        cards.forEach(card => {
-          card.addEventListener("click", () => activate(card.dataset.panel));
-        });
-      }
-
-      // Init the default active role (tenant)
-      initRoleCards("tenant");
-    }
-
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", initLandingPage);
-    } else {
-      initLandingPage();
-    }
-    document.addEventListener("turbo:load", initLandingPage);
-  </script>
 <% end %>

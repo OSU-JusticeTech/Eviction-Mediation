@@ -90,6 +90,9 @@ end
 
   resources :resources, only: [ :index ]
 
+  # Public standalone FAQ page (linked from the logged-out landing page)
+  get "/faqs", to: "faqs#index", as: "faqs"
+
   # System Data
   resource :system_data, only: [ :show ]
 
