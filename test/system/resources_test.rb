@@ -6,52 +6,46 @@ class ResourcesTest < ApplicationSystemTestCase
     @landlord = users(:landlord1)
   end
 
-  test "tenant can view tenant resources guide tab" do
-    sign_in_as(@tenant)
-    visit resources_path(tab: "guide")
-    dismiss_terms_modal_if_present
-
-    assert_text "Tenant Resources"
-    assert_text "Learn the eviction process"
-  end
-
-  test "landlord can view landlord resources guide tab" do
-    sign_in_as(@landlord)
-    visit resources_path(tab: "guide")
-    dismiss_terms_modal_if_present
-
-    assert_text "Landlord Resources"
-    assert_text "Learn the process and how early communication can save time, fees, and turnover."
-  end
-
-  test "guide tab renders the FAQ accordion above the resources guide" do
+  test "tenant sees the FAQs on the guide tab without the resources guide" do
     sign_in_as(@tenant)
     visit resources_path(tab: "guide")
     dismiss_terms_modal_if_present
 
     assert_text "Frequently Asked Questions"
-    assert_text "Tenant Resources"
+    assert_text "Q: What is Mediation?"
+    assert_no_text "Tenant Resources"
+    assert_no_css ".resx-card"
   end
 
-  test "tenant can open a resource card to reveal its panel" do
-    sign_in_as(@tenant)
-    visit resources_path(tab: "guide")
-    dismiss_terms_modal_if_present
-
-    # The first card's panel is opened on load, so this one starts hidden.
-    assert_no_text "Security deposits"
-    find(".resx-card", text: "Other housing issues").click
-    assert_text "Security deposits"
-  end
-
-  test "landlord can open a resource card to reveal its panel" do
+  test "landlord sees the FAQs on the guide tab without the resources guide" do
     sign_in_as(@landlord)
     visit resources_path(tab: "guide")
     dismiss_terms_modal_if_present
 
-    assert_no_text "I want to start a conversation with my tenant"
-    find(".resx-card", text: "Start a conversation").click
-    assert_text "I want to start a conversation with my tenant"
+    assert_text "Frequently Asked Questions"
+    assert_text "Q: What is Mediation?"
+    assert_no_text "Landlord Resources"
+    assert_no_css ".resx-card"
+  end
+
+  test "FAQ accordion item reveals its answer when opened" do
+    sign_in_as(@tenant)
+    visit resources_path(tab: "guide")
+    dismiss_terms_modal_if_present
+
+    assert_no_text "neutral person called a"
+    find(".accordion-header", text: "What is Mediation?").click
+    assert_text "neutral person called a"
+  end
+
+  test "FAQ category tabs switch the listed questions" do
+    sign_in_as(@landlord)
+    visit resources_path(tab: "guide")
+    dismiss_terms_modal_if_present
+
+    click_link "Data Privacy"
+    assert_text "Q: Who operates this platform?"
+    assert_no_text "Q: How does this tool work?"
   end
 
   test "navbar resources link opens the resources page" do
@@ -61,7 +55,7 @@ class ResourcesTest < ApplicationSystemTestCase
 
     click_link "Resources"
     assert_current_path resources_path
-    assert_text "Tenant Resources"
+    assert_text "Frequently Asked Questions"
   end
 
   private
