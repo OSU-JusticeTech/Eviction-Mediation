@@ -236,7 +236,7 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".status-badge--active"
-    assert_select "a", text: "View Negotiation"
+    assert_select "a", text: "Open Messages"
   end
 
   test "landlord index shows intake button when tenant done but landlord intake missing" do
@@ -271,7 +271,7 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".status-badge--active"
-    assert_select "a", text: "Access Negotiation"
+    assert_select "a", text: "Open Messages"
   end
 
   private
