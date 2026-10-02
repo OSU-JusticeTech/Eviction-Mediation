@@ -4,6 +4,7 @@
 
   <div class="docs-actions">
     <%= link_to "Upload a document", new_document_path, class: "btn btn-primary" %>
+    <%= link_to "Generate a document", generate_file_path, class: "btn btn-primary" %>
   </div>
 
   <% if @files.blank? %>
