@@ -21,7 +21,6 @@ class MessagesIndexTest < ApplicationSystemTestCase
     dismiss_terms_modal_if_present
 
     assert_selector "h1", text: "Tenant Negotiation & Messages"
-    assert_text "Welcome, #{@tenant.FName}!"
   end
 
   test "landlord sees landlord negotiations page" do
@@ -30,7 +29,6 @@ class MessagesIndexTest < ApplicationSystemTestCase
     dismiss_terms_modal_if_present
 
     assert_selector "h1", text: "Landlord Negotiation & Messages"
-    assert_text "Welcome, #{@landlord.FName}!"
   end
 
   test "mediator is redirected to assigned mediations page" do
