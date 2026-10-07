@@ -182,6 +182,20 @@
         </label>
       </div>
 
+      <!-- Question 12: Language Spoken -->
+      <div class="form-section">
+        <%= f.label :language_spoken, "What language(s) do you speak? (Optional)" %>
+        <% %w[English Spanish Chinese Other].each_with_index do |option, index| %>
+          <label style="display: block; margin-top: <%= index.zero? ? 10 : 8 %>px; cursor: pointer; font-weight: normal;">
+            <%= f.radio_button :language_spoken, option, id: "language_#{index}", style: "margin-right: 8px; vertical-align: middle;" %>
+            <span style="vertical-align: middle;"><%= option %></span>
+            <% if option == "Other" %>
+              <%= text_field_tag "language_other", params[:language_other], placeholder: "Please specify", style: "margin-left: 8px; padding: 6px; vertical-align: middle;" %>
+            <% end %>
+          </label>
+        <% end %>
+      </div>
+
       <div class="form-footer">
         <%= f.submit "Submit Survey", class: 'signup-btn' %>
       </div>

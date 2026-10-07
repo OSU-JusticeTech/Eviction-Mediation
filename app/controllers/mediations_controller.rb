@@ -230,6 +230,11 @@ class MediationsController < ApplicationController
       user_role: @user.Role
     ))
 
+    # Save the typed-in language in place of "Other"
+    if @survey.language_spoken == "Other" && params[:language_other].present?
+      @survey.language_spoken = params[:language_other].strip
+    end
+
     outcome = params[:outcome].to_s
     unless PrimaryMessageGroup::OUTCOMES.include?(outcome)
       @survey.errors.add(:base, "Please select the outcome of this mediation.")
@@ -338,7 +343,8 @@ class MediationsController < ApplicationController
       :would_recommend,
       :liked_most,
       :should_improve,
-      :device_used
+      :device_used,
+      :language_spoken
     )
   end
 

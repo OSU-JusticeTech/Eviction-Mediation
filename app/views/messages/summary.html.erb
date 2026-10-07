@@ -382,6 +382,11 @@
                     <span class="q-label" style="display: block; font-size: 0.875rem; color: #64748b; margin-bottom: 0.25rem;">What device did you use today?</span>
                     <span class="q-value" style="display: block; font-weight: 500; color: #0f172a;"><%= response.device_used&.titleize %></span>
                   </div>
+
+                  <div class="survey-item">
+                    <span class="q-label" style="display: block; font-size: 0.875rem; color: #64748b; margin-bottom: 0.25rem;">Language spoken</span>
+                    <span class="q-value" style="display: block; font-weight: 500; color: #0f172a;"><%= response.language_spoken.presence || "Not answered" %></span>
+                  </div>
                   
                   <% if response.liked_most.present? %>
                     <div class="survey-item" style="margin-top: 0.5rem;">
