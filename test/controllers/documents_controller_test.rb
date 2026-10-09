@@ -269,6 +269,28 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to documents_path
   end
 
+  test "agreement generation allows a payment schedule with a different total" do
+    log_in_as(@tenant)
+
+    assert_difference("FileDraft.count", 1) do
+      post generate_from_intake_path(template: "a"), params: agreement_params.merge(amount2: "300")
+    end
+
+    assert_redirected_to documents_path
+  end
+
+  test "agreement generation allows an empty payment schedule" do
+    log_in_as(@tenant)
+
+    assert_difference("FileDraft.count", 1) do
+      post generate_from_intake_path(template: "a"), params: agreement_params.except(
+        :amount1, :date1, :amount2, :date2
+      )
+    end
+
+    assert_redirected_to documents_path
+  end
+
   test "generate_from_intake supports pay and stay template" do
     log_in_as(@tenant)
 
@@ -311,6 +333,317 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to message_path(@mediation.ConversationID)
+  end
+
+  test "conversation agreement can be reviewed and signed immediately after reading it" do
+    file = create_agreement_draft
+    assert file.agreement_document?
+    assert_equal @mediation.ConversationID, file.AgreementConversationID
+
+    log_in_as(@landlord)
+    get view_file_path(file.FileID)
+    assert_response :success
+    assert_select "a[href='#{download_file_path(file.FileID)}']", text: /Download/
+    assert_select "a[href='#{review_document_path(file.FileID)}']", text: "Suggest Changes"
+    assert_select "form[action='#{apply_signature_document_path(file.FileID)}']"
+    assert_select "input#sign-document-button[disabled]"
+    assert_select "#sign-scroll-hint", text: /Scroll to the bottom/
+    assert_operator response.body.index("document-preview-card"), :<, response.body.index("signature-form")
+
+    post apply_signature_document_path(file.FileID), params: { signature_name: "Jane Doe", agreement_version: 1 }
+    assert file.reload.LandlordSignature
+
+    log_in_as(@tenant)
+    get view_file_path(file.FileID)
+    assert_response :success
+    assert_select "form[action='#{apply_signature_document_path(file.FileID)}']"
+    post apply_signature_document_path(file.FileID), params: { signature_name: "John Doe", agreement_version: 1 }
+    assert file.reload.TenantSignature
+    assert file.LandlordSignature
+    get view_file_path(file.FileID)
+    assert_select "form[action='#{apply_signature_document_path(file.FileID)}']", count: 0
+    assert_select "a[href='#{review_document_path(file.FileID)}']", count: 0
+  end
+
+  test "suggestions leave the document unchanged until the other party reviews each change" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    get review_document_path(file.FileID)
+    assert_response :success
+    assert_select "h3", text: "Payment Schedule (Optional)"
+    assert_select "input[name='amount2'][value='400']"
+    assert_select "input[name='date2'][value='2026-04-30']"
+
+    post apply_signature_document_path(file.FileID), params: { signature_name: "Jane Doe", agreement_version: 1 }
+    assert file.reload.LandlordSignature
+    original_html = File.read(Rails.root.join("public", file.FileURLPath))
+
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, vacate_date: "2026-05-15", amount2: "400", date2: "2026-05-15"
+    )
+    assert_redirected_to view_file_path(file.FileID)
+    assert_equal 1, file.reload.AgreementVersion
+    assert file.LandlordSignature
+    assert file.agreement_suggestions_pending?
+    assert_equal "2026-04-30", file.agreement_terms["date2"]
+    assert_equal original_html, File.read(Rails.root.join("public", file.FileURLPath))
+    assert_equal 1, file.file_attachments.count
+    assert_equal 0, Message.order(:MessageID).last.file_attachments.count
+
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, vacate_date: "2026-06-01"
+    )
+    assert_equal "2026-05-15", file.reload.agreement_proposal["changes"]["vacate_date"]["to"]
+
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
+    assert file.reload.agreement_suggestions_pending?
+    assert_equal "pending", file.agreement_proposal["changes"]["vacate_date"]["decision"]
+    assert_equal 1, file.AgreementVersion
+
+    log_in_as(@tenant)
+    get view_file_path(file.FileID)
+    assert_select ".agreement-suggestions-card .suggestion-item", count: 2
+    assert_select "form[action='#{apply_signature_document_path(file.FileID)}']", count: 0
+    assert_select "form[action='#{decide_document_suggestion_path(file.FileID, 'date2')}']", count: 2
+    post apply_signature_document_path(file.FileID), params: { signature_name: "John Doe", agreement_version: 1 }
+    assert_not file.reload.TenantSignature
+    assert_match(/Suggested changes must be accepted or rejected/, flash[:alert])
+
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
+    assert_redirected_to view_file_path(file.FileID, anchor: "suggestion-vacate_date")
+    assert file.reload.agreement_suggestions_pending?
+    patch decide_document_suggestion_path(file.FileID, "date2"), params: { decision: "rejected" }
+    assert_redirected_to view_file_path(file.FileID, anchor: "suggestion-date2")
+    assert_equal 2, file.reload.AgreementVersion
+    assert_not file.agreement_suggestions_pending?
+    assert_not file.LandlordSignature
+    assert_nil file.LandlordSignedAt
+    assert_equal "2026-05-15", file.agreement_terms["vacate_date"]
+    assert_equal "2026-04-30", file.agreement_terms["date2"]
+    assert_not_equal original_html, File.read(Rails.root.join("public", file.FileURLPath))
+    revision_message = Message.order(:MessageID).last
+    assert_equal "Agreement revised to version 2 by Tenant John Doe. Please review the new terms.", revision_message.Contents
+    assert_equal 0, revision_message.file_attachments.count
+
+    patch decide_document_suggestion_path(file.FileID, "date2"), params: { decision: "accepted" }
+    assert_equal 2, file.reload.AgreementVersion
+
+    post apply_signature_document_path(file.FileID), params: { signature_name: "John Doe", agreement_version: 1 }
+    assert_not file.reload.TenantSignature
+    post apply_signature_document_path(file.FileID), params: { signature_name: "John Doe", agreement_version: 2 }
+    assert file.reload.TenantSignature
+  end
+
+  test "suggestion decisions can save without navigating away from the review" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, vacate_date: "2026-05-15", date2: "2026-05-15"
+    )
+
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+      params: { decision: "accepted" }, as: :json
+    assert_response :success
+    assert_equal({ "status" => "pending", "field" => "vacate_date", "decision" => "accepted" }, response.parsed_body)
+    assert_equal 1, file.reload.AgreementVersion
+    assert file.agreement_suggestions_pending?
+
+    patch decide_document_suggestion_path(file.FileID, "date2"),
+      params: { decision: "rejected" }, as: :json
+    assert_response :success
+    assert_equal({ "status" => "updated", "field" => "date2", "decision" => "rejected" }, response.parsed_body)
+    assert_equal 2, file.reload.AgreementVersion
+    assert_not file.agreement_suggestions_pending?
+  end
+
+  test "payment suggestions can be accepted and rejected independently of amount owed" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, money_owed: "1000", amount1: "600"
+    )
+    assert file.reload.agreement_suggestions_pending?
+
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "money_owed"), params: { decision: "accepted" }
+    patch decide_document_suggestion_path(file.FileID, "amount1"), params: { decision: "rejected" }
+    assert_equal 2, file.reload.AgreementVersion
+    assert_not file.agreement_suggestions_pending?
+    assert_equal "1000", file.agreement_terms["money_owed"]
+    assert_equal "500", file.agreement_terms["amount1"]
+  end
+
+  test "payment amount and removed due date suggestions render on signing page" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, amount1: "600", date2: ""
+    )
+
+    get view_file_path(file.FileID)
+    assert_response :success
+    assert_select ".agreement-suggestions-card .suggestion-item", count: 2
+    assert_select ".suggestion-item", text: /Payment 1 amount/
+    assert_select ".suggestion-item", text: /Payment 2 due date/
+    assert_select ".suggestion-item", text: /Not set/
+
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "amount1"), params: { decision: "accepted" }
+    patch decide_document_suggestion_path(file.FileID, "date2"), params: { decision: "accepted" }
+    assert_equal 2, file.reload.AgreementVersion
+    assert_equal "900", file.agreement_terms["money_owed"]
+    assert_equal "600", file.agreement_terms["amount1"]
+    assert_nil file.agreement_terms["date2"]
+  end
+
+  test "removing a whole payment is one suggestion and one decision" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, amount1: "", date1: ""
+    )
+
+    log_in_as(@tenant)
+    get view_file_path(file.FileID)
+    assert_response :success
+    assert_select ".agreement-suggestions-card .suggestion-item", count: 1
+    assert_select "#suggestion-payment1", text: /Payment 1 removed/
+    assert_select "#suggestion-payment1", text: /\$500/
+    assert_select "#suggestion-payment1", text: /2026-03-30/
+    assert_select "form[action='#{decide_document_suggestion_path(file.FileID, 'payment1')}']", count: 2
+
+    patch decide_document_suggestion_path(file.FileID, "payment1"), params: { decision: "accepted" }
+    assert_redirected_to view_file_path(file.FileID, anchor: "suggestion-payment1")
+    assert_equal 2, file.reload.AgreementVersion
+    assert_nil file.agreement_terms["amount1"]
+    assert_nil file.agreement_terms["date1"]
+    assert_not file.agreement_suggestions_pending?
+  end
+
+  test "rejecting a whole payment removal keeps its amount and due date" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, amount1: "", date1: ""
+    )
+
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "payment1"), params: { decision: "rejected" }
+    assert_redirected_to view_file_path(file.FileID, anchor: "suggestion-payment1")
+    assert_equal 1, file.reload.AgreementVersion
+    assert_equal "500", file.agreement_terms["amount1"]
+    assert_equal "2026-03-30", file.agreement_terms["date1"]
+    assert_not file.agreement_suggestions_pending?
+  end
+
+  test "rejecting every suggestion keeps the agreement and signatures" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    post apply_signature_document_path(file.FileID), params: { signature_name: "Jane Doe", agreement_version: 1 }
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, vacate_date: "2026-05-15"
+    )
+
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "rejected" }
+    assert_equal 1, file.reload.AgreementVersion
+    assert file.LandlordSignature
+    assert_not file.agreement_suggestions_pending?
+    assert_equal "2026-05-01", file.agreement_terms["vacate_date"]
+  end
+
+  test "unmatched payment suggestion keeps the signed document unchanged until reviewed" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    post apply_signature_document_path(file.FileID), params: { signature_name: "Jane Doe", agreement_version: 1 }
+    original_html = File.read(Rails.root.join("public", file.FileURLPath))
+
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, amount2: "300"
+    )
+
+    assert_redirected_to view_file_path(file.FileID)
+    assert_equal 1, file.reload.AgreementVersion
+    assert file.LandlordSignature
+    assert file.agreement_suggestions_pending?
+    assert_equal original_html, File.read(Rails.root.join("public", file.FileURLPath))
+  end
+
+  test "unrelated users cannot revise an agreement" do
+    file = create_agreement_draft
+    log_in_as(@outsider)
+    get review_document_path(file.FileID)
+    assert_response :not_found
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(agreement_version: 1)
+    assert_response :not_found
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
+    assert_response :not_found
+    assert file.reload.agreement_document?
+  end
+
+  test "unrelated users cannot publish a draft into another conversation" do
+    log_in_as(@outsider)
+    assert_no_difference("FileDraft.count") do
+      post generate_from_intake_path(template: "a"), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
+    end
+    assert_response :forbidden
+  end
+
+  test "pay and stay review retains selected payment plan details" do
+    log_in_as(@tenant)
+    post generate_from_intake_path(template: "b"), params: agreement_params.merge(
+      conversation_id: @mediation.ConversationID, payment_monthly: "1",
+      monthly_payment_amount: "300", monthly_payment_months: "3",
+      monthly_payment_day: "15", monthly_payment_start: "2026-04-01",
+      payment_method: "money_order"
+    )
+    file = FileAttachment.order(:MessageID).last.file_draft
+
+    log_in_as(@landlord)
+    get review_document_path(file.FileID)
+    assert_response :success
+    assert_select "input[name='payment_monthly'][checked]"
+    assert_select "input[name='monthly_payment_day'][value='15']"
+    assert_select "input[name='payment_method'][value='money_order'][checked]"
+
+    patch update_review_document_path(file.FileID), params: agreement_params.except(
+      :amount1, :date1, :amount2, :date2
+    ).merge(
+      agreement_version: 1, payment_monthly: "1", monthly_payment_amount: "300",
+      monthly_payment_months: "3", monthly_payment_day: "16",
+      monthly_payment_start: "2026-04-01", payment_method: "money_order"
+    )
+    assert_equal ["monthly_payment_day"], file.reload.agreement_proposal["changes"].keys
+  end
+
+  test "agreements without a conversation do not enter the review workflow" do
+    log_in_as(@tenant)
+    post generate_from_intake_path(template: "a"), params: agreement_params
+    file = FileDraft.where(CreatorID: @tenant.UserID, FileTypes: "html").order(Arel.sql("[CreatedAt] DESC")).first
+    assert_equal "a", file.AgreementTemplate
+    assert_nil file.agreement_conversation_id
+    assert_not file.agreement_signable?
+  end
+
+  test "sending a generated agreement from the chat attaches it and starts review" do
+    activate_mediation(@mediation)
+    log_in_as(@tenant)
+    post generate_from_intake_path(template: "a"), params: agreement_params
+    file = FileDraft.where(CreatorID: @tenant.UserID, FileTypes: "html").order(Arel.sql("[CreatedAt] DESC")).first
+
+    assert_difference("Message.count", 1) do
+      post messages_path, params: { ConversationID: @mediation.ConversationID,
+                                    Contents: "", file_id: file.FileID }
+    end
+    assert_redirected_to message_path(@mediation.ConversationID)
+    assert_equal @mediation.ConversationID, file.reload.agreement_conversation_id
+    assert file.agreement_document?
+    assert FileAttachment.exists?(FileID: file.FileID)
+
+    get message_path(@mediation.ConversationID)
+    assert_response :success
+    assert_select "a", text: "Review & Sign"
   end
 
   test "generate_filled_template creates pdf file draft" do
@@ -383,6 +716,19 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def agreement_params
+    { landlord_name: "Jane Doe", tenant_name: "John Doe", address: "123 Main Street",
+      negotiation_date: "2026-03-20", reason: "Failure to Pay Rent", money_owed: "900",
+      best_option: "Move Out", vacate_date: "2026-05-01",
+      amount1: "500", date1: "2026-03-30", amount2: "400", date2: "2026-04-30" }
+  end
+
+  def create_agreement_draft
+    log_in_as(@tenant)
+    post generate_from_intake_path(template: "a"), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
+    FileAttachment.order(:MessageID).last.file_draft
+  end
 
   def build_uploaded_file(filename, content_type, content)
     temp = Tempfile.new([ "upload", File.extname(filename) ])
