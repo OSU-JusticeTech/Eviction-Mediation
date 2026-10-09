@@ -186,8 +186,9 @@
             <small class="form-hint">Your signature will be recorded as: <strong>/s/ [Your Name]</strong></small>
           </div>
           <div class="form-actions">
-            <%= form.submit "Sign Document", class: "btn-sign" %>
+            <%= form.submit "Sign Document", class: "btn-sign", disabled: true, id: "sign-document-button" %>
           </div>
+          <p id="sign-scroll-hint" class="form-hint" role="status">Scroll to the bottom of the document above to enable signing.</p>
         <% end %>
       </div>
     <% end %>
@@ -277,6 +278,46 @@
         }
       }
     });
+  })();
+</script>
+
+<script>
+  (function() {
+    const preview = document.querySelector('.document-iframe');
+    const signButton = document.getElementById('sign-document-button');
+    const hint = document.getElementById('sign-scroll-hint');
+    if (!preview || !signButton) return;
+
+    function checkDocumentScroll(fromScroll) {
+      try {
+        const frameWindow = preview.contentWindow;
+        if (frameWindow.location.href !== preview.src) return;
+        const page = frameWindow.document.scrollingElement || frameWindow.document.documentElement;
+        const fitsInPreview = page.scrollHeight <= page.clientHeight + 2;
+        if (fitsInPreview || (fromScroll && page.scrollTop + page.clientHeight >= page.scrollHeight - 2)) {
+          signButton.disabled = false;
+          hint.hidden = true;
+        }
+      } catch (error) {
+        hint.hidden = false;
+        hint.textContent = 'The document preview could not be checked. Reload this page to review it before signing.';
+      }
+    }
+
+    function onDocumentScroll() { checkDocumentScroll(true); }
+
+    preview.addEventListener('load', function() {
+      signButton.disabled = true;
+      hint.hidden = false;
+      hint.textContent = 'Scroll to the bottom of the document above to enable signing.';
+      preview.contentWindow.addEventListener('scroll', onDocumentScroll, { passive: true });
+      checkDocumentScroll(false);
+    });
+    if (preview.contentDocument && preview.contentDocument.readyState === 'complete' &&
+        preview.contentWindow.location.href === preview.src) {
+      preview.contentWindow.addEventListener('scroll', onDocumentScroll, { passive: true });
+      checkDocumentScroll(false);
+    }
   })();
 </script>
 

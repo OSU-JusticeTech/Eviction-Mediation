@@ -748,6 +748,10 @@ label.dropzone * {
   font-size: 14px;
 }
 
+#sign-scroll-hint[hidden] {
+  display: none;
+}
+
 .signature-form .form-actions {
   display: flex;
   justify-content: flex-start;
@@ -770,6 +774,14 @@ label.dropzone * {
   background: #059669;
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
+.btn-sign:disabled,
+.btn-sign:disabled:hover {
+  background: #94a3b8;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .btn-sign:active {
