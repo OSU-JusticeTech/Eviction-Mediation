@@ -837,6 +837,12 @@
     gap: 0.75rem;
   }
 
+  .composer-error {
+    margin: 0;
+    color: #b42318;
+    font-size: 0.875rem;
+  }
+
   .composer-field {
     display: flex;
     flex-direction: column;

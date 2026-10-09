@@ -2,11 +2,12 @@
 <% grouped = local_assigns.fetch(:grouped, false) %>
 <% last_in_group = local_assigns.fetch(:last_in_group, true) %>
 <% is_system = message.is_system? %>
+<% revision_notice = is_system && message.Contents.to_s.match?(/\A(?:✏️ )?Agreement (?:draft )?revised to version \d+\./) %>
 
 <% if is_system %>
   <div class="system-message" data-message-id="<%= message.id %>" data-message-timestamp="<%= message.MessageDate.to_i %>">
     <span class="system-message__text"><%= message.Contents %></span>
-    <% if attachments.any? %>
+    <% if attachments.any? && !revision_notice %>
       <div class="system-message__attachments">
         <% attachments.each do |attachment| %>
           <% file = attachment.file_draft %>
@@ -19,16 +20,20 @@
             <div class="attachment-body">
               <div class="attachment-name"><%= file.FileName.presence || "Untitled document" %></div>
               <div class="attachment-actions">
-                <%= link_to "View", view_file_path(file.FileID, view_mode: 'simple'), class: "attachment-link" %>
-                <span aria-hidden="true" class="attachment-dot">·</span>
-                <%= link_to "Download", download_file_path(file.FileID), class: "attachment-link" %>
-                <% if file.FileTypes == "html" %>
-                  <% if current_user.Role == "Tenant" && file.TenantSignature == false %>
-                    <span aria-hidden="true" class="attachment-dot">·</span>
-                    <%= link_to "Sign Document", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
-                  <% elsif current_user.Role == "Landlord" && file.LandlordSignature == false %>
-                    <span aria-hidden="true" class="attachment-dot">·</span>
-                    <%= link_to "Sign Document", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                <% if file.agreement_document? && %w[Tenant Landlord].include?(current_user.Role) %>
+                  <%= link_to "Review & Sign", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                <% else %>
+                  <%= link_to "View", view_file_path(file.FileID, view_mode: 'simple'), class: "attachment-link" %>
+                  <span aria-hidden="true" class="attachment-dot">·</span>
+                  <%= link_to "Download", download_file_path(file.FileID), class: "attachment-link" %>
+                  <% if file.FileTypes == "html" && file.agreement_signable? %>
+                    <% if current_user.Role == "Tenant" && file.TenantSignature == false %>
+                      <span aria-hidden="true" class="attachment-dot">·</span>
+                      <%= link_to "Sign Document", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                    <% elsif current_user.Role == "Landlord" && file.LandlordSignature == false %>
+                      <span aria-hidden="true" class="attachment-dot">·</span>
+                      <%= link_to "Sign Document", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                    <% end %>
                   <% end %>
                 <% end %>
               </div>
@@ -86,17 +91,21 @@
               <div class="attachment-body">
                 <div class="attachment-name"><%= file.FileName.presence || "Untitled document" %></div>
                 <div class="attachment-actions">
-                  <%= link_to "View", view_file_path(file.FileID, view_mode: 'simple'), class: "attachment-link" %>
-                  <span aria-hidden="true" class="attachment-dot">·</span>
-                  <%= link_to "Download", download_file_path(file.FileID), class: "attachment-link" %>
+                  <% if file.agreement_document? && %w[Tenant Landlord].include?(current_user.Role) %>
+                    <%= link_to "Review & Sign", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                  <% else %>
+                    <%= link_to "View", view_file_path(file.FileID, view_mode: 'simple'), class: "attachment-link" %>
+                    <span aria-hidden="true" class="attachment-dot">·</span>
+                    <%= link_to "Download", download_file_path(file.FileID), class: "attachment-link" %>
 
-                  <% if file.FileTypes == "html" %>
-                    <% if current_user.Role == "Tenant" && file.TenantSignature == false %>
-                      <span aria-hidden="true" class="attachment-dot">·</span>
-                      <%= link_to "Sign Document", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
-                    <% elsif current_user.Role == "Landlord" && file.LandlordSignature == false %>
-                      <span aria-hidden="true" class="attachment-dot">·</span>
-                      <%= link_to "Sign Document", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                    <% if file.FileTypes == "html" && file.agreement_signable? %>
+                      <% if current_user.Role == "Tenant" && file.TenantSignature == false %>
+                        <span aria-hidden="true" class="attachment-dot">·</span>
+                        <%= link_to "Sign Document", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                      <% elsif current_user.Role == "Landlord" && file.LandlordSignature == false %>
+                        <span aria-hidden="true" class="attachment-dot">·</span>
+                        <%= link_to "Sign Document", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                      <% end %>
                     <% end %>
                   <% end %>
                 </div>

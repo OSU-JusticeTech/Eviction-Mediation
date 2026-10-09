@@ -103,7 +103,7 @@
               <i class="fa-solid fa-upload" aria-hidden="true"></i>
               Upload a new document
             <% end %>
-            <%= link_to generate_file_path, class: "attachment-link" do %>
+            <%= link_to generate_file_path(conversation_id: @message_string.ConversationID), class: "attachment-link" do %>
               <i class="fa-solid fa-file-circle-plus" aria-hidden="true"></i>
               Generate a document
             <% end %>

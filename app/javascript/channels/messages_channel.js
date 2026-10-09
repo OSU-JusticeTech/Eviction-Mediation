@@ -77,17 +77,20 @@ const buildAttachmentHtml = (attachment, currentUserRole) => {
   const signUrl = escapeAttribute(attachment.sign_url || "");
   const needsTenantSignature = Boolean(attachment.tenant_signature_required);
   const needsLandlordSignature = Boolean(attachment.landlord_signature_required);
+  const isAgreement = Boolean(attachment.agreement_document) && ["Tenant", "Landlord"].includes(currentUserRole);
 
   const showTenantCTA = currentUserRole === "Tenant" && needsTenantSignature && signUrl;
   const showLandlordCTA = currentUserRole === "Landlord" && needsLandlordSignature && signUrl;
 
-  const actions = [
+  const actions = isAgreement ? [
+    `<a href="${signUrl}" class="attachment-link attachment-link--primary">Review &amp; Sign</a>`
+  ] : [
     `<a href="${previewUrl}" class="attachment-link">View</a>`,
     `<span aria-hidden="true" class="attachment-dot">·</span>`,
     `<a href="${downloadUrl}" class="attachment-link">Download</a>`
   ];
 
-  if (showTenantCTA || showLandlordCTA) {
+  if (!isAgreement && (showTenantCTA || showLandlordCTA)) {
     actions.push(`<span aria-hidden="true" class="attachment-dot">·</span>`);
     actions.push(`<a href="${signUrl}" class="attachment-link attachment-link--primary">Sign as ${showTenantCTA ? "Tenant" : "Landlord"}</a>`);
   }

@@ -59,8 +59,9 @@ class MediatorMessagesController < ApplicationController
             download_url: download_file_path(file.FileID),
             view_url: view_file_path(file.FileID),
             sign_url: view_file_path(file.FileID),
-            tenant_signature_required: is_html && file.respond_to?(:TenantSignature) ? !file.TenantSignature : false,
-            landlord_signature_required: is_html && file.respond_to?(:LandlordSignature) ? !file.LandlordSignature : false,
+            tenant_signature_required: is_html && file.agreement_signable? && !file.TenantSignature,
+            landlord_signature_required: is_html && file.agreement_signable? && !file.LandlordSignature,
+            agreement_document: file.agreement_document?,
             extension: extension.presence || file.FileTypes
           }
         end

@@ -1,4 +1,5 @@
 class MessagesController < ApplicationController
+  AgreementAttachmentError = Class.new(StandardError)
   before_action :require_login
   before_action :set_user
 
@@ -214,7 +215,7 @@ class MessagesController < ApplicationController
       # Determine Recipient / broadcast behavior
       recipient_id = determine_recipient(primary_group)
 
-      duplicate_exists = Message.where(
+      duplicate_exists = params[:file_id].blank? && Message.where(
         SenderID: @user.UserID,
         ConversationID: params[:ConversationID],
         Contents: params[:Contents]
@@ -229,86 +230,96 @@ class MessagesController < ApplicationController
         return
       end
 
-      # Create a new message
-      @message = Message.create!(
-        ConversationID: conversation.ConversationID,
-        SenderID: @user.UserID,
-        recipientID: recipient_id,
-        MessageDate: Time.current,
-        Contents: params[:Contents]
-      )
-
-      # Handle file attachment if present
-      if params[:file_id].present?
-        # Find the selected FileDraft by FileID
-        file_draft = FileDraft.find_by(FileID: params[:file_id])
-
-       # Create a file attachment
-       if file_draft
-          FileAttachment.create!(
-            MessageID: @message.MessageID,
-            FileID: file_draft.FileID
+      begin
+        Message.transaction do
+          @message = Message.create!(
+            ConversationID: conversation.ConversationID,
+            SenderID: @user.UserID,
+            recipientID: recipient_id,
+            MessageDate: Time.current,
+            Contents: params[:Contents].to_s
           )
-          # Reload to pick up the association
-          @message.reload
-       else
-          Rails.logger.error "FileDraft not found with ID: #{params[:file_id]}"
-       end
+
+          if params[:file_id].present?
+            file_draft = FileDraft.find_by(FileID: params[:file_id])
+            if file_draft
+              file_draft.with_lock do
+                if file_draft.has_attribute?(:AgreementTemplate) && file_draft[:AgreementTemplate].present?
+                  unless file_draft.has_attribute?(:AgreementConversationID) && file_draft.has_attribute?(:AgreementVersion)
+                    raise AgreementAttachmentError, "Agreement review is unavailable until the database migration is applied."
+                  end
+                  unless file_draft.CreatorID == @user.UserID &&
+                         (file_draft.agreement_conversation_id.blank? || file_draft.agreement_conversation_id == primary_group.ConversationID)
+                    raise AgreementAttachmentError, "This agreement cannot be shared in this conversation."
+                  end
+                  if file_draft.agreement_conversation_id.blank?
+                    file_draft[:AgreementConversationID] = primary_group.ConversationID
+                    file_draft.AgreementVersion ||= 1
+                    file_draft.save!
+                  end
+                end
+                FileAttachment.create!(MessageID: @message.MessageID, FileID: file_draft.FileID)
+              end
+            else
+              raise AgreementAttachmentError, "The selected document could not be found."
+            end
+          end
+        end
+      rescue AgreementAttachmentError => e
+        respond_to do |format|
+          format.html { redirect_to message_path(primary_group.ConversationID), alert: e.message }
+          format.json { render json: { error: e.message }, status: :unprocessable_entity }
+        end
+        return
       end
 
-      if @message.save
-        attachments_payload = @message
-          .file_attachments
-          .includes(:file_draft)
-          .map do |attachment|
-            file = attachment.file_draft
-            next unless file
+      attachments_payload = @message
+        .file_attachments
+        .includes(:file_draft)
+        .map do |attachment|
+          file = attachment.file_draft
+          next unless file
 
-            extension = File.extname(file.FileURLPath.to_s).delete(".")
-            is_html = file.FileTypes == "html" || extension == "html"
-            {
-              file_id: file.FileID,
-              file_name: file.FileName,
-              preview_url: view_file_path(file.FileID),
-              download_url: download_file_path(file.FileID),
-              view_url: view_file_path(file.FileID),
-              sign_url: view_file_path(file.FileID),
-              tenant_signature_required: is_html && file.respond_to?(:TenantSignature) ? !file.TenantSignature : false,
-              landlord_signature_required: is_html && file.respond_to?(:LandlordSignature) ? !file.LandlordSignature : false,
-              extension: extension.presence || file.FileTypes
-            }
-          end
-          .compact
-
-        sender_name = [ @user.FName, @user.LName ].compact.join(" ").squeeze(" ").strip
-        sender_name = @user.CompanyName.presence || @user.Email if sender_name.blank?
-
-        # Broadcast to ActionCable for both sender and receiver
-        ActionCable.server.broadcast(
-          "messages_#{conversation.ConversationID}",
+          extension = File.extname(file.FileURLPath.to_s).delete(".")
+          is_html = file.FileTypes == "html" || extension == "html"
           {
-            message_id: @message.id,
-            contents: @message.Contents,
-            sender_id: @message.SenderID,
-            recipient_id: @message.recipientID,
-            message_date: @message.MessageDate.strftime("%-I:%M %p"),
-            message_timestamp: @message.MessageDate.to_i,
-            sender_role: @user.Role,
-            sender_name: sender_name,
-            attachments: attachments_payload,
-            broadcast: recipient_id.nil?
+            file_id: file.FileID,
+            file_name: file.FileName,
+            preview_url: view_file_path(file.FileID),
+            download_url: download_file_path(file.FileID),
+            view_url: view_file_path(file.FileID),
+            sign_url: view_file_path(file.FileID),
+            tenant_signature_required: is_html && file.agreement_signable? && !file.TenantSignature,
+            landlord_signature_required: is_html && file.agreement_signable? && !file.LandlordSignature,
+            agreement_document: file.agreement_document?,
+            extension: extension.presence || file.FileTypes
           }
-        )
+        end
+        .compact
 
-        respond_to do |format|
-          format.html { redirect_to message_path(conversation.ConversationID) }
-          format.json { render json: { success: true, message_id: @message.id }, status: :created }
-        end
-      else
-        respond_to do |format|
-          format.html { redirect_to message_path(conversation.ConversationID), alert: "Failed to send message." }
-          format.json { render json: { error: @message.errors.full_messages }, status: :unprocessable_entity }
-        end
+      sender_name = [ @user.FName, @user.LName ].compact.join(" ").squeeze(" ").strip
+      sender_name = @user.CompanyName.presence || @user.Email if sender_name.blank?
+
+      # Broadcast to ActionCable for both sender and receiver
+      ActionCable.server.broadcast(
+        "messages_#{conversation.ConversationID}",
+        {
+          message_id: @message.id,
+          contents: @message.Contents,
+          sender_id: @message.SenderID,
+          recipient_id: @message.recipientID,
+          message_date: @message.MessageDate.strftime("%-I:%M %p"),
+          message_timestamp: @message.MessageDate.to_i,
+          sender_role: @user.Role,
+          sender_name: sender_name,
+          attachments: attachments_payload,
+          broadcast: recipient_id.nil?
+        }
+      )
+
+      respond_to do |format|
+        format.html { redirect_to message_path(conversation.ConversationID) }
+        format.json { render json: { success: true, message_id: @message.id }, status: :created }
       end
     else
       respond_to do |format|
