@@ -155,19 +155,31 @@
         <%= f.text_area :mediation_helpful, rows: 4, style: "width: 100%; padding: 10px; margin-top: 10px;" %>
       </div>
 
-      <!-- Question 10: Liked Most (text area) -->
+      <!-- Question 10: Tool Helpful (text area) -->
+      <div class="form-section">
+        <%= f.label :tool_helpful, "Was the mediation tool helpful? Explain. (Optional)" %>
+        <%= f.text_area :tool_helpful, rows: 4, style: "width: 100%; padding: 10px; margin-top: 10px;" %>
+      </div>
+
+      <!-- Question 11: Mediator Fair (text area) -->
+      <div class="form-section">
+        <%= f.label :mediator_fair, "Do you believe the mediator was fair, neutral, and unbiased? Explain. (Optional)" %>
+        <%= f.text_area :mediator_fair, rows: 4, style: "width: 100%; padding: 10px; margin-top: 10px;" %>
+      </div>
+
+      <!-- Question 12: Liked Most (text area) -->
       <div class="form-section">
         <%= f.label :liked_most, "What did you like most about the platform? (Optional)" %>
         <%= f.text_area :liked_most, rows: 4, style: "width: 100%; padding: 10px; margin-top: 10px;" %>
       </div>
 
-      <!-- Question 11: Should Improve (text area) -->
+      <!-- Question 13: Should Improve (text area) -->
       <div class="form-section">
         <%= f.label :should_improve, "What should we improve? (Optional)" %>
         <%= f.text_area :should_improve, rows: 4, style: "width: 100%; padding: 10px; margin-top: 10px;" %>
       </div>
 
-      <!-- Question 12: Device Used -->
+      <!-- Question 14: Device Used -->
       <div class="form-section">
         <%= f.label :device_used, "What device did you use today?", class: "required-label" %>
         <label style="display: block; margin-top: 10px; cursor: pointer; font-weight: normal;">
@@ -188,7 +200,7 @@
         </label>
       </div>
 
-      <!-- Question 13: Language Spoken -->
+      <!-- Question 15: Language Spoken -->
       <div class="form-section">
         <%= f.label :language_spoken, "What language do you prefer to speak in? (Optional)" %>
         <% %w[English Spanish Chinese Other].each_with_index do |option, index| %>
