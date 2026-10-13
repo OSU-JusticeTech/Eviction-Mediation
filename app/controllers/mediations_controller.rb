@@ -343,6 +343,7 @@ class MediationsController < ApplicationController
       :would_recommend,
       :liked_most,
       :should_improve,
+      :mediation_helpful,
       :device_used,
       :language_spoken
     )
