@@ -149,19 +149,37 @@
         </label>
       </div>
 
-      <!-- Question 9: Liked Most (text area) -->
+      <!-- Question 9: Mediation Helpful (text area) -->
+      <div class="form-section">
+        <%= f.label :mediation_helpful, "Was mediation helpful to your situation? Please explain. (Optional)" %>
+        <%= f.text_area :mediation_helpful, rows: 4, style: "width: 100%; padding: 10px; margin-top: 10px;" %>
+      </div>
+
+      <!-- Question 10: Tool Helpful (text area) -->
+      <div class="form-section">
+        <%= f.label :tool_helpful, "Was the mediation tool helpful? Explain. (Optional)" %>
+        <%= f.text_area :tool_helpful, rows: 4, style: "width: 100%; padding: 10px; margin-top: 10px;" %>
+      </div>
+
+      <!-- Question 11: Mediator Fair (text area) -->
+      <div class="form-section">
+        <%= f.label :mediator_fair, "Do you believe the mediator was fair, neutral, and unbiased? Explain. (Optional)" %>
+        <%= f.text_area :mediator_fair, rows: 4, style: "width: 100%; padding: 10px; margin-top: 10px;" %>
+      </div>
+
+      <!-- Question 12: Liked Most (text area) -->
       <div class="form-section">
         <%= f.label :liked_most, "What did you like most about the platform? (Optional)" %>
         <%= f.text_area :liked_most, rows: 4, style: "width: 100%; padding: 10px; margin-top: 10px;" %>
       </div>
 
-      <!-- Question 10: Should Improve (text area) -->
+      <!-- Question 13: Should Improve (text area) -->
       <div class="form-section">
         <%= f.label :should_improve, "What should we improve? (Optional)" %>
         <%= f.text_area :should_improve, rows: 4, style: "width: 100%; padding: 10px; margin-top: 10px;" %>
       </div>
 
-      <!-- Question 11: Device Used -->
+      <!-- Question 14: Device Used -->
       <div class="form-section">
         <%= f.label :device_used, "What device did you use today?", class: "required-label" %>
         <label style="display: block; margin-top: 10px; cursor: pointer; font-weight: normal;">
@@ -180,6 +198,20 @@
           <%= f.radio_button :device_used, "not_sure", id: "device_not_sure", style: "margin-right: 8px; vertical-align: middle;" %>
           <span style="vertical-align: middle;">Not sure</span>
         </label>
+      </div>
+
+      <!-- Question 15: Language Spoken -->
+      <div class="form-section">
+        <%= f.label :language_spoken, "What language do you prefer to speak in? (Optional)" %>
+        <% %w[English Spanish Chinese Other].each_with_index do |option, index| %>
+          <label style="display: block; margin-top: <%= index.zero? ? 10 : 8 %>px; cursor: pointer; font-weight: normal;">
+            <%= f.radio_button :language_spoken, option, id: "language_#{index}", style: "margin-right: 8px; vertical-align: middle;" %>
+            <span style="vertical-align: middle;"><%= option %></span>
+            <% if option == "Other" %>
+              <%= text_field_tag "language_other", params[:language_other], placeholder: "Please specify", style: "margin-left: 8px; padding: 6px; vertical-align: middle;" %>
+            <% end %>
+          </label>
+        <% end %>
       </div>
 
       <div class="form-footer">
