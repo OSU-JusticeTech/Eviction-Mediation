@@ -28,7 +28,8 @@ class FileDraft < ApplicationRecord
   end
 
   def agreement_suggestion_items
-    changes = agreement_proposal["changes"]
+    proposal = agreement_proposal
+    changes = proposal["changes"]
     return [] unless changes.is_a?(Hash)
 
     terms = agreement_terms
@@ -38,16 +39,25 @@ class FileDraft < ApplicationRecord
       date_key = "date#{number}"
       amount = changes[amount_key]
       date = changes[date_key]
-      next unless amount.is_a?(Hash) && amount["from"].present? && amount["to"].blank?
-      next unless (date ? date["to"] : terms[date_key]).blank?
+      grouped_payment = amount.is_a?(Hash) && amount["group_key"] == "payment#{number}"
+      added_payment = amount.is_a?(Hash) && amount["from"].blank? && amount["to"].present?
+      removed_payment = amount.is_a?(Hash) && amount["from"].present? && amount["to"].blank? &&
+                        (date ? date["to"] : terms[date_key]).blank?
+      next unless grouped_payment || added_payment || removed_payment
 
       decisions = [amount["decision"], date&.dig("decision")].compact
-      next if decisions.uniq.length > 1 && !decisions.include?("pending")
+      next if decisions.uniq.length > 1
+      offerers = [amount["offered_by_id"] || proposal["proposer_id"],
+                  (date["offered_by_id"] || proposal["proposer_id"] if date)].compact
+      next if offerers.uniq.length > 1
 
       grouped[amount_key] = {
         key: "payment#{number}", fields: [amount_key, (date_key if date)].compact,
-        removed_payment: true,
+        payment_group: true, added_payment: added_payment,
+        removed_payment: amount["to"].blank? && (date ? date["to"] : terms[date_key]).blank?,
+        offered_by_id: amount["offered_by_id"] || proposal["proposer_id"],
         change: { "from_amount" => amount["from"], "from_date" => date ? date["from"] : terms[date_key],
+                  "to_amount" => amount["to"], "to_date" => date ? date["to"] : terms[date_key],
                   "decision" => decisions.uniq.length == 1 ? decisions.first : "pending" }
       }
       grouped[date_key] = :skip if date
@@ -56,7 +66,8 @@ class FileDraft < ApplicationRecord
     changes.filter_map do |field, change|
       item = grouped[field]
       next if item == :skip
-      item || { key: field, fields: [field], removed_payment: false, change: change }
+      item || { key: field, fields: [field], payment_group: false, added_payment: false, removed_payment: false,
+                offered_by_id: change["offered_by_id"] || proposal["proposer_id"], change: change }
     end
   end
 

@@ -106,41 +106,63 @@
   <% if @conversation && @landlord && @tenant && @file.FileTypes == "html" && params[:view_mode] != 'simple' %>
     <% if @agreement_proposal.present? && @agreement_proposal.fetch("changes", {}).present? %>
       <% suggestions_pending = @file.agreement_suggestions_pending? %>
-      <% can_decide = suggestions_pending && @user_role_in_conversation && @agreement_proposal["proposer_id"].to_i != @user.UserID %>
+      <% can_decide = suggestions_pending && @user_role_in_conversation && @reviewer_id == @user.UserID %>
       <div class="signature-status-card agreement-suggestions-card">
         <div class="agreement-suggestions-heading">
           <div>
             <h3>Suggested Changes</h3>
-            <p>Suggested by <%= @proposal_author ? "#{@proposal_author.Role} #{@proposal_author.FName} #{@proposal_author.LName}" : "a participant" %>. Review each change against the agreement above.</p>
+            <p>Started by <%= @proposal_author ? "#{@proposal_author.Role} #{@proposal_author.FName} #{@proposal_author.LName}" : "a participant" %>. Review each offered value against the agreement above.<%= " Counteroffers will be shared after you address every item." if can_decide %></p>
           </div>
           <span class="suggestion-badge <%= suggestions_pending ? 'pending' : 'reviewed' %>"><%= suggestions_pending ? "Pending review" : "Reviewed" %></span>
         </div>
-        <% if suggestions_pending %>
-          <p class="suggestion-notice">Signing is paused until every suggested change has been accepted or rejected. Accepted changes will update the document when the review is complete.</p>
-        <% end %>
         <div class="suggestion-list">
           <% @file.agreement_suggestion_items.each do |item| %>
             <% field = item[:key] %>
             <% change = item[:change] %>
-            <% label = item[:removed_payment] ? "Payment #{field.delete_prefix('payment')} removed" : agreement_field_label(field) %>
+            <% label = item[:payment_group] ? "Payment #{field.delete_prefix('payment')}#{item[:removed_payment] ? ' removed' : (item[:added_payment] ? ' added' : '')}" : agreement_field_label(field) %>
+            <% offerer = @offer_authors&.dig(item[:offered_by_id].to_i) %>
+            <% staged = @agreement_proposal.fetch('draft_counteroffers', {})[field] if can_decide %>
+            <% before_label = change['decision'] == 'accepted' ? 'Before acceptance' : 'In document' %>
+            <% offered_label = { 'accepted' => 'Accepted in document', 'rejected' => 'Rejected suggestion' }.fetch(change['decision'], 'Suggested') %>
             <div class="suggestion-item" id="suggestion-<%= field %>">
               <div class="suggestion-item-heading">
                 <strong><%= label %></strong>
-                <span class="suggestion-badge <%= change['decision'] %>"><%= change['decision'].humanize %></span>
+                <span class="suggestion-badge <%= change['decision'] %>"><%= staged ? 'Counteroffer ready' : change['decision'].humanize %></span>
               </div>
+              <p class="suggestion-offerer">Offered by <%= offerer ? "#{offerer.Role} #{offerer.FName} #{offerer.LName}" : "a participant" %></p>
               <div class="suggestion-values">
-                <% if item[:removed_payment] %>
-                  <div><span><%= suggestions_pending ? "In document" : "Before review" %></span>
+                <% if item[:payment_group] %>
+                  <div><span><%= before_label %></span>
                     <strong>Amount: <%= agreement_field_value("amount#{field.delete_prefix('payment')}", change['from_amount']) %></strong>
                     <strong>Due date: <%= agreement_field_value("date#{field.delete_prefix('payment')}", change['from_date']) %></strong>
                   </div>
-                  <div><span>Suggested</span><strong>Payment removed</strong></div>
+                  <div><span><%= offered_label %></span>
+                    <% if item[:removed_payment] %>
+                      <strong>Payment removed</strong>
+                    <% else %>
+                      <strong>Amount: <%= agreement_field_value("amount#{field.delete_prefix('payment')}", change['to_amount']) %></strong>
+                      <strong>Due date: <%= agreement_field_value("date#{field.delete_prefix('payment')}", change['to_date']) %></strong>
+                    <% end %>
+                  </div>
                 <% else %>
-                  <div><span><%= suggestions_pending ? "In document" : "Before review" %></span><strong><%= agreement_field_value(field, change['from']) %></strong></div>
-                  <div><span>Suggested</span><strong><%= agreement_field_value(field, change['to']) %></strong></div>
+                  <div><span><%= before_label %></span><strong><%= agreement_field_value(field, change['from']) %></strong></div>
+                  <div><span><%= offered_label %></span><strong><%= agreement_field_value(field, change['to']) %></strong></div>
                 <% end %>
               </div>
-              <% if can_decide %>
+              <% if staged %>
+                <div class="suggestion-staged">
+                  <strong>Your counteroffer is saved for this review:</strong>
+                  <% item[:fields].each do |staged_field| %>
+                    <span><%= agreement_field_label(staged_field) %>: <%= agreement_field_value(staged_field, staged[staged_field]) %></span>
+                  <% end %>
+                </div>
+              <% end %>
+              <% if suggestions_pending && change['decision'] == 'pending' && item[:offered_by_id].to_i == @user.UserID %>
+                <p class="suggestion-review-note">Waiting for the other party to review this offer.</p>
+              <% elsif suggestions_pending && change['decision'] != 'pending' %>
+                <p class="suggestion-review-note">Decision recorded. This item is closed.</p>
+              <% end %>
+              <% if can_decide && item[:fields].all? { |candidate| @agreement_proposal["changes"][candidate]["decision"] == "pending" } && item[:offered_by_id].to_i != @user.UserID %>
                 <div class="suggestion-actions">
                   <%= button_to "Accept", decide_document_suggestion_path(@file.FileID, field), method: :patch,
                       params: { decision: "accepted" }, aria: { label: "Accept #{label}" },
@@ -148,7 +170,43 @@
                   <%= button_to "Reject", decide_document_suggestion_path(@file.FileID, field), method: :patch,
                       params: { decision: "rejected" }, aria: { label: "Reject #{label}" },
                       class: "suggestion-reject #{'selected' if change['decision'] == 'rejected'}" %>
+                  <% if change['decision'] == 'pending' %>
+                    <button type="button" class="suggestion-counteroffer-toggle" aria-expanded="<%= params[:counteroffer_error] == field %>" aria-controls="counteroffer-<%= field %>">Counteroffer</button>
+                  <% end %>
                 </div>
+                <% if change['decision'] == 'pending' %>
+                  <div class="suggestion-counteroffer-panel" id="counteroffer-<%= field %>" <%= 'hidden' unless params[:counteroffer_error] == field %>>
+                  <%= form_with url: counteroffer_document_suggestion_path(@file.FileID, field), method: :patch,
+                                local: true, class: "suggestion-counteroffer-form" do %>
+                    <p>Type or select your counteroffer.</p>
+                    <% if params[:counteroffer_error] == field %>
+                      <p class="suggestion-save-error" role="alert"><%= params[:counteroffer_reason] == 'payment' ? 'A payment date needs a payment amount.' : 'Enter a different value for this counteroffer.' %></p>
+                    <% end %>
+                    <div class="suggestion-counteroffer-fields">
+                      <% item[:fields].each do |counter_field| %>
+                        <% offered_value = staged ? staged[counter_field] : @agreement_proposal["changes"][counter_field]["to"] %>
+                        <div class="form-group">
+                          <%= label_tag "counteroffer_#{counter_field}", "Your proposed #{agreement_field_label(counter_field).downcase}", class: "form-label" %>
+                          <% if counter_field.match?(/\Adate[1-6]\z/) || %w[negotiation_date vacate_date lump_sum_date monthly_payment_start final_payment_date].include?(counter_field) %>
+                            <%= date_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% elsif counter_field.match?(/\Aamount[1-6]\z/) || %w[money_owed monthly_rent rent_owed late_fees utilities other_charges lump_sum_amount monthly_payment_amount final_payment_amount].include?(counter_field) %>
+                            <%= number_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", step: 0.01, min: 0, class: "form-input" %>
+                          <% elsif %w[payment_lump_sum payment_monthly payment_final].include?(counter_field) %>
+                            <%= select_tag "counteroffer[#{counter_field}]", options_for_select([["Selected", "1"], ["Not selected", "0"]], offered_value), id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% elsif counter_field == "payment_method" %>
+                            <%= select_tag "counteroffer[#{counter_field}]", options_for_select([["Online portal", "online_portal"], ["Money order", "money_order"], ["Cashier's check", "cashiers_check"], ["Other", "other"]], offered_value), id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% elsif counter_field == "additional_terms" %>
+                            <%= text_area_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input", rows: 3 %>
+                          <% else %>
+                            <%= text_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                    <%= submit_tag "Save Counteroffer", class: "agreement-action" %>
+                  <% end %>
+                  </div>
+                <% end %>
               <% end %>
             </div>
           <% end %>
@@ -206,7 +264,9 @@
       const position = JSON.parse(saved);
       const item = document.getElementById(position.id) || card;
       if (!item) return;
-      window.scrollTo(0, window.scrollY + item.getBoundingClientRect().top - position.top);
+      const difference = item.getBoundingClientRect().top - position.top;
+      document.body.scrollTop += difference;
+      window.scrollTo(0, window.scrollY + difference);
     }
 
     if (sessionStorage.getItem(positionKey)) {
@@ -224,13 +284,21 @@
     }
 
     if (!card) return;
+    card.addEventListener('click', function(event) {
+      const toggle = event.target.closest('.suggestion-counteroffer-toggle');
+      if (!toggle) return;
+      const panel = document.getElementById(toggle.getAttribute('aria-controls'));
+      panel.hidden = !panel.hidden;
+      toggle.setAttribute('aria-expanded', String(!panel.hidden));
+      if (!panel.hidden) panel.querySelector('input, select, textarea')?.focus();
+    });
     card.addEventListener('submit', async function(event) {
-      const form = event.target.closest('.suggestion-actions form');
+      const form = event.target.closest('.suggestion-actions form, .suggestion-counteroffer-form');
       if (!form) return;
       event.preventDefault();
 
       const item = form.closest('.suggestion-item');
-      const buttons = card.querySelectorAll('.suggestion-actions button');
+      const buttons = card.querySelectorAll('.suggestion-item button, .suggestion-item input[type="submit"]');
       if (card.dataset.saving === 'true') return;
       card.dataset.saving = 'true';
       buttons.forEach(function(button) { button.disabled = true; });
@@ -243,15 +311,37 @@
           credentials: 'same-origin',
           headers: { 'Accept': 'application/json' }
         });
-        if (!response.ok) throw new Error('The decision could not be saved. Refresh the agreement and try again.');
         const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'The decision could not be saved. Refresh the agreement and try again.');
         if (result.status === 'pending') {
           const badge = item.querySelector('.suggestion-item-heading .suggestion-badge');
           badge.className = 'suggestion-badge ' + result.decision;
           badge.textContent = result.decision === 'accepted' ? 'Accepted' : 'Rejected';
-          item.querySelector('.suggestion-accept').classList.toggle('selected', result.decision === 'accepted');
-          item.querySelector('.suggestion-reject').classList.toggle('selected', result.decision === 'rejected');
-        } else if (result.status === 'updated' || result.status === 'rejected') {
+          item.querySelector('.suggestion-actions')?.remove();
+          item.querySelector('.suggestion-counteroffer-panel')?.remove();
+          item.querySelector('.suggestion-staged')?.remove();
+          const note = document.createElement('p');
+          note.className = 'suggestion-review-note';
+          note.textContent = 'Decision recorded. This item is closed.';
+          item.append(note);
+        } else if (result.status === 'countered' && !result.round_complete) {
+          const refreshed = await fetch(location.pathname + location.search, {
+            credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'text/html' }
+          });
+          if (!refreshed.ok) throw new Error('Counteroffer sent. Reload the agreement to see it.');
+          const page = new DOMParser().parseFromString(await refreshed.text(), 'text/html');
+          const updatedItem = page.getElementById(item.id);
+          if (!updatedItem) throw new Error('Counteroffer sent. Reload the agreement to see it.');
+          const pageScroll = window.scrollY;
+          const bodyScroll = document.body.scrollTop;
+          item.replaceWith(updatedItem);
+          document.body.scrollTop = bodyScroll;
+          window.scrollTo(0, pageScroll);
+          requestAnimationFrame(function() {
+            document.body.scrollTop = bodyScroll;
+            window.scrollTo(0, pageScroll);
+          });
+        } else if (['updated', 'rejected'].includes(result.status) || (result.status === 'countered' && result.round_complete)) {
           sessionStorage.setItem(positionKey, JSON.stringify({ id: item.id, top: item.getBoundingClientRect().top }));
           history.scrollRestoration = 'manual';
           history.replaceState(null, '', location.pathname + location.search);
@@ -261,14 +351,21 @@
         } else {
           throw new Error('The decision could not be saved. Refresh the agreement and try again.');
         }
-        card.querySelector('.suggestion-save-error')?.remove();
+        item.querySelector('.suggestion-save-error')?.remove();
       } catch (error) {
-        let message = card.querySelector('.suggestion-save-error');
+        let message = item.querySelector('.suggestion-save-error');
         if (!message) {
           message = document.createElement('p');
           message.className = 'suggestion-save-error';
           message.setAttribute('role', 'alert');
-          card.querySelector('.agreement-suggestions-heading').after(message);
+          const panel = item.querySelector('.suggestion-counteroffer-panel');
+          if (panel && form.matches('.suggestion-counteroffer-form')) {
+            panel.hidden = false;
+            item.querySelector('.suggestion-counteroffer-toggle')?.setAttribute('aria-expanded', 'true');
+            panel.querySelector('p')?.after(message);
+          } else {
+            item.append(message);
+          }
         }
         message.textContent = error.message;
       } finally {

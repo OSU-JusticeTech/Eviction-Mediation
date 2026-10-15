@@ -365,7 +365,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{review_document_path(file.FileID)}']", count: 0
   end
 
-  test "suggestions leave the document unchanged until the other party reviews each change" do
+  test "accepted suggestions update the document immediately while remaining suggestions stay pending" do
     file = create_agreement_draft
     log_in_as(@landlord)
     get review_document_path(file.FileID)
@@ -412,6 +412,13 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
     assert_redirected_to view_file_path(file.FileID, anchor: "suggestion-vacate_date")
     assert file.reload.agreement_suggestions_pending?
+    assert_equal 2, file.AgreementVersion
+    assert_equal 2, file.agreement_proposal["base_version"]
+    assert_not file.LandlordSignature
+    assert_equal "2026-05-15", file.agreement_terms["vacate_date"]
+    assert_equal "2026-04-30", file.agreement_terms["date2"]
+    assert_not_equal original_html, File.read(Rails.root.join("public", file.FileURLPath))
+    assert_equal "Landlord Jane Doe suggested changes to the agreement. Review the document to see them.", Message.order(:MessageID).last.Contents
     patch decide_document_suggestion_path(file.FileID, "date2"), params: { decision: "rejected" }
     assert_redirected_to view_file_path(file.FileID, anchor: "suggestion-date2")
     assert_equal 2, file.reload.AgreementVersion
@@ -445,14 +452,22 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     patch decide_document_suggestion_path(file.FileID, "vacate_date"),
       params: { decision: "accepted" }, as: :json
     assert_response :success
-    assert_equal({ "status" => "pending", "field" => "vacate_date", "decision" => "accepted" }, response.parsed_body)
-    assert_equal 1, file.reload.AgreementVersion
+    assert_equal({ "status" => "updated", "field" => "vacate_date", "decision" => "accepted" }, response.parsed_body)
+    assert_equal 2, file.reload.AgreementVersion
     assert file.agreement_suggestions_pending?
+
+    get view_file_path(file.FileID)
+    assert_select "#suggestion-vacate_date .suggestion-actions", count: 0
+    assert_select "#suggestion-date2 .suggestion-actions", count: 1
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+      params: { decision: "rejected" }, as: :json
+    assert_response :conflict
+    assert_equal "accepted", file.reload.agreement_proposal["changes"]["vacate_date"]["decision"]
 
     patch decide_document_suggestion_path(file.FileID, "date2"),
       params: { decision: "rejected" }, as: :json
     assert_response :success
-    assert_equal({ "status" => "updated", "field" => "date2", "decision" => "rejected" }, response.parsed_body)
+    assert_equal({ "status" => "rejected", "field" => "date2", "decision" => "rejected" }, response.parsed_body)
     assert_equal 2, file.reload.AgreementVersion
     assert_not file.agreement_suggestions_pending?
   end
@@ -491,7 +506,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     log_in_as(@tenant)
     patch decide_document_suggestion_path(file.FileID, "amount1"), params: { decision: "accepted" }
     patch decide_document_suggestion_path(file.FileID, "date2"), params: { decision: "accepted" }
-    assert_equal 2, file.reload.AgreementVersion
+    assert_equal 3, file.reload.AgreementVersion
     assert_equal "900", file.agreement_terms["money_owed"]
     assert_equal "600", file.agreement_terms["amount1"]
     assert_nil file.agreement_terms["date2"]
@@ -537,6 +552,67 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_not file.agreement_suggestions_pending?
   end
 
+  test "adding a payment is one decision and a date cannot be accepted without an amount" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, amount3: "250", date3: "2026-06-01"
+    )
+    assert file.reload.agreement_suggestions_pending?
+
+    log_in_as(@tenant)
+    get view_file_path(file.FileID)
+    assert_select ".agreement-suggestions-card .suggestion-item", count: 1
+    assert_select "#suggestion-payment3", text: /Payment 3 added/
+    assert_select "#suggestion-payment3", text: /\$250/
+    assert_select "#suggestion-payment3", text: /2026-06-01/
+    patch decide_document_suggestion_path(file.FileID, "date3"), params: { decision: "accepted" }, as: :json
+    assert_response :conflict
+    patch decide_document_suggestion_path(file.FileID, "payment3"), params: { decision: "accepted" }
+    assert_equal 2, file.reload.AgreementVersion
+    assert_equal "250", file.agreement_terms["amount3"]
+    assert_equal "2026-06-01", file.agreement_terms["date3"]
+  end
+
+  test "a date-only payment suggestion is refused while the schedule remains optional" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, date3: "2026-06-01"
+    )
+    assert_redirected_to review_document_path(file.FileID)
+    assert_not file.reload.agreement_suggestions_pending?
+    assert_nil file.agreement_terms["amount3"]
+
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, amount3: "250"
+    )
+    assert file.reload.agreement_suggestions_pending?
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "payment3"), params: { decision: "accepted" }
+    assert_equal "250", file.reload.agreement_terms["amount3"]
+    assert_nil file.agreement_terms["date3"]
+  end
+
+  test "an older split payment offer cannot accept a date without its amount" do
+    file = create_agreement_draft
+    proposal = { "base_version" => 1, "proposer_id" => @landlord.UserID,
+                 "reviewer_id" => @tenant.UserID,
+                 "changes" => {
+                   "amount3" => { "from" => "", "to" => "250", "decision" => "rejected" },
+                   "date3" => { "from" => "", "to" => "2026-06-01", "decision" => "pending" }
+                 } }
+    file.update!(AgreementProposal: JSON.generate(proposal))
+
+    patch decide_document_suggestion_path(file.FileID, "date3"),
+      params: { decision: "accepted" }, as: :json
+    assert_response :unprocessable_entity
+    assert_match(/payment date needs a payment amount/, response.parsed_body["error"])
+    assert_equal 1, file.reload.AgreementVersion
+    assert_nil file.agreement_terms["date3"]
+    assert_equal "pending", file.agreement_proposal["changes"]["date3"]["decision"]
+  end
+
   test "rejecting every suggestion keeps the agreement and signatures" do
     file = create_agreement_draft
     log_in_as(@landlord)
@@ -551,6 +627,146 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert file.LandlordSignature
     assert_not file.agreement_suggestions_pending?
     assert_equal "2026-05-01", file.agreement_terms["vacate_date"]
+  end
+
+  test "counteroffer transfers an individual suggestion back without changing other decisions" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, vacate_date: "2026-05-15", amount2: "450"
+    )
+    assert file.reload.agreement_suggestions_pending?
+
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "amount2"), params: { decision: "rejected" }
+    patch counteroffer_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { counteroffer: { vacate_date: "2026-05-20" } }, as: :json
+    assert_response :success
+    assert_equal "countered", response.parsed_body["status"]
+    proposal = file.reload.agreement_proposal
+    assert_equal "rejected", proposal["changes"]["amount2"]["decision"]
+    assert_equal "2026-05-20", proposal["changes"]["vacate_date"]["to"]
+    assert_equal @tenant.UserID, proposal["changes"]["vacate_date"]["offered_by_id"]
+    assert_equal 1, file.AgreementVersion
+    assert file.agreement_suggestions_pending?
+
+    get view_file_path(file.FileID)
+    assert_select "#suggestion-vacate_date", text: /Offered by Tenant/
+    assert_select "#suggestion-vacate_date .suggestion-counteroffer-toggle", count: 0
+
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }, as: :json
+    assert_response :conflict
+    patch counteroffer_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { counteroffer: { vacate_date: "2026-05-22" } }, as: :json
+    assert_response :unprocessable_entity
+
+    log_in_as(@landlord)
+    get view_file_path(file.FileID)
+    assert_select "#suggestion-vacate_date .suggestion-counteroffer-toggle", count: 1
+    assert_select "#counteroffer-vacate_date.suggestion-counteroffer-panel[hidden]", count: 1
+    assert_select "#counteroffer-vacate_date .suggestion-counteroffer-form", count: 1
+    patch counteroffer_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { counteroffer: { vacate_date: "2026-05-20" } }
+    assert_redirected_to view_file_path(file.FileID, counteroffer_error: "vacate_date", anchor: "suggestion-vacate_date")
+    follow_redirect!
+    assert_select "#counteroffer-vacate_date:not([hidden]) .suggestion-save-error", text: "Enter a different value for this counteroffer."
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
+    assert_equal 2, file.reload.AgreementVersion
+    assert_equal "2026-05-20", file.agreement_terms["vacate_date"]
+    assert_equal "400", file.agreement_terms["amount2"]
+  end
+
+  test "a counteroffer to a removed payment stays one suggestion" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, amount1: "", date1: ""
+    )
+    log_in_as(@tenant)
+    patch counteroffer_document_suggestion_path(file.FileID, "payment1"),
+          params: { counteroffer: { amount1: "550", date1: "2026-04-05" } }, as: :json
+    assert_response :success
+    item = file.reload.agreement_suggestion_items.find { |suggestion| suggestion[:key] == "payment1" }
+    assert_equal %w[amount1 date1], item[:fields]
+    assert_equal false, item[:removed_payment]
+    assert_equal @tenant.UserID, item[:offered_by_id]
+    assert_equal 1, file.AgreementVersion
+  end
+
+  test "counteroffers and accepted decisions update the agreement one item at a time" do
+    file = create_agreement_draft
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, vacate_date: "2026-05-15", date2: "2026-05-15",
+      money_owed: "950", amount1: "600"
+    )
+    initial_messages = Message.where(ConversationID: @mediation.ConversationID).count
+
+    log_in_as(@landlord)
+    patch counteroffer_document_suggestion_path(file.FileID, "vacate_date"),
+      params: { counteroffer: { vacate_date: "2026-05-20" } }, as: :json
+    assert_response :success
+    patch counteroffer_document_suggestion_path(file.FileID, "date2"),
+      params: { counteroffer: { date2: "2026-05-25" } }, as: :json
+    assert_response :success
+    assert_equal false, response.parsed_body["round_complete"]
+    assert_equal initial_messages, Message.where(ConversationID: @mediation.ConversationID).count
+    assert_equal "2026-05-15", file.reload.agreement_proposal["changes"]["vacate_date"]["to"]
+    assert_equal @landlord.UserID, file.agreement_proposal["reviewer_id"]
+    assert_equal "2026-05-20", file.agreement_proposal["draft_counteroffers"]["vacate_date"]["vacate_date"]
+    log_in_as(@tenant)
+    get view_file_path(file.FileID)
+    assert_select "#suggestion-vacate_date .suggestion-actions", count: 0
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+      params: { decision: "accepted" }, as: :json
+    assert_response :conflict
+    log_in_as(@landlord)
+    patch decide_document_suggestion_path(file.FileID, "money_owed"),
+      params: { decision: "accepted" }, as: :json
+    assert_response :success
+    assert_equal "updated", response.parsed_body["status"]
+    assert_equal 2, file.reload.AgreementVersion
+    assert_equal "950", file.agreement_terms["money_owed"]
+    assert_equal "500", file.agreement_terms["amount1"]
+    assert file.agreement_suggestions_pending?
+    assert_equal initial_messages, Message.where(ConversationID: @mediation.ConversationID).count
+    patch decide_document_suggestion_path(file.FileID, "amount1"),
+      params: { decision: "rejected" }, as: :json
+    assert_response :success
+    assert_equal "rejected", response.parsed_body["status"]
+    assert_equal 2, file.reload.AgreementVersion
+    assert file.agreement_suggestions_pending?
+    assert_equal initial_messages + 1, Message.where(ConversationID: @mediation.ConversationID).count
+    assert_equal @tenant.UserID, file.agreement_proposal["reviewer_id"]
+    assert_nil file.agreement_proposal["draft_counteroffers"]
+    assert_equal "2026-05-20", file.agreement_proposal["changes"]["vacate_date"]["to"]
+
+    get view_file_path(file.FileID)
+    assert_select "#suggestion-money_owed .suggestion-actions", count: 0
+    assert_select "#suggestion-amount1 .suggestion-actions", count: 0
+    patch decide_document_suggestion_path(file.FileID, "money_owed"),
+      params: { decision: "rejected" }, as: :json
+    assert_response :conflict
+    assert_equal "accepted", file.reload.agreement_proposal["changes"]["money_owed"]["decision"]
+
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+      params: { decision: "accepted" }, as: :json
+    assert_response :success
+    assert_equal 3, file.reload.AgreementVersion
+    assert_equal "2026-05-20", file.agreement_terms["vacate_date"]
+    assert_equal "2026-04-30", file.agreement_terms["date2"]
+    assert file.agreement_suggestions_pending?
+    assert_equal initial_messages + 1, Message.where(ConversationID: @mediation.ConversationID).count
+    patch decide_document_suggestion_path(file.FileID, "date2"),
+      params: { decision: "accepted" }, as: :json
+    assert_response :success
+    assert_equal 4, file.reload.AgreementVersion
+    assert_not file.agreement_suggestions_pending?
+    assert_equal "2026-05-20", file.agreement_terms["vacate_date"]
+    assert_equal "2026-05-25", file.agreement_terms["date2"]
+    assert_equal "950", file.agreement_terms["money_owed"]
+    assert_equal "500", file.agreement_terms["amount1"]
+    assert_equal initial_messages + 2, Message.where(ConversationID: @mediation.ConversationID).count
   end
 
   test "unmatched payment suggestion keeps the signed document unchanged until reviewed" do
