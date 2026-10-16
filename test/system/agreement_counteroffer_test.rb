@@ -90,6 +90,33 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
     assert_equal "2026-11-05", @file.reload.agreement_proposal["changes"]["vacate_date"]["to"]
   end
 
+  test "new payment values keep the document's existing underline widths" do
+    @file.update!(AgreementProposal: nil)
+    visit login_path
+    fill_in "email", with: @landlord.Email
+    fill_in "password", with: "password"
+    click_button "Log In"
+    click_button "OK" if page.has_button?("OK", wait: 1)
+
+    visit view_file_path(@file.FileID)
+    click_link "Suggest Changes"
+    assert_current_path view_file_path(@file.FileID, edit: 1)
+    assert_selector '[data-agreement-editor][data-editor-ready="true"]'
+    assert_no_text "The document preview could not be edited"
+    guide_top = page.evaluate_script("document.querySelector('.agreement-editor-guide').getBoundingClientRect().top")
+    assert_operator page.evaluate_script("document.body.scrollTop"), :>, 0
+    assert_operator guide_top, :>=, 100
+    assert_operator guide_top, :<, 220
+    within_frame(find(".document-iframe")) do
+      click_button "+ Add payment"
+      find(".agreement-inline-input").set("2000")
+      find(".agreement-inline-input").send_keys(:tab)
+      widths = page.evaluate_script("[document.querySelector('[data-agreement-field=amount1]').getBoundingClientRect().width, document.querySelector('[data-agreement-field=amount2]').getBoundingClientRect().width, document.querySelector('[data-agreement-field=date1]').getBoundingClientRect().width, document.querySelector('[data-agreement-field=date2]').getBoundingClientRect().width]")
+      assert_in_delta widths[0], widths[1], 1
+      assert_in_delta widths[2], widths[3], 1
+    end
+  end
+
   test "a saved decision closes that item while other suggestions remain" do
     proposal = @file.agreement_proposal
     proposal["changes"]["date1"] = { "from" => "2026-10-14", "to" => "2026-10-20", "decision" => "pending" }

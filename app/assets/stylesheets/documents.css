@@ -446,6 +446,39 @@ label.dropzone * {
   color: #fff;
 }
 
+.agreement-action:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.agreement-editor-guide {
+  margin: 24px 0 16px;
+  border: 2px solid #93c5fd;
+  background: #f8fbff;
+  scroll-margin-top: 110px;
+}
+
+.agreement-editor-guide p {
+  color: #334155;
+}
+
+.agreement-editor-count {
+  font-weight: 700;
+}
+
+.agreement-cancel {
+  margin-left: 14px;
+  color: #475569;
+}
+
+.agreement-editor-error {
+  color: #b91c1c !important;
+}
+
+.agreement-editor-error[hidden] {
+  display: none;
+}
+
 .signature-status-card h3 {
   margin: 0 0 20px;
   font-size: 20px;

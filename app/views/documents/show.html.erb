@@ -96,8 +96,29 @@
 
   <% end %>
 
+  <% if @editing_agreement %>
+    <div class="signature-status-card agreement-editor-guide" data-agreement-editor data-agreement-template="<%= @file.AgreementTemplate %>">
+      <h3>Suggest Changes</h3>
+      <p>Click a highlighted value in the document to edit it. Your edits are only a preview until you send them.</p>
+      <p class="agreement-editor-count" data-agreement-edit-count role="status">No changes yet</p>
+      <%= form_with url: update_review_document_path(@file.FileID), method: :patch, local: true,
+                    data: { turbo: false }, html: { id: "agreement-editor-form" } do %>
+        <%= hidden_field_tag :agreement_version, @file.AgreementVersion %>
+        <% @editable_agreement_fields.each do |field| %>
+          <% value = @file.agreement_terms[field] %>
+          <%= hidden_field_tag field, value, data: { agreement_term: field } %>
+        <% end %>
+        <div class="form-actions">
+          <%= submit_tag "Finish & Send Suggested Changes", class: "agreement-action", disabled: true, data: { agreement_finish: true } %>
+          <%= link_to "Cancel", view_file_path(@file.FileID), class: "agreement-cancel" %>
+        </div>
+      <% end %>
+      <p class="agreement-editor-error" data-agreement-editor-error role="alert" hidden></p>
+    </div>
+  <% end %>
+
   <div class="document-preview-card">
-    <iframe src="<%= view_inline_document_path(@file.FileID) %>" class="document-iframe">
+    <iframe src="<%= view_inline_document_path(@file.FileID, editable_preview: @editing_agreement ? 1 : nil) %>" class="document-iframe" title="Agreement document preview">
       Your browser does not support iframes.
       <%= link_to "View Document", view_inline_document_path(@file.FileID), target: "_blank", class: "fallback-link" %>
     </iframe>
@@ -214,7 +235,7 @@
       </div>
     <% end %>
 
-    <% if @file.agreement_editable? && !@file.agreement_suggestions_pending? && @user_role_in_conversation %>
+    <% if @file.agreement_editable? && !@file.agreement_suggestions_pending? && @user_role_in_conversation && !@editing_agreement %>
       <div class="signature-status-card agreement-suggestion-entry-card">
         <h3>Suggest Changes</h3>
         <p>The changes will be shared for review, and the other party will need to accept or reject the changes before signing.</p>
@@ -231,7 +252,7 @@
         <h3><i class="fa-solid fa-pen-to-square"></i> Signing Paused</h3>
         <p class="signing-description">The pending suggested changes must be reviewed before either party can sign.</p>
       </div>
-    <% elsif @file.agreement_signable? && needs_signature %>
+    <% elsif @file.agreement_signable? && needs_signature && !@editing_agreement %>
       <% signer = @user_role_in_conversation == "landlord" ? @landlord : @tenant %>
       <div class="signing-card" data-signer-role="<%= @user_role_in_conversation %>">
         <h3><i class="fa-solid fa-pen-to-square"></i> Sign This Document</h3>

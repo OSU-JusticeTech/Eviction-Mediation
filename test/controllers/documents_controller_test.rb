@@ -369,10 +369,17 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     file = create_agreement_draft
     log_in_as(@landlord)
     get review_document_path(file.FileID)
+    assert_redirected_to view_file_path(file.FileID, edit: 1)
+    get view_file_path(file.FileID, edit: 1)
     assert_response :success
-    assert_select "h3", text: "Payment Schedule (Optional)"
+    assert_select "[data-agreement-editor]"
     assert_select "input[name='amount2'][value='400']"
     assert_select "input[name='date2'][value='2026-04-30']"
+    assert_select "[data-agreement-finish][disabled]", count: 1
+    get view_inline_document_path(file.FileID, editable_preview: 1)
+    assert_response :success
+    assert_select "[data-agreement-field='vacate_date']"
+    assert_select "[data-agreement-payment-row='2']"
 
     post apply_signature_document_path(file.FileID), params: { signature_name: "Jane Doe", agreement_version: 1 }
     assert file.reload.LandlordSignature
@@ -572,6 +579,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 2, file.reload.AgreementVersion
     assert_equal "250", file.agreement_terms["amount3"]
     assert_equal "2026-06-01", file.agreement_terms["date3"]
+    assert_includes File.read(Rails.root.join("public", file.FileURLPath)), "data-agreement-payment-row=\"3\""
   end
 
   test "a date-only payment suggestion is refused while the schedule remains optional" do
@@ -580,7 +588,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     patch update_review_document_path(file.FileID), params: agreement_params.merge(
       agreement_version: 1, date3: "2026-06-01"
     )
-    assert_redirected_to review_document_path(file.FileID)
+    assert_redirected_to view_file_path(file.FileID, edit: 1)
     assert_not file.reload.agreement_suggestions_pending?
     assert_nil file.agreement_terms["amount3"]
 
@@ -791,6 +799,8 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     log_in_as(@outsider)
     get review_document_path(file.FileID)
     assert_response :not_found
+    get view_inline_document_path(file.FileID, editable_preview: 1)
+    assert_response :not_found
     patch update_review_document_path(file.FileID), params: agreement_params.merge(agreement_version: 1)
     assert_response :not_found
     patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
@@ -818,10 +828,12 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     log_in_as(@landlord)
     get review_document_path(file.FileID)
+    assert_redirected_to view_file_path(file.FileID, edit: 1)
+    get view_file_path(file.FileID, edit: 1)
     assert_response :success
-    assert_select "input[name='payment_monthly'][checked]"
+    assert_select "input[name='payment_monthly'][value='1']"
     assert_select "input[name='monthly_payment_day'][value='15']"
-    assert_select "input[name='payment_method'][value='money_order'][checked]"
+    assert_select "input[name='payment_method'][value='money_order']"
 
     patch update_review_document_path(file.FileID), params: agreement_params.except(
       :amount1, :date1, :amount2, :date2

@@ -324,7 +324,13 @@ class DocumentsController < ApplicationController
       @offer_authors = User.where(UserID: offerer_ids).index_by(&:UserID)
       @reviewer_id = active_agreement_reviewer_id(@file, @agreement_proposal, @conversation) if @conversation && @file.agreement_suggestions_pending?
     end
-
+    @editing_agreement = params[:edit] == "1" && @file.agreement_editable? &&
+                         @user_role_in_conversation.present? && !@file.agreement_suggestions_pending? &&
+                         params[:view_mode] != "simple"
+    @editable_agreement_fields = agreement_fields_for_template(@file.AgreementTemplate) if @editing_agreement
+    if params[:edit].present? && !@editing_agreement
+      return redirect_to view_file_path(@file.FileID), alert: "This agreement is not available for editing."
+    end
   end
 
   def review
@@ -336,9 +342,7 @@ class DocumentsController < ApplicationController
     return redirect_to view_file_path(@file.FileID), alert: "This agreement can no longer be changed." unless @file.agreement_editable?
     return redirect_to view_file_path(@file.FileID), alert: "Review the pending suggestions before proposing more changes." if @file.agreement_suggestions_pending?
 
-    setup_agreement_intake(@file, @conversation)
-    @review_file = @file
-    render :template_intake
+    redirect_to view_file_path(@file.FileID, edit: 1)
   end
 
   def update_review
@@ -396,9 +400,9 @@ class DocumentsController < ApplicationController
     when :unchanged
       redirect_to view_file_path(file.FileID), notice: "No terms were changed."
     when :invalid
-      redirect_to review_document_path(file.FileID), alert: "One or more edited values are invalid. Review the document and try again."
+      redirect_to view_file_path(file.FileID, edit: 1), alert: "One or more edited values are invalid. Review the document and try again."
     when :invalid_payment
-      redirect_to review_document_path(file.FileID), alert: "A payment date needs a payment amount. Add an amount or remove the date."
+      redirect_to view_file_path(file.FileID, edit: 1), alert: "A payment date needs a payment amount. Add an amount or remove the date."
     else
       redirect_to view_file_path(file.FileID), alert: "This agreement changed while you were editing. Review the latest version."
     end
@@ -740,6 +744,15 @@ class DocumentsController < ApplicationController
     file = find_file_for_user(params[:id])
     return render plain: "File not found (record)", status: :not_found unless file
 
+    if params[:editable_preview] == "1"
+      conversation = agreement_conversation(file)
+      return render plain: "Unauthorized", status: :forbidden unless conversation && agreement_party?(conversation) &&
+        file.agreement_editable? && !file.agreement_suggestions_pending?
+
+      assign_agreement_template_variables(file.AgreementTemplate, file.agreement_terms)
+      return render template: agreement_template_file(file.AgreementTemplate), layout: false
+    end
+
     base_path = Rails.root.join("public")
     rel_path  = Pathname.new(file.FileURLPath).cleanpath
     path      = base_path.join(rel_path)
@@ -887,7 +900,7 @@ class DocumentsController < ApplicationController
     case template
     when "a" then AGREEMENT_COMMON_FIELDS + ["vacate_date"] + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
     when "b" then AGREEMENT_COMMON_FIELDS + (AGREEMENT_FIELDS - AGREEMENT_COMMON_FIELDS - ["vacate_date"])
-    else AGREEMENT_COMMON_FIELDS
+    else AGREEMENT_COMMON_FIELDS + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
     end
   end
 

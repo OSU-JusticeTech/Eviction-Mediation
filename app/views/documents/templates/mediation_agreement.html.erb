@@ -98,21 +98,21 @@
   <h1>Mediation Agreement</h1>
 
   <div class="section">
-    <p>This Mediation Agreement is executed on <strong><%= @date.respond_to?(:strftime) ? @date.strftime('%B %d, %Y') : (@date.present? ? @date : "____________") %></strong> between:</p>
+    <p>This Mediation Agreement is executed on <strong data-agreement-field="negotiation_date" data-agreement-format="long-date"><%= @date.respond_to?(:strftime) ? @date.strftime('%B %d, %Y') : (@date.present? ? @date : "____________") %></strong> between:</p>
   </div>
 
   <div class="section">
     <div class="info-line">
       <span class="label">PARTY A (Landlord):</span>
-      <span class="value"><%= @landlord %></span>
+      <span class="value" data-agreement-field="landlord_name"><%= @landlord %></span>
     </div>
     <div class="info-line">
       <span class="label">PARTY B (Tenant):</span>
-      <span class="value"><%= @tenant %></span>
+      <span class="value" data-agreement-field="tenant_name"><%= @tenant %></span>
     </div>
     <div class="info-line">
       <span class="label">CONCERNING PROPERTY:</span>
-      <span class="value"><%= @address %></span>
+      <span class="value" data-agreement-field="address"><%= @address %></span>
     </div>
   </div>
 
@@ -120,9 +120,9 @@
   <div class="section">
     <p>The parties have entered into mediation to resolve the following dispute:</p>
     <ul class="terms-list">
-      <li>Nature of dispute: <%= @reason %></li>
-      <li>Amount in question: $<%= @money_owed %></li>
-      <li>Current monthly rent: $<%= @monthly_rent %></li>
+      <li>Nature of dispute: <span data-agreement-field="reason"><%= @reason %></span></li>
+      <li>Amount in question: $<span data-agreement-field="money_owed"><%= @money_owed %></span></li>
+      <li>Current monthly rent: $<span data-agreement-field="monthly_rent"><%= @monthly_rent %></span></li>
     </ul>
   </div>
 
@@ -146,21 +146,22 @@
           </thead>
           <tbody>
             <% @schedule.each_with_index do |(i, amt, due), idx| %>
-              <tr>
+              <tr data-agreement-payment-row="<%= i %>">
                 <td><%= idx + 1 %></td>
-                <td>$<%= amt %></td>
-                <td><%= due.present? ? (Date.parse(due).strftime('%B %d, %Y') rescue due) : 'TBD' %></td>
+                <td>$<span data-agreement-field="amount<%= i %>"><%= amt %></span></td>
+                <td><span data-agreement-field="date<%= i %>" data-agreement-format="long-date"><%= due.present? ? (Date.parse(due).strftime('%B %d, %Y') rescue due) : 'TBD' %></span></td>
               </tr>
             <% end %>
           </tbody>
         </table>
       <% end %>
+      <div data-agreement-payment-anchor style="display: none;"></div>
     </li>
 
     <li>
       <strong>ONGOING OBLIGATIONS:</strong>
       <ul class="sub-terms">
-        <li>Tenant will continue paying regular monthly rent of $<%= @monthly_rent %> on or before the due date</li>
+        <li>Tenant will continue paying regular monthly rent of $<span data-agreement-field="monthly_rent"><%= @monthly_rent %></span> on or before the due date</li>
         <li>Tenant will maintain the property in good condition and comply with all lease terms</li>
         <li>Landlord will not pursue eviction while this agreement is honored in good faith</li>
         <li>Both parties agree to communicate openly regarding any issues or concerns</li>
