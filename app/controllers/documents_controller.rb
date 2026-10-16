@@ -428,10 +428,10 @@ class DocumentsController < ApplicationController
          proposal["base_version"].to_i != file.AgreementVersion || item.nil? ||
          active_agreement_reviewer_id(file, proposal, conversation) != @user.UserID ||
          item[:offered_by_id].to_i == @user.UserID ||
+         proposal.fetch("draft_counteroffers", {}).key?(item[:key]) ||
          item[:fields].any? { |field| changes[field]["decision"] != "pending" }
         result = :unavailable
       else
-        proposal.fetch("draft_counteroffers", {}).delete(item[:key])
         if decision == "accepted"
           accepted_terms = file.agreement_terms.dup
           item[:fields].each do |field|
@@ -529,6 +529,7 @@ class DocumentsController < ApplicationController
          proposal["base_version"].to_i != file.AgreementVersion ||
          active_agreement_reviewer_id(file, proposal, conversation) != @user.UserID ||
          item.nil? || item[:fields].any? { |field| proposal["changes"][field]["decision"] != "pending" } ||
+         proposal.fetch("draft_counteroffers", {}).key?(item[:key]) ||
          item[:offered_by_id].to_i == @user.UserID
         result = :unavailable
       else

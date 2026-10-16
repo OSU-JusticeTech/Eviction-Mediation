@@ -721,6 +721,16 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "2026-05-15", file.reload.agreement_proposal["changes"]["vacate_date"]["to"]
     assert_equal @landlord.UserID, file.agreement_proposal["reviewer_id"]
     assert_equal "2026-05-20", file.agreement_proposal["draft_counteroffers"]["vacate_date"]["vacate_date"]
+    get view_file_path(file.FileID)
+    assert_select "#suggestion-vacate_date .suggestion-actions", count: 0
+    assert_select "#suggestion-vacate_date .suggestion-review-note", text: "Decision recorded. This item is closed."
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+      params: { decision: "accepted" }, as: :json
+    assert_response :conflict
+    patch counteroffer_document_suggestion_path(file.FileID, "vacate_date"),
+      params: { counteroffer: { vacate_date: "2026-05-21" } }, as: :json
+    assert_response :unprocessable_entity
+    assert_equal "2026-05-20", file.reload.agreement_proposal["draft_counteroffers"]["vacate_date"]["vacate_date"]
     log_in_as(@tenant)
     get view_file_path(file.FileID)
     assert_select "#suggestion-vacate_date .suggestion-actions", count: 0

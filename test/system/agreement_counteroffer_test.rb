@@ -77,11 +77,16 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
       click_button "Save Counteroffer"
       assert_text(/Counteroffer ready/i)
       assert_text "2026-11-05"
+      assert_text "Decision recorded. This item is closed."
+      assert_no_button "Accept"
+      assert_no_button "Reject"
+      assert_no_button "Counteroffer"
     end
     assert_equal messages_before, Message.where(ConversationID: @conversation.ConversationID).count
     assert_equal "2026-10-30", @file.reload.agreement_proposal["changes"]["vacate_date"]["to"]
     page.refresh
     assert_selector "#suggestion-vacate_date", text: /Counteroffer ready/i
+    assert_no_selector "#suggestion-vacate_date .suggestion-actions"
     within "#suggestion-date1" do
       click_button "Reject"
     end

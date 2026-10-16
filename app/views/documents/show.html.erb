@@ -172,7 +172,7 @@
               </div>
               <% if staged %>
                 <div class="suggestion-staged">
-                  <strong>Your counteroffer is saved for this review:</strong>
+                  <strong>Your counteroffer is saved and will be sent when you finish this review:</strong>
                   <% item[:fields].each do |staged_field| %>
                     <span><%= agreement_field_label(staged_field) %>: <%= agreement_field_value(staged_field, staged[staged_field]) %></span>
                   <% end %>
@@ -180,10 +180,10 @@
               <% end %>
               <% if suggestions_pending && change['decision'] == 'pending' && item[:offered_by_id].to_i == @user.UserID %>
                 <p class="suggestion-review-note">Waiting for the other party to review this offer.</p>
-              <% elsif suggestions_pending && change['decision'] != 'pending' %>
+              <% elsif suggestions_pending && (staged || change['decision'] != 'pending') %>
                 <p class="suggestion-review-note">Decision recorded. This item is closed.</p>
               <% end %>
-              <% if can_decide && item[:fields].all? { |candidate| @agreement_proposal["changes"][candidate]["decision"] == "pending" } && item[:offered_by_id].to_i != @user.UserID %>
+              <% if can_decide && !staged && item[:fields].all? { |candidate| @agreement_proposal["changes"][candidate]["decision"] == "pending" } && item[:offered_by_id].to_i != @user.UserID %>
                 <div class="suggestion-actions">
                   <%= button_to "Accept", decide_document_suggestion_path(@file.FileID, field), method: :patch,
                       params: { decision: "accepted" }, aria: { label: "Accept #{label}" },
