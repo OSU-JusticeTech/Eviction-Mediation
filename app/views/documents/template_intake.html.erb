@@ -1,9 +1,7 @@
 <div class="docs-wrapper">
   <h1 class="docs-title">Document Information</h1>
-  <% draft_value = ->(key, fallback = nil) { @review_terms ? @review_terms.fetch(key.to_s, fallback) : fallback } %>
-  <p class="docs-subtitle"><%= @review_file ? "Enter the changes you want to suggest. The agreement will stay the same until the other party reviews each change." : "Fill out the information below to generate your #{@template_name}" %></p>
-  <%= form_with url: (@review_file ? update_review_document_path(@review_file.FileID) : generate_from_intake_path(template: @template)), method: (@review_file ? :patch : :post), local: true, class: "intake-form" do |f| %>
-    <%= hidden_field_tag :agreement_version, @review_file.AgreementVersion if @review_file %>
+  <p class="docs-subtitle">Fill out the information below to generate your <%= @template_name %></p>
+  <%= form_with url: generate_from_intake_path(template: @template), method: :post, local: true, class: "intake-form" do %>
     <%= hidden_field_tag :conversation_id, params[:conversation_id] if params[:conversation_id].present? %>
     
     <div class="form-grid">
@@ -14,7 +12,7 @@
         <div class="form-group">
           <%= label_tag :landlord_name, "Landlord Name", class: "form-label required-label" %>
           <%= text_field_tag :landlord_name, 
-              draft_value.call(:landlord_name, @landlord ? "#{@landlord.FName} #{@landlord.LName}".strip : nil),
+              (@landlord ? "#{@landlord.FName} #{@landlord.LName}".strip : nil),
               class: "form-input", 
               required: true, 
               placeholder: "Enter landlord's full name" %>
@@ -23,7 +21,7 @@
         <div class="form-group">
           <%= label_tag :tenant_name, "Tenant Name", class: "form-label required-label" %>
           <%= text_field_tag :tenant_name, 
-              draft_value.call(:tenant_name, @tenant ? "#{@tenant.FName} #{@tenant.LName}".strip : "#{@user.FName} #{@user.LName}".strip),
+              (@tenant ? "#{@tenant.FName} #{@tenant.LName}".strip : "#{@user.FName} #{@user.LName}".strip),
               class: "form-input", 
               required: true, 
               placeholder: "Enter tenant's full name" %>
@@ -32,7 +30,7 @@
         <div class="form-group">
           <%= label_tag :address, "Property Address", class: "form-label required-label" %>
           <%= text_field_tag :address, 
-              draft_value.call(:address, @tenant&.formatted_tenant_address || @user.formatted_tenant_address || ""),
+              (@tenant&.formatted_tenant_address || @user.formatted_tenant_address || ""),
               class: "form-input", 
               required: true, 
               placeholder: "Enter full property address" %>
@@ -40,7 +38,7 @@
 
         <div class="form-group">
           <%= label_tag :negotiation_date, "Agreement Date", class: "form-label required-label" %>
-          <%= date_field_tag :negotiation_date, draft_value.call(:negotiation_date, Date.today), class: "form-input", required: true %>
+          <%= date_field_tag :negotiation_date, Date.today, class: "form-input", required: true %>
         </div>
       </div>
 
@@ -59,14 +57,14 @@
             "Nuisance or Disturbance",
             "Expiration of Lease",
             "Unknown"
-          ], draft_value.call(:reason)), class: "form-select", required: true %>
+          ], nil), class: "form-select", required: true %>
         </div>
 
         <div class="form-group">
           <%= label_tag :money_owed, "Amount Owed", class: "form-label required-label" %>
           <div class="input-with-prefix">
             <span class="input-prefix" style="padding-right: 10px;">$</span>
-            <%= number_field_tag :money_owed, draft_value.call(:money_owed), step: 0.01, class: "form-input with-prefix", required: true, placeholder: "0.00" %>
+            <%= number_field_tag :money_owed, nil, step: 0.01, class: "form-input with-prefix", required: true, placeholder: "0.00" %>
           </div>
           <small class="form-hint">Enter the total amount currently owed</small>
         </div>
@@ -75,7 +73,7 @@
           <%= label_tag :monthly_rent, "Monthly Rent", class: "form-label" %>
           <div class="input-with-prefix">
             <span class="input-prefix">$</span>
-            <%= number_field_tag :monthly_rent, draft_value.call(:monthly_rent), step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
+            <%= number_field_tag :monthly_rent, nil, step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
           </div>
           <small class="form-hint">Enter the regular monthly rent amount</small>
         </div>
@@ -95,7 +93,7 @@
         <% if @template == 'a' %>
           <div class="form-group">
             <%= label_tag :vacate_date, "Vacate Date", class: "form-label required-label" %>
-            <%= date_field_tag :vacate_date, draft_value.call(:vacate_date), class: "form-input", required: true %>
+            <%= date_field_tag :vacate_date, nil, class: "form-input", required: true %>
             <small class="form-hint">Date when tenant will vacate the property</small>
           </div>
         <% end %>
@@ -113,31 +111,14 @@
                 <%= label_tag :amount1, "Amount", class: "form-label" %>
                 <div class="input-with-prefix">
                   <span class="input-prefix">$</span>
-                  <%= number_field_tag :amount1, draft_value.call(:amount1), step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
+                  <%= number_field_tag :amount1, nil, step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
                 </div>
               </div>
               <div class="form-group">
                 <%= label_tag :date1, "Due Date", class: "form-label" %>
-                <%= date_field_tag :date1, draft_value.call(:date1), class: "form-input" %>
+                <%= date_field_tag :date1, nil, class: "form-input" %>
               </div>
             </div>
-            <% (2..6).each do |i| %>
-              <% next unless draft_value.call("amount#{i}").present? || draft_value.call("date#{i}").present? %>
-              <div class="payment-row">
-                <div class="form-group">
-                  <%= label_tag "amount#{i}", "Amount", class: "form-label" %>
-                  <div class="input-with-prefix">
-                    <span class="input-prefix">$</span>
-                    <%= number_field_tag "amount#{i}", draft_value.call("amount#{i}"), step: 0.01, class: "form-input with-prefix" %>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <%= label_tag "date#{i}", "Due Date", class: "form-label" %>
-                  <%= date_field_tag "date#{i}", draft_value.call("date#{i}"), class: "form-input" %>
-                </div>
-                <button type="button" class="btn-remove" onclick="this.parentElement.remove()">×</button>
-              </div>
-            <% end %>
           </div>
           
           <button type="button" class="btn btn-secondary" onclick="addPaymentRow()">+ Add Payment</button>
@@ -153,7 +134,7 @@
             <%= label_tag :rent_owed, "Rent Owed", class: "form-label" %>
             <div class="input-with-prefix">
               <span class="input-prefix">$</span>
-              <%= number_field_tag :rent_owed, draft_value.call(:rent_owed), step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
+              <%= number_field_tag :rent_owed, nil, step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
             </div>
           </div>
           
@@ -161,7 +142,7 @@
             <%= label_tag :late_fees, "Late Fees", class: "form-label" %>
             <div class="input-with-prefix">
               <span class="input-prefix">$</span>
-              <%= number_field_tag :late_fees, draft_value.call(:late_fees), step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
+              <%= number_field_tag :late_fees, nil, step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
             </div>
           </div>
           
@@ -169,20 +150,20 @@
             <%= label_tag :utilities, "Utilities", class: "form-label" %>
             <div class="input-with-prefix">
               <span class="input-prefix">$</span>
-              <%= number_field_tag :utilities, draft_value.call(:utilities), step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
+              <%= number_field_tag :utilities, nil, step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
             </div>
           </div>
           
           <div class="form-group">
             <%= label_tag :other_charges_description, "Other Charges Description", class: "form-label" %>
-            <%= text_field_tag :other_charges_description, draft_value.call(:other_charges_description), class: "form-input", placeholder: "e.g., Cleaning fees, repairs" %>
+            <%= text_field_tag :other_charges_description, nil, class: "form-input", placeholder: "e.g., Cleaning fees, repairs" %>
           </div>
           
           <div class="form-group">
             <%= label_tag :other_charges, "Other Charges Amount", class: "form-label" %>
             <div class="input-with-prefix">
               <span class="input-prefix">$</span>
-              <%= number_field_tag :other_charges, draft_value.call(:other_charges), step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
+              <%= number_field_tag :other_charges, nil, step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
             </div>
           </div>
         </div>
@@ -198,7 +179,7 @@
           <label class="form-label">Payment Type (Check all that apply)</label>
           <div class="checkbox-group-intake">
             <label class="checkbox-label">
-              <%= check_box_tag 'payment_lump_sum', '1', draft_value.call(:payment_lump_sum) == '1' %>
+              <%= check_box_tag 'payment_lump_sum', '1', false %>
               <span>Lump Sum Payment</span>
             </label>
             <div class="conditional-fields" id="lump-sum-fields" style="display: none; margin-left: 24px; margin-top: 8px;">
@@ -206,19 +187,19 @@
                 <%= label_tag :lump_sum_amount, "Amount", class: "form-label" %>
                 <div class="input-with-prefix">
                   <span class="input-prefix">$</span>
-                  <%= number_field_tag :lump_sum_amount, draft_value.call(:lump_sum_amount), step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
+                  <%= number_field_tag :lump_sum_amount, nil, step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
                 </div>
               </div>
               <div class="form-group">
                 <%= label_tag :lump_sum_date, "Due Date", class: "form-label" %>
-                <%= date_field_tag :lump_sum_date, draft_value.call(:lump_sum_date), class: "form-input" %>
+                <%= date_field_tag :lump_sum_date, nil, class: "form-input" %>
               </div>
             </div>
           </div>
           
           <div class="checkbox-group-intake">
             <label class="checkbox-label">
-              <%= check_box_tag 'payment_monthly', '1', draft_value.call(:payment_monthly) == '1' %>
+              <%= check_box_tag 'payment_monthly', '1', false %>
               <span>Monthly Payments</span>
             </label>
             <div class="conditional-fields" id="monthly-fields" style="display: none; margin-left: 24px; margin-top: 8px;">
@@ -226,27 +207,27 @@
                 <%= label_tag :monthly_payment_amount, "Amount per Month", class: "form-label" %>
                 <div class="input-with-prefix">
                   <span class="input-prefix">$</span>
-                  <%= number_field_tag :monthly_payment_amount, draft_value.call(:monthly_payment_amount), step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
+                  <%= number_field_tag :monthly_payment_amount, nil, step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
                 </div>
               </div>
               <div class="form-group">
                 <%= label_tag :monthly_payment_months, "Number of Months", class: "form-label" %>
-                <%= number_field_tag :monthly_payment_months, draft_value.call(:monthly_payment_months), class: "form-input", placeholder: "e.g., 6" %>
+                <%= number_field_tag :monthly_payment_months, nil, class: "form-input", placeholder: "e.g., 6" %>
               </div>
               <div class="form-group">
                 <%= label_tag :monthly_payment_day, "Day of Month Due", class: "form-label" %>
-                <%= number_field_tag :monthly_payment_day, draft_value.call(:monthly_payment_day), min: 1, max: 31, class: "form-input", placeholder: "e.g., 15" %>
+                <%= number_field_tag :monthly_payment_day, nil, min: 1, max: 31, class: "form-input", placeholder: "e.g., 15" %>
               </div>
               <div class="form-group">
                 <%= label_tag :monthly_payment_start, "Starting Date", class: "form-label" %>
-                <%= date_field_tag :monthly_payment_start, draft_value.call(:monthly_payment_start), class: "form-input" %>
+                <%= date_field_tag :monthly_payment_start, nil, class: "form-input" %>
               </div>
             </div>
           </div>
           
           <div class="checkbox-group-intake">
             <label class="checkbox-label">
-              <%= check_box_tag 'payment_final', '1', draft_value.call(:payment_final) == '1' %>
+              <%= check_box_tag 'payment_final', '1', false %>
               <span>Final Payment</span>
             </label>
             <div class="conditional-fields" id="final-fields" style="display: none; margin-left: 24px; margin-top: 8px;">
@@ -254,12 +235,12 @@
                 <%= label_tag :final_payment_amount, "Amount", class: "form-label" %>
                 <div class="input-with-prefix">
                   <span class="input-prefix">$</span>
-                  <%= number_field_tag :final_payment_amount, draft_value.call(:final_payment_amount), step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
+                  <%= number_field_tag :final_payment_amount, nil, step: 0.01, class: "form-input with-prefix", placeholder: "0.00" %>
                 </div>
               </div>
               <div class="form-group">
                 <%= label_tag :final_payment_date, "Due Date", class: "form-label" %>
-                <%= date_field_tag :final_payment_date, draft_value.call(:final_payment_date), class: "form-input" %>
+                <%= date_field_tag :final_payment_date, nil, class: "form-input" %>
               </div>
             </div>
           </div>
@@ -269,24 +250,24 @@
           <label class="form-label">Payment Method (Select one)</label>
           <div class="checkbox-group-intake">
             <label class="checkbox-label">
-              <%= radio_button_tag 'payment_method', 'online_portal', draft_value.call(:payment_method) == 'online_portal' %>
+              <%= radio_button_tag 'payment_method', 'online_portal', false %>
               <span>Online portal</span>
             </label>
             <label class="checkbox-label">
-              <%= radio_button_tag 'payment_method', 'money_order', draft_value.call(:payment_method) == 'money_order' %>
+              <%= radio_button_tag 'payment_method', 'money_order', false %>
               <span>Money order</span>
             </label>
             <label class="checkbox-label">
-              <%= radio_button_tag 'payment_method', 'cashiers_check', draft_value.call(:payment_method) == 'cashiers_check' %>
+              <%= radio_button_tag 'payment_method', 'cashiers_check', false %>
               <span>Cashier's check</span>
             </label>
             <label class="checkbox-label">
-              <%= radio_button_tag 'payment_method', 'other', draft_value.call(:payment_method) == 'other' %>
+              <%= radio_button_tag 'payment_method', 'other', false %>
               <span>Other</span>
             </label>
           </div>
           <div class="conditional-fields" id="payment-method-other" style="display: none; margin-top: 8px;">
-            <%= text_field_tag :payment_method_other_description, draft_value.call(:payment_method_other_description), class: "form-input", placeholder: "Describe payment method" %>
+            <%= text_field_tag :payment_method_other_description, nil, class: "form-input", placeholder: "Describe payment method" %>
           </div>
         </div>
       </div>
@@ -297,15 +278,15 @@
         
         <div class="form-group">
           <%= label_tag :additional_terms, "Any additional terms agreed to by both parties", class: "form-label" %>
-          <%= text_area_tag :additional_terms, draft_value.call(:additional_terms), class: "form-input", rows: 4, placeholder: "Enter any additional terms or conditions..." %>
+          <%= text_area_tag :additional_terms, nil, class: "form-input", rows: 4, placeholder: "Enter any additional terms or conditions..." %>
           <small class="form-hint">These will appear in Section 8 of the agreement</small>
         </div>
       </div>
     <% end %>
 
     <div class="form-actions">
-      <%= link_to(@review_file ? "← Back to Agreement" : "← Back to Templates", @review_file ? view_file_path(@review_file.FileID) : generate_file_path, class: "btn btn-secondary") %>
-      <%= submit_tag(@review_file ? "Send Suggested Changes" : "Generate Document", class: "btn btn-primary") %>
+      <%= link_to "← Back to Templates", generate_file_path, class: "btn btn-secondary" %>
+      <%= submit_tag "Generate Document", class: "btn btn-primary" %>
     </div>
 
   <% end %>

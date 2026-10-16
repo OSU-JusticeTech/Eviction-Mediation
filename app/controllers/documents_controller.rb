@@ -882,15 +882,6 @@ class DocumentsController < ApplicationController
   AGREEMENT_COMMON_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed
                                monthly_rent best_option].freeze
 
-  def setup_agreement_intake(file, conversation)
-    @template = file.AgreementTemplate
-    @template_name = agreement_template_name(@template)
-    @review_terms = file.agreement_terms
-    @default_resolution = @review_terms["best_option"].presence || (@template == "a" ? "Move Out" : "Payment Plan")
-    @landlord = conversation.landlord
-    @tenant = conversation.tenant
-  end
-
   def agreement_terms_from_params
     keys = AGREEMENT_FIELDS + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
     params.permit(*keys).to_h
