@@ -36,12 +36,16 @@
 
         <!-- Password Input -->
         <div class="input-group">
-          <label for="password">Password</label>
+          <label for="login-password">Password</label>
           <div class="input-field">
               <i class="fa-solid fa-lock"></i>
               <%= form.password_field :password, placeholder: "Your password", 
-                required: true, class: "login-input" %>
+                required: true, class: "login-input", id: "login-password" %>
           </div>
+          <label class="show-password-label">
+            <input type="checkbox" id="show-password">
+            Show Password
+          </label>
         </div>
 
         <div>
@@ -77,3 +81,14 @@
     </div>
   </div>
 </div>
+<script>
+  document.getElementById("show-password").addEventListener("change", function() {
+    const passwordField = document.getElementById("login-password");
+
+    if (this.checked) {
+      passwordField.type = "text";
+    } else {
+      passwordField.type = "password";
+    }
+  });
+</script>

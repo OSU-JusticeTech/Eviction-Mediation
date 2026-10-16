@@ -153,6 +153,14 @@
     background-color: #fafafa;
 }
 
+#login-password {
+    padding-left: 35px;
+}
+
+.input-group .show-password-label {
+    font-weight: normal;
+}
+
 .login-input:focus {
     outline: none;
     border-color: #007bff;

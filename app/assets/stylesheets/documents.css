@@ -22,7 +22,16 @@
   margin-bottom: 24px;
 }
 
-.docs-actions{ text-align: center; margin-bottom: 16px; }
+.docs-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.docs-actions .btn {
+    flex: 1;
+    text-align: center;
+}
 
 .btn{
   display: inline-block;
