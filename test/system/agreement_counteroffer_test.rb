@@ -117,6 +117,34 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
     end
   end
 
+  test "editing the document sends a suggestion without changing the agreement" do
+    @file.update!(AgreementProposal: nil)
+    visit login_path
+    fill_in "email", with: @landlord.Email
+    fill_in "password", with: "password"
+    click_button "Log In"
+    click_button "OK" if page.has_button?("OK", wait: 1)
+
+    visit view_file_path(@file.FileID)
+    click_link "Suggest Changes"
+    assert_selector '[data-agreement-editor][data-editor-ready="true"]'
+    within_frame(find(".document-iframe")) do
+      find('[data-agreement-field="vacate_date"]').click
+      page.execute_script("document.querySelector('.agreement-inline-input').value = '2026-11-10'")
+      find('h1').click
+      assert_selector '[data-agreement-field="vacate_date"].agreement-changed', text: 'November 10, 2026'
+    end
+    assert_selector '[data-agreement-finish]:not([disabled])'
+    click_button "Finish & Send Suggested Changes"
+
+    assert_current_path view_file_path(@file.FileID)
+    assert_selector '#suggestion-vacate_date', text: '2026-11-10'
+    assert_equal 1, @file.reload.AgreementVersion
+    assert_equal '2026-10-20', @file.agreement_terms['vacate_date']
+    assert_equal '2026-11-10', @file.agreement_proposal['changes']['vacate_date']['to']
+    assert @file.agreement_suggestions_pending?
+  end
+
   test "a saved decision closes that item while other suggestions remain" do
     proposal = @file.agreement_proposal
     proposal["changes"]["date1"] = { "from" => "2026-10-14", "to" => "2026-10-20", "decision" => "pending" }
