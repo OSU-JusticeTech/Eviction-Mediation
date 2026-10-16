@@ -1,8 +1,7 @@
 <div class="docs-wrapper">
   <h1 class="docs-title">Document Information</h1>
   <p class="docs-subtitle">Fill out the information below to generate your <%= @template_name %></p>
-
-  <%= form_with url: generate_from_intake_path(template: @template), method: :post, local: true, class: "intake-form" do |f| %>
+  <%= form_with url: generate_from_intake_path(template: @template), method: :post, local: true, class: "intake-form" do %>
     <%= hidden_field_tag :conversation_id, params[:conversation_id] if params[:conversation_id].present? %>
     
     <div class="form-grid">
@@ -13,7 +12,7 @@
         <div class="form-group">
           <%= label_tag :landlord_name, "Landlord Name", class: "form-label required-label" %>
           <%= text_field_tag :landlord_name, 
-              @landlord ? "#{@landlord.FName} #{@landlord.LName}".strip : nil, 
+              (@landlord ? "#{@landlord.FName} #{@landlord.LName}".strip : nil),
               class: "form-input", 
               required: true, 
               placeholder: "Enter landlord's full name" %>
@@ -22,7 +21,7 @@
         <div class="form-group">
           <%= label_tag :tenant_name, "Tenant Name", class: "form-label required-label" %>
           <%= text_field_tag :tenant_name, 
-              @tenant ? "#{@tenant.FName} #{@tenant.LName}".strip : "#{@user.FName} #{@user.LName}".strip, 
+              (@tenant ? "#{@tenant.FName} #{@tenant.LName}".strip : "#{@user.FName} #{@user.LName}".strip),
               class: "form-input", 
               required: true, 
               placeholder: "Enter tenant's full name" %>
@@ -31,7 +30,7 @@
         <div class="form-group">
           <%= label_tag :address, "Property Address", class: "form-label required-label" %>
           <%= text_field_tag :address, 
-              @tenant&.formatted_tenant_address || @user.formatted_tenant_address || "", 
+              (@tenant&.formatted_tenant_address || @user.formatted_tenant_address || ""),
               class: "form-input", 
               required: true, 
               placeholder: "Enter full property address" %>
@@ -58,7 +57,7 @@
             "Nuisance or Disturbance",
             "Expiration of Lease",
             "Unknown"
-          ]), class: "form-select", required: true %>
+          ], nil), class: "form-select", required: true %>
         </div>
 
         <div class="form-group">
@@ -104,7 +103,7 @@
         <!-- Payment Schedule (Optional) -->
         <div class="form-section">
           <h3 class="section-title">Payment Schedule (Optional)</h3>
-          <p class="form-hint">Add up to 6 payment installments if there are outstanding balances to be paid</p>
+          <p class="form-hint">Add up to 6 payment installments if there are outstanding balances to be paid.</p>
           
           <div id="payment-schedule">
             <div class="payment-row">
@@ -296,10 +295,10 @@
 <script>
 // Use IIFE to avoid global variable conflicts with Turbo
 (function() {
-  let paymentCount = 1;
-
   window.addPaymentRow = function() {
-    paymentCount++;
+    if (document.querySelectorAll('#payment-schedule .payment-row').length >= 6) return;
+    const paymentCount = [2, 3, 4, 5, 6].find(i => !document.querySelector(`#payment-schedule input[name="amount${i}"]`));
+    if (!paymentCount) return;
     const container = document.getElementById('payment-schedule');
     const newRow = document.createElement('div');
     newRow.className = 'payment-row';
@@ -342,6 +341,7 @@
     const paymentMethodRadios = document.querySelectorAll('input[name="payment_method"]');
     
     if (lumpSumCheckbox) {
+      document.getElementById('lump-sum-fields').style.display = lumpSumCheckbox.checked ? 'block' : 'none';
       lumpSumCheckbox.addEventListener('change', function() {
         const fieldsDiv = document.getElementById('lump-sum-fields');
         if (fieldsDiv) {
@@ -351,6 +351,7 @@
     }
     
     if (monthlyCheckbox) {
+      document.getElementById('monthly-fields').style.display = monthlyCheckbox.checked ? 'block' : 'none';
       monthlyCheckbox.addEventListener('change', function() {
         const fieldsDiv = document.getElementById('monthly-fields');
         if (fieldsDiv) {
@@ -360,6 +361,7 @@
     }
     
     if (finalCheckbox) {
+      document.getElementById('final-fields').style.display = finalCheckbox.checked ? 'block' : 'none';
       finalCheckbox.addEventListener('change', function() {
         const fieldsDiv = document.getElementById('final-fields');
         if (fieldsDiv) {
@@ -369,6 +371,7 @@
     }
     
     if (paymentMethodRadios.length > 0) {
+      document.getElementById('payment-method-other').style.display = document.querySelector('input[name="payment_method"][value="other"]:checked') ? 'block' : 'none';
       paymentMethodRadios.forEach(function(radio) {
         radio.addEventListener('change', function() {
           const otherField = document.getElementById('payment-method-other');

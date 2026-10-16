@@ -112,6 +112,21 @@ const handleNegotiationSubmit = (event) => {
   const form = event.target.closest('#new_message_form form');
   if (!form) return;
 
+  const showError = (message) => {
+    let notice = form.parentElement.querySelector('[data-composer-error]');
+    if (!notice && message) {
+      notice = document.createElement('p');
+      notice.dataset.composerError = 'true';
+      notice.className = 'composer-error';
+      notice.setAttribute('role', 'alert');
+      form.after(notice);
+    }
+    if (notice) {
+      notice.textContent = message;
+      notice.hidden = !message;
+    }
+  };
+
   event.preventDefault();
 
   const elements = getComposerElements(form);
@@ -134,6 +149,7 @@ const handleNegotiationSubmit = (event) => {
     submitButton.disabled = true;
     submitButton.classList.remove('is-ready');
   }
+  showError('');
 
   const csrfToken = document.querySelector('meta[name="csrf-token"]');
   const headers = {
@@ -151,7 +167,8 @@ const handleNegotiationSubmit = (event) => {
   })
     .then(async (response) => {
       if (!response.ok && response.status !== 204) {
-        throw new Error('Failed to send message');
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to send message. Please try again.');
       }
 
       const contentType = response.headers.get('content-type') || '';
@@ -192,6 +209,7 @@ const handleNegotiationSubmit = (event) => {
     })
     .catch((error) => {
       console.error('Error sending message:', error);
+      showError(error.message);
       if (submitButton) {
         submitButton.disabled = false;
         updateButtonState();

@@ -71,6 +71,10 @@ Rails.application.routes.draw do
   post "/documents/template_generate", to: "documents#generate_filled_template", as: :generate_filled_template
 
   post "/documents/:id/apply_signature", to: "documents#apply_signature", as: :apply_signature_document
+  get "/documents/:id/review", to: "documents#review", as: :review_document
+  patch "/documents/:id/review", to: "documents#update_review", as: :update_review_document
+  patch "/documents/:id/suggestions/:field", to: "documents#decide_suggestion", as: :decide_document_suggestion
+  patch "/documents/:id/suggestions/:field/counteroffer", to: "documents#counteroffer_suggestion", as: :counteroffer_document_suggestion
   # Resources
   resources :messages, only: [ :index, :show, :create, :destroy ] do
     patch :request_mediator, on: :member

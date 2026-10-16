@@ -4,6 +4,7 @@ import "controllers";
 import "channels";
 import "chat/negotiation_chat";
 import "chat/mediator_chats";
+import "agreement_editor";
 
 (function () {
   if (window.__navToggleInit) return;

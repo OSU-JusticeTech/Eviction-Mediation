@@ -114,9 +114,9 @@
   
   <div class="parties-section">
     <div class="party-line">
-      <span class="party-underline"><%= @landlord %></span>
+      <span class="party-underline" data-agreement-field="landlord_name"><%= @landlord %></span>
       <span style="font-size: 12pt;">and</span>
-      <span class="party-underline"><%= @tenant %></span>
+      <span class="party-underline" data-agreement-field="tenant_name"><%= @tenant %></span>
     </div>
     <div class="party-labels">
       <span class="party-label">LANDLORD</span>
@@ -126,13 +126,13 @@
   
   <div class="disagreement">
     <p>The parties had a disagreement about their rights and responsibilities as to:</p>
-    <span class="full-underline"><%= @address %></span>
+    <span class="full-underline" data-agreement-field="address"><%= @address %></span>
   </div>
   
-  <p>The parties took part in a negotiation session held on <span class="inline-underline"><%= @date.respond_to?(:strftime) ? @date.strftime('%B %d, %Y') : (@date.present? ? @date : "____________") %></span> and agreed to the following:</p>
+  <p>The parties took part in a negotiation session held on <span class="inline-underline" data-agreement-field="negotiation_date" data-agreement-format="long-date"><%= @date.respond_to?(:strftime) ? @date.strftime('%B %d, %Y') : (@date.present? ? @date : "____________") %></span> and agreed to the following:</p>
 
   <ol>
-    <li>Tenant shall vacate by 11:59 PM on <span class="inline-underline"><%= @vacate_date.present? ? (Date.parse(@vacate_date).strftime('%B %d, %Y') rescue @vacate_date) : "____________" %></span>.</li>
+    <li>Tenant shall vacate by 11:59 PM on <span class="inline-underline" data-agreement-field="vacate_date" data-agreement-format="long-date"><%= @vacate_date.present? ? (Date.parse(@vacate_date).strftime('%B %d, %Y') rescue @vacate_date) : "____________" %></span>.</li>
     
     <li>If Tenant vacates as agreed, Landlord shall not take legal action against Tenant.</li>
     
@@ -145,12 +145,13 @@
       <ol class="payment-list">
         <% @schedule.each do |index, amount, due_date| %>
           <% if amount.present? %>
-            <li>$<span class="inline-underline"><%= amount %></span> on or before <span class="inline-underline"><%= due_date.present? ? (Date.parse(due_date).strftime('%B %d, %Y') rescue due_date) : "_________________" %></span> by 5:00 PM</li>
+            <li data-agreement-payment-row="<%= index %>">$<span class="inline-underline" data-agreement-field="amount<%= index %>"><%= amount %></span> on or before <span class="inline-underline" data-agreement-field="date<%= index %>" data-agreement-format="long-date"><%= due_date.present? ? (Date.parse(due_date).strftime('%B %d, %Y') rescue due_date) : "_________________" %></span> by 5:00 PM</li>
           <% end %>
         <% end %>
       </ol>
     </li>
     <% end %>
+    <li data-agreement-payment-anchor style="display: none;"></li>
     
     <li>Payments shall be in the form of previous rent payments.</li>
     

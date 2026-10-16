@@ -2,6 +2,7 @@
 require "fileutils"
 require "pathname"
 require "securerandom"
+require "tempfile"
 require "prawn"
 require "prawn/table"
 
@@ -11,7 +12,7 @@ class DocumentsController < ApplicationController
   before_action :block_admin_document_creation, only: [
     :new, :create, :template_intake, :generate_from_intake,
     :template_preview, :intake_template_view, :generate_filled_template,
-    :apply_signature
+    :apply_signature, :review, :update_review, :decide_suggestion, :counteroffer_suggestion
   ]
   before_action :set_conversation_context, only: [ :intake_template_view ]
 
@@ -75,74 +76,17 @@ class DocumentsController < ApplicationController
   end
 
   def generate_from_intake
-    template = params[:template] || "a"
-
-
-    @landlord = params[:landlord_name].to_s
-    @tenant = params[:tenant_name].to_s
-    @address = params[:address].to_s
-    @date = begin
-      (params[:negotiation_date].presence || Date.today).to_date.strftime("%B %d, %Y")
-    rescue StandardError
-      Date.today.strftime("%B %d, %Y")
-    end
-    @reason = params[:reason].to_s
-    @money_owed = params[:money_owed].to_s
-    @monthly_rent = params[:monthly_rent].to_s
+    template = %w[a b c].include?(params[:template]) ? params[:template] : "a"
     @conversation_id = params[:conversation_id]
-    @vacate_date = params[:vacate_date] if template == "a"
-
-    # Pay and Stay specific fields
-    if template == "b"
-      @rent_owed = params[:rent_owed].to_s
-      @late_fees = params[:late_fees].to_s
-      @utilities = params[:utilities].to_s
-      @other_charges = params[:other_charges].to_s
-      @other_charges_description = params[:other_charges_description].to_s
-      
-      # Payment plan options
-      @payment_lump_sum = params[:payment_lump_sum] == "1"
-      @lump_sum_amount = params[:lump_sum_amount].to_s
-      @lump_sum_date = params[:lump_sum_date].to_s
-      
-      @payment_monthly = params[:payment_monthly] == "1"
-      @monthly_payment_amount = params[:monthly_payment_amount].to_s
-      @monthly_payment_months = params[:monthly_payment_months].to_s
-      @monthly_payment_day = params[:monthly_payment_day].to_s
-      @monthly_payment_start = params[:monthly_payment_start].to_s
-      
-      @payment_final = params[:payment_final] == "1"
-      @final_payment_amount = params[:final_payment_amount].to_s
-      @final_payment_date = params[:final_payment_date].to_s
-      
-      # Payment method
-      @payment_method = params[:payment_method].to_s
-      @payment_method_other_description = params[:payment_method_other_description].to_s
-      
-      # Additional terms
-      @additional_terms = params[:additional_terms].to_s
-    end
-
     conversation = PrimaryMessageGroup.find_by(ConversationID: @conversation_id) if @conversation_id.present?
-
-    # Build payment schedule
-    @schedule = []
-    params.to_unsafe_h.each do |key, value|
-      next unless key.to_s =~ /\Aamount(\d+)\z/
-      index = Regexp.last_match(1).to_i
-      amount = value.to_s
-      due_on = params["date#{index}"]
-      @schedule << [ index, amount, due_on ] if amount.present?
+    if @conversation_id.present? && (!conversation || !agreement_creator?(conversation))
+      return render plain: "Unauthorized", status: :forbidden
     end
-    @schedule.sort_by! { |i, _, _| i }
 
-
-    template_file = case template
-    when "a" then "documents/templates/agree_to_vacate"
-    when "b" then "documents/templates/pay_and_stay"
-    when "c" then "documents/templates/mediation_agreement"
-    else "documents/templates/agree_to_vacate"
-    end
+    terms = agreement_terms_from_params
+    assign_agreement_template_variables(template, terms)
+    @template_name = agreement_template_name(template)
+    template_file = agreement_template_file(template)
 
     html_content = render_to_string(
       template: template_file,
@@ -167,31 +111,29 @@ class DocumentsController < ApplicationController
       FileURLPath: "userFiles/#{file_id}#{ext}",
       CreatorID: @user[:UserID],
       TenantSignature: false,
-      LandlordSignature: false
+      LandlordSignature: false,
+      AgreementTemplate: template,
+      AgreementTerms: JSON.generate(terms),
+      AgreementVersion: 1
     }
+    if conversation
+      attrs[:AgreementConversationID] = conversation.ConversationID
+    end
     attrs[pk_name] = pk_value if pk_name && pk_value
 
-    file_draft = FileDraft.create!(attrs)
+    file_draft = nil
+    message = nil
+    FileDraft.transaction do
+      file_draft = FileDraft.create!(attrs)
+      if conversation
+        message = Message.create!(ConversationID: conversation.ConversationID, SenderID: @user.UserID,
+                                  Contents: "A new #{@template_name} agreement is ready to review and sign. Either party can suggest changes before signing.",
+                                  MessageDate: Time.current, recipientID: nil, is_system: true)
+        FileAttachment.create!(MessageID: message.MessageID, FileID: file_draft.FileID)
+      end
+    end
 
-
-    if conversation && @conversation_id.present?
-      # Create a message in the conversation announcing the document
-      message_body = "📄 A new agreement document (#{@template_name}) has been generated."
-
-      message = Message.create!(
-        ConversationID: @conversation_id,
-        SenderID: @user[:UserID],
-        Contents: message_body,
-        MessageDate: Time.current,
-        recipientID: nil,
-        is_system: true
-      )
-
-
-      FileAttachment.create!(
-        MessageID: message.MessageID,
-        FileID: file_draft.FileID
-      )
+    if conversation
 
       # Broadcast to ActionCable
       extension = File.extname(file_draft.FileURLPath.to_s).delete(".")
@@ -204,6 +146,7 @@ class DocumentsController < ApplicationController
         sign_url: view_file_path(file_draft.FileID),
         tenant_signature_required: !file_draft.TenantSignature,
         landlord_signature_required: !file_draft.LandlordSignature,
+        agreement_document: file_draft.agreement_document?,
         extension: extension.presence || file_draft.FileTypes
       } ]
 
@@ -227,7 +170,7 @@ class DocumentsController < ApplicationController
         }
       )
 
-      redirect_to message_path(@conversation_id), notice: "Document generated and shared in the conversation."
+      redirect_to message_path(@conversation_id), notice: "Agreement draft shared for review."
     else
       redirect_to documents_path, notice: "Document generated successfully."
     end
@@ -352,26 +295,281 @@ class DocumentsController < ApplicationController
     @file = find_file_for_user(params[:id])
     return render plain: "File not found", status: :not_found unless @file
 
-    # Load conversation if document is linked to one
-    file_attachment = FileAttachment.find_by(FileID: @file.FileID)
-    if file_attachment
-      message = Message.find_by(MessageID: file_attachment.MessageID)
-      if message
-        @conversation = PrimaryMessageGroup.find_by(ConversationID: message.ConversationID)
-        if @conversation
-          @landlord = User.find_by(UserID: @conversation.LandlordID)
-          @tenant = User.find_by(UserID: @conversation.TenantID)
+    @agreement_proposal = @file.agreement_proposal if @file.agreement_document?
+    @proposal_author = User.find_by(UserID: @agreement_proposal["proposer_id"]) if @agreement_proposal.present?
 
-          # Determine if current user can sign
-          @user_role_in_conversation = if @user.UserID == @conversation.LandlordID
-            "landlord"
-          elsif @user.UserID == @conversation.TenantID
-            "tenant"
-          else
-            nil
-          end
+    # Load conversation if document is linked to one
+    if @file.agreement_conversation_id.present?
+      @conversation = agreement_conversation(@file)
+    else
+      file_attachment = FileAttachment.find_by(FileID: @file.FileID)
+      message = Message.find_by(MessageID: file_attachment.MessageID) if file_attachment
+      @conversation = PrimaryMessageGroup.find_by(ConversationID: message.ConversationID) if message
+    end
+    if @conversation
+      @landlord = User.find_by(UserID: @conversation.LandlordID)
+      @tenant = User.find_by(UserID: @conversation.TenantID)
+
+      # Determine if current user can sign
+      @user_role_in_conversation = if @user.UserID == @conversation.LandlordID
+        "landlord"
+      elsif @user.UserID == @conversation.TenantID
+        "tenant"
+      else
+        nil
+      end
+    end
+    if @agreement_proposal.present?
+      offerer_ids = @file.agreement_suggestion_items.map { |item| item[:offered_by_id].to_i }.uniq
+      @offer_authors = User.where(UserID: offerer_ids).index_by(&:UserID)
+      @reviewer_id = active_agreement_reviewer_id(@file, @agreement_proposal, @conversation) if @conversation && @file.agreement_suggestions_pending?
+    end
+    @editing_agreement = params[:edit] == "1" && @file.agreement_editable? &&
+                         @user_role_in_conversation.present? && !@file.agreement_suggestions_pending? &&
+                         params[:view_mode] != "simple"
+    @editable_agreement_fields = agreement_fields_for_template(@file.AgreementTemplate) if @editing_agreement
+    if params[:edit].present? && !@editing_agreement
+      return redirect_to view_file_path(@file.FileID), alert: "This agreement is not available for editing."
+    end
+  end
+
+  def review
+    @file = find_file_for_user(params[:id])
+    return render plain: "File not found", status: :not_found unless @file
+
+    @conversation = agreement_conversation(@file)
+    return render plain: "Unauthorized", status: :forbidden unless @conversation && agreement_party?(@conversation)
+    return redirect_to view_file_path(@file.FileID), alert: "This agreement can no longer be changed." unless @file.agreement_editable?
+    return redirect_to view_file_path(@file.FileID), alert: "Review the pending suggestions before proposing more changes." if @file.agreement_suggestions_pending?
+
+    redirect_to view_file_path(@file.FileID, edit: 1)
+  end
+
+  def update_review
+    file = find_file_for_user(params[:id])
+    return render plain: "File not found", status: :not_found unless file
+
+    conversation = agreement_conversation(file)
+    return render plain: "Unauthorized", status: :forbidden unless conversation && agreement_party?(conversation)
+    return redirect_to view_file_path(file.FileID), alert: "This agreement can no longer be changed." unless file.agreement_editable?
+
+    terms = agreement_terms_from_params
+    result = nil
+    file.with_lock do
+      if !file.agreement_editable? || file.agreement_suggestions_pending? || params[:agreement_version].to_i != file.AgreementVersion
+        result = :stale
+      else
+        current = file.agreement_terms
+        changes = agreement_fields_for_template(file.AgreementTemplate).each_with_object({}) do |field, list|
+          old_value = current[field].to_s
+          new_value = terms[field].to_s
+          list[field] = { "from" => old_value, "to" => new_value, "decision" => "pending" } unless old_value == new_value
+        end
+        (1..6).each do |number|
+          amount = changes["amount#{number}"]
+          date = changes["date#{number}"]
+          next unless amount
+          adding = amount["from"].blank? && amount["to"].present?
+          removing = amount["from"].present? && amount["to"].blank? &&
+                     (date ? date["to"] : current["date#{number}"]).blank?
+          next unless adding || removing
+
+          amount["group_key"] = "payment#{number}"
+          date["group_key"] = "payment#{number}" if date
+        end
+        if !valid_agreement_payment_terms?(terms)
+          result = :invalid_payment
+        elsif changes.any? { |field, change| !valid_agreement_counteroffer?(field, change["to"]) }
+          result = :invalid
+        elsif changes.empty?
+          result = :unchanged
+        else
+          file.update!(AgreementProposal: JSON.generate({ "base_version" => file.AgreementVersion,
+                                                          "proposer_id" => @user.UserID,
+                                                          "reviewer_id" => other_agreement_party_id(conversation, @user.UserID),
+                                                          "changes" => changes }))
+          result = :submitted
         end
       end
+    end
+    case result
+    when :submitted
+      announce_agreement(conversation, "#{agreement_actor_name} suggested changes to the agreement. Review the document to see them.")
+      ActionCable.server.broadcast("document_#{file.FileID}", { type: "agreement_proposal_update", actor_id: @user.UserID })
+      redirect_to view_file_path(file.FileID), notice: "Suggested changes sent for review."
+    when :unchanged
+      redirect_to view_file_path(file.FileID), notice: "No terms were changed."
+    when :invalid
+      redirect_to view_file_path(file.FileID, edit: 1), alert: "One or more edited values are invalid. Review the document and try again."
+    when :invalid_payment
+      redirect_to view_file_path(file.FileID, edit: 1), alert: "A payment date needs a payment amount. Add an amount or remove the date."
+    else
+      redirect_to view_file_path(file.FileID), alert: "This agreement changed while you were editing. Review the latest version."
+    end
+  end
+
+  def decide_suggestion
+    file = find_file_for_user(params[:id])
+    return render plain: "File not found", status: :not_found unless file
+
+    conversation = agreement_conversation(file)
+    return render plain: "Unauthorized", status: :forbidden unless conversation && agreement_party?(conversation)
+
+    decision = params[:decision].to_s
+    return render plain: "Invalid decision", status: :unprocessable_entity unless %w[accepted rejected].include?(decision)
+
+    result = nil
+    completed_round = nil
+    file.with_lock do
+      proposal = file.agreement_proposal
+      changes = proposal["changes"] || {}
+      item = file.agreement_suggestion_items.find { |suggestion| suggestion[:key] == params[:field].to_s }
+      if !file.agreement_editable? || !file.agreement_suggestions_pending? ||
+         proposal["base_version"].to_i != file.AgreementVersion || item.nil? ||
+         active_agreement_reviewer_id(file, proposal, conversation) != @user.UserID ||
+         item[:offered_by_id].to_i == @user.UserID ||
+         proposal.fetch("draft_counteroffers", {}).key?(item[:key]) ||
+         item[:fields].any? { |field| changes[field]["decision"] != "pending" }
+        result = :unavailable
+      else
+        if decision == "accepted"
+          accepted_terms = file.agreement_terms.dup
+          item[:fields].each do |field|
+            change = changes[field]
+            if change["to"].present?
+              accepted_terms[field] = change["to"]
+            else
+              accepted_terms.delete(field)
+            end
+          end
+          if valid_agreement_payment_terms?(accepted_terms)
+            item[:fields].each { |field| changes[field]["decision"] = decision }
+            assign_agreement_template_variables(file.AgreementTemplate, accepted_terms)
+            html = render_to_string(template: agreement_template_file(file.AgreementTemplate), formats: [:html], layout: false)
+            file.AgreementTerms = JSON.generate(accepted_terms)
+            file.AgreementVersion += 1
+            file.TenantSignature = false
+            file.LandlordSignature = false
+            file.TenantSignedAt = nil
+            file.LandlordSignedAt = nil
+            file.TenantSignatureName = nil
+            file.LandlordSignatureName = nil
+            proposal["base_version"] = file.AgreementVersion
+            proposal["round_accepted"] = true
+            file.AgreementProposal = JSON.generate(proposal)
+            replace_agreement_html(file, html)
+            completed_round = finish_agreement_review_round(file, proposal, conversation)
+            result = :updated
+          else
+            result = :invalid_payment
+          end
+        else
+          item[:fields].each { |field| changes[field]["decision"] = decision }
+          file.update!(AgreementProposal: JSON.generate(proposal))
+          completed_round = finish_agreement_review_round(file, proposal, conversation)
+          result = completed_round ? :rejected : :pending
+        end
+      end
+    end
+
+    focus_path = view_file_path(file.FileID, anchor: "suggestion-#{params[:field]}")
+    if completed_round
+      announce_agreement(conversation, agreement_review_completion_message(completed_round, file))
+    end
+    case result
+    when :updated
+      ActionCable.server.broadcast("document_#{file.FileID}", { type: "agreement_proposal_update", actor_id: @user.UserID })
+      if request.format.json?
+        render json: { status: "updated", field: params[:field], decision: decision }
+      else
+        redirect_to focus_path, notice: "Suggestions reviewed and the agreement updated."
+      end
+    when :rejected
+      ActionCable.server.broadcast("document_#{file.FileID}", { type: "agreement_proposal_update", actor_id: @user.UserID })
+      if request.format.json?
+        render json: { status: "rejected", field: params[:field], decision: decision }
+      else
+        redirect_to focus_path, notice: "Suggestions reviewed. No further changes are pending."
+      end
+    when :pending
+      ActionCable.server.broadcast("document_#{file.FileID}", { type: "agreement_proposal_update", actor_id: @user.UserID })
+      if request.format.json?
+        render json: { status: "pending", field: params[:field], decision: decision }
+      else
+        redirect_to focus_path, notice: "Decision saved. Review the remaining suggestions."
+      end
+    when :invalid_payment
+      if request.format.json?
+        render json: { error: "A payment date needs a payment amount. Review the payment as a whole." }, status: :unprocessable_entity
+      else
+        redirect_to focus_path, alert: "A payment date needs a payment amount. Review the payment as a whole."
+      end
+    else
+      if request.format.json?
+        render json: { error: "This suggestion is no longer available. Refresh the agreement." }, status: :conflict
+      else
+        redirect_to view_file_path(file.FileID), alert: "This suggestion is no longer available. Refresh the agreement."
+      end
+    end
+  end
+
+  def counteroffer_suggestion
+    file = find_file_for_user(params[:id])
+    return render plain: "File not found", status: :not_found unless file
+
+    conversation = agreement_conversation(file)
+    return render plain: "Unauthorized", status: :forbidden unless conversation && agreement_party?(conversation)
+
+    result = nil
+    completed_round = nil
+    file.with_lock do
+      proposal = file.agreement_proposal
+      item = file.agreement_suggestion_items.find { |suggestion| suggestion[:key] == params[:field].to_s }
+      if !file.agreement_editable? || !file.agreement_suggestions_pending? ||
+         proposal["base_version"].to_i != file.AgreementVersion ||
+         active_agreement_reviewer_id(file, proposal, conversation) != @user.UserID ||
+         item.nil? || item[:fields].any? { |field| proposal["changes"][field]["decision"] != "pending" } ||
+         proposal.fetch("draft_counteroffers", {}).key?(item[:key]) ||
+         item[:offered_by_id].to_i == @user.UserID
+        result = :unavailable
+      else
+        values = params.fetch(:counteroffer, ActionController::Parameters.new).permit(*item[:fields]).to_h
+        candidate_terms = file.agreement_terms.merge(values)
+        if !valid_agreement_payment_terms?(candidate_terms)
+          result = :invalid_payment
+        elsif item[:fields].any? { |field| !values.key?(field) || !valid_agreement_counteroffer?(field, values[field]) } ||
+              item[:fields].all? { |field| values[field].to_s.strip == proposal["changes"][field]["to"].to_s }
+          result = :invalid
+        else
+          proposal["draft_counteroffers"] ||= {}
+          proposal["draft_counteroffers"][item[:key]] = values.transform_values { |value| value.to_s.strip }
+          file.update!(AgreementProposal: JSON.generate(proposal))
+          completed_round = finish_agreement_review_round(file, proposal, conversation)
+          result = :countered
+        end
+      end
+    end
+
+    if completed_round
+      announce_agreement(conversation, agreement_review_completion_message(completed_round, file))
+      ActionCable.server.broadcast("document_#{file.FileID}", { type: "agreement_proposal_update", actor_id: @user.UserID })
+    end
+    message = case result
+    when :countered then completed_round ? "Review sent with counteroffers." : "Counteroffer saved. Complete the remaining suggestions to send it."
+    when :invalid then "Enter a different value for this counteroffer."
+    when :invalid_payment then "A payment date needs a payment amount."
+    else "This suggestion is no longer available. Refresh the agreement."
+    end
+    if request.format.json?
+      render json: result == :countered ? { status: "countered", field: params[:field], round_complete: completed_round.present? } : { error: message },
+             status: result == :countered ? :ok : :unprocessable_entity
+    elsif [:invalid, :invalid_payment].include?(result)
+      redirect_to view_file_path(file.FileID, counteroffer_error: params[:field],
+                                 counteroffer_reason: ("payment" if result == :invalid_payment),
+                                 anchor: "suggestion-#{params[:field]}")
+    else
+      redirect_to view_file_path(file.FileID, anchor: "suggestion-#{params[:field]}"),
+                  (result == :countered ? { notice: message } : { alert: message })
     end
   end
 
@@ -380,20 +578,24 @@ class DocumentsController < ApplicationController
     @file = find_file_for_user(params[:id])
     return render plain: "File not found", status: :not_found unless @file
 
+    unless @file.agreement_signable?
+      return redirect_to view_file_path(@file.FileID), alert: "This agreement must be shared in a conversation before signing."
+    end
+
     # Load conversation to verify authorization
     file_attachment = FileAttachment.find_by(FileID: @file.FileID)
-    unless file_attachment
+    unless file_attachment || @file.agreement_conversation_id.present?
       flash[:alert] = "This document is not linked to a conversation and cannot be signed."
       return redirect_to view_file_path(@file.FileID)
     end
 
-    message = Message.find_by(MessageID: file_attachment.MessageID)
-    unless message
+    message = Message.find_by(MessageID: file_attachment.MessageID) if file_attachment && @file.agreement_conversation_id.blank?
+    unless message || @file.agreement_conversation_id.present?
       flash[:alert] = "Unable to locate conversation for this document."
       return redirect_to view_file_path(@file.FileID)
     end
 
-    conversation = PrimaryMessageGroup.find_by(ConversationID: message.ConversationID)
+    conversation = @file.agreement_conversation_id.present? ? agreement_conversation(@file) : PrimaryMessageGroup.find_by(ConversationID: message.ConversationID)
     unless conversation
       flash[:alert] = "Unable to locate conversation for this document."
       return redirect_to view_file_path(@file.FileID)
@@ -415,30 +617,40 @@ class DocumentsController < ApplicationController
       return redirect_to view_file_path(@file.FileID)
     end
 
-    # Update signature fields based on user role
-    if is_landlord
-      if @file.LandlordSignature
-        flash[:notice] = "You have already signed this document."
-        return redirect_to view_file_path(@file.FileID)
+    signature_result = nil
+    @file.with_lock do
+      if @file.agreement_suggestions_pending?
+        signature_result = :suggestions_pending
+      elsif @file.agreement_document? && params[:agreement_version].to_i != @file.AgreementVersion
+        signature_result = :stale
+      elsif (is_landlord && @file.LandlordSignature) || (is_tenant && @file.TenantSignature)
+        signature_result = :already_signed
+      else
+        if is_landlord
+          @file.LandlordSignature = true
+          @file.LandlordSignedAt = Time.current
+          @file.LandlordSignatureName = signature_name
+        else
+          @file.TenantSignature = true
+          @file.TenantSignedAt = Time.current
+          @file.TenantSignatureName = signature_name
+        end
+        @file.save!
+        update_document_with_signature(@file, is_landlord, signature_name)
+        signature_result = :signed
       end
-
-      @file.LandlordSignature = true
-      @file.LandlordSignedAt = Time.current
-      @file.LandlordSignatureName = signature_name
-    elsif is_tenant
-      if @file.TenantSignature
-        flash[:notice] = "You have already signed this document."
-        return redirect_to view_file_path(@file.FileID)
-      end
-
-      @file.TenantSignature = true
-      @file.TenantSignedAt = Time.current
-      @file.TenantSignatureName = signature_name
+    end
+    if signature_result == :stale
+      return redirect_to view_file_path(@file.FileID), alert: "The agreement changed before you signed. Review the latest version."
+    end
+    if signature_result == :suggestions_pending
+      return redirect_to view_file_path(@file.FileID), alert: "Suggested changes must be accepted or rejected before signing."
+    end
+    if signature_result == :already_signed
+      return redirect_to view_file_path(@file.FileID), notice: "You have already signed this document."
     end
 
-    if @file.save
-      # Update the HTML file with the signature
-      update_document_with_signature(@file, is_landlord, signature_name)
+    if signature_result == :signed
 
       # Send notification to conversation
       landlord = User.find_by(UserID: conversation.LandlordID)
@@ -479,7 +691,7 @@ class DocumentsController < ApplicationController
         Message.create!(
           ConversationID: conversation.ConversationID,
           SenderID: @user.UserID,
-          Contents: "✓ Document fully executed: #{@file.FileName} - All parties have signed.",
+          Contents: "Document fully executed: #{@file.FileName} - All parties have signed.",
           MessageDate: Time.current,
           is_system: true
         )
@@ -532,6 +744,15 @@ class DocumentsController < ApplicationController
   def view_inline
     file = find_file_for_user(params[:id])
     return render plain: "File not found (record)", status: :not_found unless file
+
+    if params[:editable_preview] == "1"
+      conversation = agreement_conversation(file)
+      return render plain: "Unauthorized", status: :forbidden unless conversation && agreement_party?(conversation) &&
+        file.agreement_editable? && !file.agreement_suggestions_pending?
+
+      assign_agreement_template_variables(file.AgreementTemplate, file.agreement_terms)
+      return render template: agreement_template_file(file.AgreementTemplate), layout: false
+    end
 
     base_path = Rails.root.join("public")
     rel_path  = Pathname.new(file.FileURLPath).cleanpath
@@ -652,6 +873,179 @@ class DocumentsController < ApplicationController
 
 
   private
+
+  AGREEMENT_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed monthly_rent
+                        best_option vacate_date rent_owed late_fees utilities other_charges
+                        other_charges_description payment_lump_sum lump_sum_amount lump_sum_date
+                        payment_monthly monthly_payment_amount monthly_payment_months monthly_payment_day
+                        monthly_payment_start payment_final final_payment_amount final_payment_date
+                        payment_method payment_method_other_description additional_terms].freeze
+  AGREEMENT_COMMON_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed
+                               monthly_rent best_option].freeze
+
+  def agreement_terms_from_params
+    keys = AGREEMENT_FIELDS + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
+    params.permit(*keys).to_h
+  end
+
+  def agreement_fields_for_template(template)
+    case template
+    when "a" then AGREEMENT_COMMON_FIELDS + ["vacate_date"] + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
+    when "b" then AGREEMENT_COMMON_FIELDS + (AGREEMENT_FIELDS - AGREEMENT_COMMON_FIELDS - ["vacate_date"])
+    else AGREEMENT_COMMON_FIELDS + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
+    end
+  end
+
+  def valid_agreement_payment_terms?(terms)
+    (1..6).all? { |number| terms["date#{number}"].blank? || terms["amount#{number}"].present? }
+  end
+
+  def other_agreement_party_id(conversation, user_id)
+    conversation.TenantID == user_id ? conversation.LandlordID : conversation.TenantID
+  end
+
+  def active_agreement_reviewer_id(file, proposal, conversation)
+    return proposal["reviewer_id"].to_i if proposal["reviewer_id"].present?
+
+    first_pending = file.agreement_suggestion_items.find { |item| item[:change]["decision"] == "pending" }
+    other_agreement_party_id(conversation, first_pending[:offered_by_id].to_i) if first_pending
+  end
+
+  def finish_agreement_review_round(file, proposal, conversation)
+    pending = file.agreement_suggestion_items.select { |item| item[:change]["decision"] == "pending" }
+    drafts = proposal.fetch("draft_counteroffers", {})
+    return nil if pending.any? { |item| item[:offered_by_id].to_i != @user.UserID && !drafts.key?(item[:key]) }
+
+    drafts.each do |key, values|
+      item = pending.find { |candidate| candidate[:key] == key }
+      next unless item
+
+      item[:fields].each do |field|
+        proposal["changes"][field]["to"] = values.fetch(field)
+        proposal["changes"][field]["offered_by_id"] = @user.UserID
+      end
+    end
+    accepted = proposal.delete("round_accepted") == true
+    proposal.delete("draft_counteroffers")
+    if proposal["changes"].values.any? { |change| change["decision"] == "pending" }
+      proposal["reviewer_id"] = other_agreement_party_id(conversation, @user.UserID)
+    else
+      proposal.delete("reviewer_id")
+    end
+    file.update!(AgreementProposal: JSON.generate(proposal))
+    { accepted: accepted, countered: drafts.any? }
+  end
+
+  def agreement_review_completion_message(completed_round, file)
+    if completed_round[:countered]
+      detail = completed_round[:accepted] ? "Agreement version #{file.AgreementVersion} includes the accepted changes. " : ""
+      "#{agreement_actor_name} completed their review and sent counteroffers. #{detail}Review the document to see them."
+    elsif completed_round[:accepted]
+      "Agreement revised to version #{file.AgreementVersion} by #{agreement_actor_name}. Please review the new terms."
+    else
+      "#{agreement_actor_name} reviewed the suggested changes. No further changes are pending."
+    end
+  end
+
+  def valid_agreement_counteroffer?(field, raw_value)
+    value = raw_value.to_s.strip
+    return false if value.length > (field == "additional_terms" ? 5000 : 255)
+    return false if %w[landlord_name tenant_name address negotiation_date reason money_owed vacate_date].include?(field) && value.blank?
+    return %w[1 0].include?(value) if %w[payment_lump_sum payment_monthly payment_final].include?(field)
+    return value.blank? || %w[online_portal money_order cashiers_check other].include?(value) if field == "payment_method"
+    return value.blank? || value.match?(/\A\d+(?:\.\d{1,2})?\z/) if field.match?(/\Aamount[1-6]\z/) ||
+      %w[money_owed monthly_rent rent_owed late_fees utilities other_charges lump_sum_amount monthly_payment_amount final_payment_amount].include?(field)
+    return value.blank? || (Date.iso8601(value) && true) if field.match?(/\Adate[1-6]\z/) ||
+      %w[negotiation_date vacate_date lump_sum_date monthly_payment_start final_payment_date].include?(field)
+    return value.blank? || (value.match?(/\A\d{1,2}\z/) && (1..31).cover?(value.to_i)) if field == "monthly_payment_day"
+    return value.blank? || value.match?(/\A\d+\z/) if field == "monthly_payment_months"
+
+    true
+  rescue Date::Error
+    false
+  end
+
+  def agreement_actor_name
+    name = [ @user.FName, @user.LName ].compact.join(" ").squeeze(" ").strip
+    name = @user.CompanyName.presence || @user.Email if name.blank?
+    "#{@user.Role} #{name}"
+  end
+
+  def replace_agreement_html(file, html)
+    path = Rails.root.join("public", file.FileURLPath)
+    Tempfile.create(["agreement-", ".html"], path.dirname) do |temp|
+      temp.write(html)
+      temp.flush
+      temp.chmod(File.stat(path).mode & 0o777)
+      file.save!
+      File.rename(temp.path, path)
+    end
+  end
+
+  def agreement_template_file(template)
+    { "a" => "documents/templates/agree_to_vacate",
+      "b" => "documents/templates/pay_and_stay",
+      "c" => "documents/templates/mediation_agreement" }.fetch(template.to_s, "documents/templates/agree_to_vacate")
+  end
+
+  def agreement_template_name(template)
+    { "a" => "Agree to Vacate", "b" => "Pay and Stay Agreement",
+      "c" => "Mediation Agreement" }.fetch(template.to_s, "Agreement")
+  end
+
+  def assign_agreement_template_variables(template, terms)
+    @landlord = terms["landlord_name"].to_s
+    @tenant = terms["tenant_name"].to_s
+    @address = terms["address"].to_s
+    @date = begin
+      (terms["negotiation_date"].presence || Date.today).to_date.strftime("%B %d, %Y")
+    rescue StandardError
+      Date.today.strftime("%B %d, %Y")
+    end
+    @reason = terms["reason"].to_s
+    @money_owed = terms["money_owed"].to_s
+    @monthly_rent = terms["monthly_rent"].to_s
+    @vacate_date = terms["vacate_date"] if template == "a"
+    @schedule = (1..6).filter_map do |i|
+      amount = terms["amount#{i}"].to_s
+      [ i, amount, terms["date#{i}"] ] if amount.present?
+    end
+    if template == "b"
+      %w[rent_owed late_fees utilities other_charges other_charges_description lump_sum_amount
+         lump_sum_date monthly_payment_amount monthly_payment_months monthly_payment_day
+         monthly_payment_start final_payment_amount final_payment_date payment_method
+         payment_method_other_description additional_terms].each do |field|
+        instance_variable_set("@#{field}", terms[field].to_s)
+      end
+      %w[payment_lump_sum payment_monthly payment_final].each do |field|
+        instance_variable_set("@#{field}", terms[field] == "1")
+      end
+    end
+  end
+
+  def agreement_conversation(file)
+    PrimaryMessageGroup.find_by(ConversationID: file.agreement_conversation_id) if file.agreement_conversation_id.present?
+  end
+
+  def agreement_party?(conversation)
+    [ conversation.TenantID, conversation.LandlordID ].include?(@user.UserID)
+  end
+
+  def agreement_creator?(conversation)
+    agreement_party?(conversation) || conversation.MediatorID == @user.UserID
+  end
+
+  def announce_agreement(conversation, contents)
+    message = Message.create!(ConversationID: conversation.ConversationID, SenderID: @user.UserID,
+                              Contents: contents, MessageDate: Time.current, is_system: true)
+    sender_name = [ @user.FName, @user.LName ].compact.join(" ").squeeze(" ").strip
+    ActionCable.server.broadcast("messages_#{conversation.ConversationID}", {
+      message_id: message.MessageID, contents: message.Contents, sender_id: message.SenderID,
+      recipient_id: nil, message_date: message.MessageDate.strftime("%-I:%M %p"),
+      message_timestamp: message.MessageDate.to_i, sender_role: @user.Role,
+      sender_name: sender_name, attachments: [], broadcast: true, is_system: true
+    })
+  end
 
   def generated_document_name(template)
     creator_name = [ @user[:FName], @user[:LName] ].compact.join(" ").squeeze(" ").strip

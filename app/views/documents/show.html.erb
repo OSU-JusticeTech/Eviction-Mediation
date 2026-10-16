@@ -42,8 +42,14 @@
   </div>
 
   <% if @conversation && @landlord && @tenant && @file.FileTypes == "html" && params[:view_mode] != 'simple' %>
+    <% if @file.agreement_editable? && @user_role_in_conversation %>
+      <div class="signature-status-card">
+        <h3>Review Agreement</h3>
+        <p>Review the document below before signing. If a date, amount, or other term needs work, you can suggest changes below.</p>
+      </div>
+    <% end %>
     <!-- Signature Status Card -->
-    <div class="signature-status-card">
+    <div class="signature-status-card" id="signature-status-card">
       <h3>Signature Status</h3>
       <div class="signature-grid">
         <div class="signature-party">
@@ -88,47 +94,350 @@
       <% end %>
     </div>
 
-    <!-- Signing Form (only show if user hasn't signed yet) -->
-    <% if @user_role_in_conversation == "landlord" && !@file.LandlordSignature %>
-      <div class="signing-card">
-        <h3><i class="fa-solid fa-pen-to-square"></i> Sign This Document</h3>
-        <p class="signing-description">By signing below, you confirm that you agree to the terms outlined in this document.</p>
-        <%= form_with url: apply_signature_document_path(@file.FileID), method: :post, local: true, class: "signature-form" do |form| %>
-          <div class="form-group">
-            <%= form.label :signature_name, "Your Full Name", class: "form-label" %>
-            <%= form.text_field :signature_name, value: "#{@landlord.FName} #{@landlord.LName}", class: "form-input", required: true %>
-            <small class="form-hint">Your signature will be recorded as: <strong>/s/ [Your Name]</strong></small>
-          </div>
-          <div class="form-actions">
-            <%= form.submit "Sign Document", class: "btn-sign" %>
-          </div>
+  <% end %>
+
+  <% if @editing_agreement %>
+    <div class="signature-status-card agreement-editor-guide" data-agreement-editor data-agreement-template="<%= @file.AgreementTemplate %>">
+      <h3>Suggest Changes</h3>
+      <p>Click a highlighted value in the document to edit it. Your edits are only a preview until you send them.</p>
+      <p class="agreement-editor-count" data-agreement-edit-count role="status">No changes yet</p>
+      <%= form_with url: update_review_document_path(@file.FileID), method: :patch, local: true,
+                    data: { turbo: false }, html: { id: "agreement-editor-form" } do %>
+        <%= hidden_field_tag :agreement_version, @file.AgreementVersion %>
+        <% @editable_agreement_fields.each do |field| %>
+          <% value = @file.agreement_terms[field] %>
+          <%= hidden_field_tag field, value, data: { agreement_term: field } %>
         <% end %>
-      </div>
-    <% elsif @user_role_in_conversation == "tenant" && !@file.TenantSignature %>
-      <div class="signing-card">
-        <h3><i class="fa-solid fa-pen-to-square"></i> Sign This Document</h3>
-        <p class="signing-description">By signing below, you confirm that you agree to the terms outlined in this document.</p>
-        <%= form_with url: apply_signature_document_path(@file.FileID), method: :post, local: true, class: "signature-form" do |form| %>
-          <div class="form-group">
-            <%= form.label :signature_name, "Your Full Name", class: "form-label" %>
-            <%= form.text_field :signature_name, value: "#{@tenant.FName} #{@tenant.LName}", class: "form-input", required: true %>
-            <small class="form-hint">Your signature will be recorded as: <strong>/s/ [Your Name]</strong></small>
-          </div>
-          <div class="form-actions">
-            <%= form.submit "Sign Document", class: "btn-sign" %>
-          </div>
-        <% end %>
-      </div>
-    <% end %>
+        <div class="form-actions">
+          <%= submit_tag "Finish & Send Suggested Changes", class: "agreement-action", disabled: true, data: { agreement_finish: true } %>
+          <%= link_to "Cancel", view_file_path(@file.FileID), class: "agreement-cancel" %>
+        </div>
+      <% end %>
+      <p class="agreement-editor-error" data-agreement-editor-error role="alert" hidden></p>
+    </div>
   <% end %>
 
   <div class="document-preview-card">
-    <iframe src="<%= view_inline_document_path(@file.FileID) %>" class="document-iframe">
+    <iframe src="<%= view_inline_document_path(@file.FileID, editable_preview: @editing_agreement ? 1 : nil) %>" class="document-iframe" title="Agreement document preview">
       Your browser does not support iframes.
       <%= link_to "View Document", view_inline_document_path(@file.FileID), target: "_blank", class: "fallback-link" %>
     </iframe>
   </div>
+
+  <% if @conversation && @landlord && @tenant && @file.FileTypes == "html" && params[:view_mode] != 'simple' %>
+    <% if @agreement_proposal.present? && @agreement_proposal.fetch("changes", {}).present? %>
+      <% suggestions_pending = @file.agreement_suggestions_pending? %>
+      <% can_decide = suggestions_pending && @user_role_in_conversation && @reviewer_id == @user.UserID %>
+      <div class="signature-status-card agreement-suggestions-card">
+        <div class="agreement-suggestions-heading">
+          <div>
+            <h3>Suggested Changes</h3>
+            <p>Started by <%= @proposal_author ? "#{@proposal_author.Role} #{@proposal_author.FName} #{@proposal_author.LName}" : "a participant" %>. Review each offered value against the agreement above.<%= " Counteroffers will be shared after you address every item." if can_decide %></p>
+          </div>
+          <span class="suggestion-badge <%= suggestions_pending ? 'pending' : 'reviewed' %>"><%= suggestions_pending ? "Pending review" : "Reviewed" %></span>
+        </div>
+        <div class="suggestion-list">
+          <% @file.agreement_suggestion_items.each do |item| %>
+            <% field = item[:key] %>
+            <% change = item[:change] %>
+            <% label = item[:payment_group] ? "Payment #{field.delete_prefix('payment')}#{item[:removed_payment] ? ' removed' : (item[:added_payment] ? ' added' : '')}" : agreement_field_label(field) %>
+            <% offerer = @offer_authors&.dig(item[:offered_by_id].to_i) %>
+            <% staged = @agreement_proposal.fetch('draft_counteroffers', {})[field] if can_decide %>
+            <% before_label = change['decision'] == 'accepted' ? 'Before acceptance' : 'In document' %>
+            <% offered_label = { 'accepted' => 'Accepted in document', 'rejected' => 'Rejected suggestion' }.fetch(change['decision'], 'Suggested') %>
+            <div class="suggestion-item" id="suggestion-<%= field %>">
+              <div class="suggestion-item-heading">
+                <strong><%= label %></strong>
+                <span class="suggestion-badge <%= change['decision'] %>"><%= staged ? 'Counteroffer ready' : change['decision'].humanize %></span>
+              </div>
+              <p class="suggestion-offerer">Offered by <%= offerer ? "#{offerer.Role} #{offerer.FName} #{offerer.LName}" : "a participant" %></p>
+              <div class="suggestion-values">
+                <% if item[:payment_group] %>
+                  <div><span><%= before_label %></span>
+                    <strong>Amount: <%= agreement_field_value("amount#{field.delete_prefix('payment')}", change['from_amount']) %></strong>
+                    <strong>Due date: <%= agreement_field_value("date#{field.delete_prefix('payment')}", change['from_date']) %></strong>
+                  </div>
+                  <div><span><%= offered_label %></span>
+                    <% if item[:removed_payment] %>
+                      <strong>Payment removed</strong>
+                    <% else %>
+                      <strong>Amount: <%= agreement_field_value("amount#{field.delete_prefix('payment')}", change['to_amount']) %></strong>
+                      <strong>Due date: <%= agreement_field_value("date#{field.delete_prefix('payment')}", change['to_date']) %></strong>
+                    <% end %>
+                  </div>
+                <% else %>
+                  <div><span><%= before_label %></span><strong><%= agreement_field_value(field, change['from']) %></strong></div>
+                  <div><span><%= offered_label %></span><strong><%= agreement_field_value(field, change['to']) %></strong></div>
+                <% end %>
+              </div>
+              <% if staged %>
+                <div class="suggestion-staged">
+                  <strong>Your counteroffer is saved and will be sent when you finish this review:</strong>
+                  <% item[:fields].each do |staged_field| %>
+                    <span><%= agreement_field_label(staged_field) %>: <%= agreement_field_value(staged_field, staged[staged_field]) %></span>
+                  <% end %>
+                </div>
+              <% end %>
+              <% if suggestions_pending && change['decision'] == 'pending' && item[:offered_by_id].to_i == @user.UserID %>
+                <p class="suggestion-review-note">Waiting for the other party to review this offer.</p>
+              <% elsif suggestions_pending && (staged || change['decision'] != 'pending') %>
+                <p class="suggestion-review-note">Decision recorded. This item is closed.</p>
+              <% end %>
+              <% if can_decide && !staged && item[:fields].all? { |candidate| @agreement_proposal["changes"][candidate]["decision"] == "pending" } && item[:offered_by_id].to_i != @user.UserID %>
+                <div class="suggestion-actions">
+                  <%= button_to "Accept", decide_document_suggestion_path(@file.FileID, field), method: :patch,
+                      params: { decision: "accepted" }, aria: { label: "Accept #{label}" },
+                      class: "suggestion-accept #{'selected' if change['decision'] == 'accepted'}" %>
+                  <%= button_to "Reject", decide_document_suggestion_path(@file.FileID, field), method: :patch,
+                      params: { decision: "rejected" }, aria: { label: "Reject #{label}" },
+                      class: "suggestion-reject #{'selected' if change['decision'] == 'rejected'}" %>
+                  <% if change['decision'] == 'pending' %>
+                    <button type="button" class="suggestion-counteroffer-toggle" aria-expanded="<%= params[:counteroffer_error] == field %>" aria-controls="counteroffer-<%= field %>">Counteroffer</button>
+                  <% end %>
+                </div>
+                <% if change['decision'] == 'pending' %>
+                  <div class="suggestion-counteroffer-panel" id="counteroffer-<%= field %>" <%= 'hidden' unless params[:counteroffer_error] == field %>>
+                  <%= form_with url: counteroffer_document_suggestion_path(@file.FileID, field), method: :patch,
+                                local: true, class: "suggestion-counteroffer-form" do %>
+                    <p>Type or select your counteroffer.</p>
+                    <% if params[:counteroffer_error] == field %>
+                      <p class="suggestion-save-error" role="alert"><%= params[:counteroffer_reason] == 'payment' ? 'A payment date needs a payment amount.' : 'Enter a different value for this counteroffer.' %></p>
+                    <% end %>
+                    <div class="suggestion-counteroffer-fields">
+                      <% item[:fields].each do |counter_field| %>
+                        <% offered_value = staged ? staged[counter_field] : @agreement_proposal["changes"][counter_field]["to"] %>
+                        <div class="form-group">
+                          <%= label_tag "counteroffer_#{counter_field}", "Your proposed #{agreement_field_label(counter_field).downcase}", class: "form-label" %>
+                          <% if counter_field.match?(/\Adate[1-6]\z/) || %w[negotiation_date vacate_date lump_sum_date monthly_payment_start final_payment_date].include?(counter_field) %>
+                            <%= date_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% elsif counter_field.match?(/\Aamount[1-6]\z/) || %w[money_owed monthly_rent rent_owed late_fees utilities other_charges lump_sum_amount monthly_payment_amount final_payment_amount].include?(counter_field) %>
+                            <%= number_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", step: 0.01, min: 0, class: "form-input" %>
+                          <% elsif %w[payment_lump_sum payment_monthly payment_final].include?(counter_field) %>
+                            <%= select_tag "counteroffer[#{counter_field}]", options_for_select([["Selected", "1"], ["Not selected", "0"]], offered_value), id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% elsif counter_field == "payment_method" %>
+                            <%= select_tag "counteroffer[#{counter_field}]", options_for_select([["Online portal", "online_portal"], ["Money order", "money_order"], ["Cashier's check", "cashiers_check"], ["Other", "other"]], offered_value), id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% elsif counter_field == "additional_terms" %>
+                            <%= text_area_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input", rows: 3 %>
+                          <% else %>
+                            <%= text_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                    <%= submit_tag "Save Counteroffer", class: "agreement-action" %>
+                  <% end %>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <% if @file.agreement_editable? && !@file.agreement_suggestions_pending? && @user_role_in_conversation && !@editing_agreement %>
+      <div class="signature-status-card agreement-suggestion-entry-card">
+        <h3>Suggest Changes</h3>
+        <p>The changes will be shared for review, and the other party will need to accept or reject the changes before signing.</p>
+        <div class="form-actions">
+          <%= link_to "Suggest Changes", review_document_path(@file.FileID), class: "agreement-action" %>
+        </div>
+      </div>
+    <% end %>
+
+    <% needs_signature = (@user_role_in_conversation == "landlord" && !@file.LandlordSignature) ||
+                         (@user_role_in_conversation == "tenant" && !@file.TenantSignature) %>
+    <% if @file.agreement_suggestions_pending? && needs_signature %>
+      <div class="signing-card">
+        <h3><i class="fa-solid fa-pen-to-square"></i> Signing Paused</h3>
+        <p class="signing-description">The pending suggested changes must be reviewed before either party can sign.</p>
+      </div>
+    <% elsif @file.agreement_signable? && needs_signature && !@editing_agreement %>
+      <% signer = @user_role_in_conversation == "landlord" ? @landlord : @tenant %>
+      <div class="signing-card" data-signer-role="<%= @user_role_in_conversation %>">
+        <h3><i class="fa-solid fa-pen-to-square"></i> Sign This Document</h3>
+        <p class="signing-description">Sign only if you agree to the version shown above. If suggested changes are later accepted, both parties will need to sign the updated document.</p>
+        <%= form_with url: apply_signature_document_path(@file.FileID), method: :post, local: true, class: "signature-form" do |form| %>
+          <%= hidden_field_tag :agreement_version, @file.AgreementVersion if @file.agreement_document? %>
+          <div class="form-group">
+            <%= form.label :signature_name, "Your Full Name", class: "form-label" %>
+            <%= form.text_field :signature_name, value: "#{signer.FName} #{signer.LName}", class: "form-input", required: true %>
+            <small class="form-hint">Your signature will be recorded as: <strong>/s/ [Your Name]</strong></small>
+          </div>
+          <div class="form-actions">
+            <%= form.submit "Sign Document", class: "btn-sign", disabled: true, id: "sign-document-button" %>
+          </div>
+          <p id="sign-scroll-hint" class="form-hint" role="status">Scroll to the bottom of the document above to enable signing.</p>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
 </div>
+
+<script>
+  (function() {
+    const card = document.querySelector('.agreement-suggestions-card');
+    const positionKey = 'agreement-suggestion-position-<%= @file.FileID %>';
+
+    function restorePosition() {
+      const saved = sessionStorage.getItem(positionKey);
+      if (!saved) return;
+      const position = JSON.parse(saved);
+      const item = document.getElementById(position.id) || card;
+      if (!item) return;
+      const difference = item.getBoundingClientRect().top - position.top;
+      document.body.scrollTop += difference;
+      window.scrollTo(0, window.scrollY + difference);
+    }
+
+    if (sessionStorage.getItem(positionKey)) {
+      history.scrollRestoration = 'manual';
+      restorePosition();
+      const finishRestore = function() {
+        requestAnimationFrame(function() {
+          restorePosition();
+          sessionStorage.removeItem(positionKey);
+          history.scrollRestoration = 'auto';
+        });
+      };
+      if (document.readyState === 'complete') finishRestore();
+      else window.addEventListener('load', finishRestore, { once: true });
+    }
+
+    if (!card) return;
+    card.addEventListener('click', function(event) {
+      const toggle = event.target.closest('.suggestion-counteroffer-toggle');
+      if (!toggle) return;
+      const panel = document.getElementById(toggle.getAttribute('aria-controls'));
+      panel.hidden = !panel.hidden;
+      toggle.setAttribute('aria-expanded', String(!panel.hidden));
+      if (!panel.hidden) panel.querySelector('input, select, textarea')?.focus();
+    });
+    card.addEventListener('submit', async function(event) {
+      const form = event.target.closest('.suggestion-actions form, .suggestion-counteroffer-form');
+      if (!form) return;
+      event.preventDefault();
+
+      const item = form.closest('.suggestion-item');
+      const buttons = card.querySelectorAll('.suggestion-item button, .suggestion-item input[type="submit"]');
+      if (card.dataset.saving === 'true') return;
+      card.dataset.saving = 'true';
+      buttons.forEach(function(button) { button.disabled = true; });
+      let refreshing = false;
+
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' }
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'The decision could not be saved. Refresh the agreement and try again.');
+        if (result.status === 'pending') {
+          const badge = item.querySelector('.suggestion-item-heading .suggestion-badge');
+          badge.className = 'suggestion-badge ' + result.decision;
+          badge.textContent = result.decision === 'accepted' ? 'Accepted' : 'Rejected';
+          item.querySelector('.suggestion-actions')?.remove();
+          item.querySelector('.suggestion-counteroffer-panel')?.remove();
+          item.querySelector('.suggestion-staged')?.remove();
+          const note = document.createElement('p');
+          note.className = 'suggestion-review-note';
+          note.textContent = 'Decision recorded. This item is closed.';
+          item.append(note);
+        } else if (result.status === 'countered' && !result.round_complete) {
+          const refreshed = await fetch(location.pathname + location.search, {
+            credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'text/html' }
+          });
+          if (!refreshed.ok) throw new Error('Counteroffer sent. Reload the agreement to see it.');
+          const page = new DOMParser().parseFromString(await refreshed.text(), 'text/html');
+          const updatedItem = page.getElementById(item.id);
+          if (!updatedItem) throw new Error('Counteroffer sent. Reload the agreement to see it.');
+          const pageScroll = window.scrollY;
+          const bodyScroll = document.body.scrollTop;
+          item.replaceWith(updatedItem);
+          document.body.scrollTop = bodyScroll;
+          window.scrollTo(0, pageScroll);
+          requestAnimationFrame(function() {
+            document.body.scrollTop = bodyScroll;
+            window.scrollTo(0, pageScroll);
+          });
+        } else if (['updated', 'rejected'].includes(result.status) || (result.status === 'countered' && result.round_complete)) {
+          sessionStorage.setItem(positionKey, JSON.stringify({ id: item.id, top: item.getBoundingClientRect().top }));
+          history.scrollRestoration = 'manual';
+          history.replaceState(null, '', location.pathname + location.search);
+          refreshing = true;
+          window.location.reload();
+          return;
+        } else {
+          throw new Error('The decision could not be saved. Refresh the agreement and try again.');
+        }
+        item.querySelector('.suggestion-save-error')?.remove();
+      } catch (error) {
+        let message = item.querySelector('.suggestion-save-error');
+        if (!message) {
+          message = document.createElement('p');
+          message.className = 'suggestion-save-error';
+          message.setAttribute('role', 'alert');
+          const panel = item.querySelector('.suggestion-counteroffer-panel');
+          if (panel && form.matches('.suggestion-counteroffer-form')) {
+            panel.hidden = false;
+            item.querySelector('.suggestion-counteroffer-toggle')?.setAttribute('aria-expanded', 'true');
+            panel.querySelector('p')?.after(message);
+          } else {
+            item.append(message);
+          }
+        }
+        message.textContent = error.message;
+      } finally {
+        if (!refreshing) {
+          card.dataset.saving = 'false';
+          buttons.forEach(function(button) { button.disabled = false; });
+        }
+      }
+    });
+  })();
+</script>
+
+<script>
+  (function() {
+    const preview = document.querySelector('.document-iframe');
+    const signButton = document.getElementById('sign-document-button');
+    const hint = document.getElementById('sign-scroll-hint');
+    if (!preview || !signButton) return;
+
+    function checkDocumentScroll(fromScroll) {
+      try {
+        const frameWindow = preview.contentWindow;
+        if (frameWindow.location.href !== preview.src) return;
+        const page = frameWindow.document.scrollingElement || frameWindow.document.documentElement;
+        const fitsInPreview = page.scrollHeight <= page.clientHeight + 2;
+        if (fitsInPreview || (fromScroll && page.scrollTop + page.clientHeight >= page.scrollHeight - 2)) {
+          signButton.disabled = false;
+          hint.hidden = true;
+        }
+      } catch (error) {
+        hint.hidden = false;
+        hint.textContent = 'The document preview could not be checked. Reload this page to review it before signing.';
+      }
+    }
+
+    function onDocumentScroll() { checkDocumentScroll(true); }
+
+    preview.addEventListener('load', function() {
+      signButton.disabled = true;
+      hint.hidden = false;
+      hint.textContent = 'Scroll to the bottom of the document above to enable signing.';
+      preview.contentWindow.addEventListener('scroll', onDocumentScroll, { passive: true });
+      checkDocumentScroll(false);
+    });
+    if (preview.contentDocument && preview.contentDocument.readyState === 'complete' &&
+        preview.contentWindow.location.href === preview.src) {
+      preview.contentWindow.addEventListener('scroll', onDocumentScroll, { passive: true });
+      checkDocumentScroll(false);
+    }
+  })();
+</script>
 
 <% if @conversation %>
 <script>
@@ -139,13 +448,19 @@
       return;
     }
     
-    const fileId = <%= @file.FileID %>;
+    const fileId = <%= raw(json_escape(@file.FileID.to_json)) %>;
+    const currentUserId = <%= raw(json_escape(@user.UserID.to_json)) %>;
     const cable = ActionCable.createConsumer();
     
     const subscription = cable.subscriptions.create(
       { channel: "DocumentSignatureChannel", file_id: fileId },
       {
         received(data) {
+          if (data.type === 'agreement_proposal_update') {
+            if (String(data.actor_id) === String(currentUserId)) return;
+            window.location.reload();
+            return;
+          }
           if (data.type === 'signature_update') {
             // Update landlord signature status
             const signatureParties = document.querySelectorAll('.signature-party');
@@ -188,15 +503,18 @@
             
             // Hide signing form if current user just signed
             const signingCard = document.querySelector('.signing-card');
-            if (signingCard) {
+            if (signingCard && ((signingCard.dataset.signerRole === 'landlord' && data.landlord_signature) ||
+                                (signingCard.dataset.signerRole === 'tenant' && data.tenant_signature))) {
               signingCard.remove();
             }
+            const documentPreview = document.querySelector('.document-iframe');
+            if (documentPreview) documentPreview.src = documentPreview.src;
             
             // Show fully executed banner if both signed
             if (data.both_signed) {
-              const statusCard = document.querySelector('.signature-status-card');
-              const existingBanner = statusCard.querySelector('.completion-banner');
-              if (!existingBanner) {
+              document.querySelector('.agreement-suggestion-entry-card')?.remove();
+              const statusCard = document.getElementById('signature-status-card');
+              if (statusCard && !statusCard.querySelector('.completion-banner')) {
                 const banner = document.createElement('div');
                 banner.className = 'completion-banner';
                 banner.innerHTML = '<i class="fa-solid fa-check-circle"></i><strong>Document Fully Executed</strong> - Both parties have signed this agreement.';
