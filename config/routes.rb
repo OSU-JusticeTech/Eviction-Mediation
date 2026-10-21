@@ -38,6 +38,20 @@ Rails.application.routes.draw do
   # Mediator availability toggle from dashboard
   patch "/mediator/availability", to: "mediator_availability#update", as: "mediator_availability"
 
+  # Mediator Scheduling
+  resources :mediator_schedule_availabilities,
+            only: [:index, :create, :update, :destroy]
+  
+  resources :mediator_schedule_blocks,
+          only: [:index, :create, :update, :destroy]
+
+  resources :mediator_scheduled_meetings,
+          only: [:index, :create, :update] do
+    member do
+    patch :cancel
+    end
+  end
+
   get "messages/tenant_show/:conversation_id", to: "messages#show", as: "tenant_show"
   get "messages/landlord_show/:conversation_id", to: "messages#show", as: "landlord_show"
 
