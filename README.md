@@ -82,6 +82,10 @@ Both flags can be combined — e.g. `make test TEST=test/system TEST_ALL=true` t
 
 Coverage is generated via SimpleCov and should remain at or above 80%.
 
+### Email
+
+In development, all outgoing email is sent to Mailpit instead of real inboxes. Access Mailpit at `http://localhost:8025` (port can be changed with `${MAILPIT_WEB_PORT}`).
+
 ## Deployment
 
 To deploy, run `make up`. This pulls the published web image from the public Docker Hub repository and starts the app container, eliminating the need to build the image on the server and the ability to deploy this app through serverless container services.

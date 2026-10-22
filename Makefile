@@ -1,7 +1,8 @@
 # Default configuration variables - override defaults in env.mk
 export DB_PASSWORD := StrongPassword1
 export DB_USER := sa
-export DB_HOST := localhost
+# sqlcmd runs inside the db container, so it connects to localhost
+export DB_SQLCMD_HOST := localhost
 export DB_INIT_FILE := DBInitTest.sql
 export DB_SOURCE_NAME := EVICTION_TEST
 export DB_TARGET_NAME := EVICTION_DEVELOPMENT
@@ -9,15 +10,27 @@ export WEB_SERVICE := web
 export DB_SERVICE := db
 export WEB_PORT := 3000
 export DB_PORT := 1433
-export DB_HOST_PORT := $(DB_PORT)
+export DB_HOST_PORT = $(DB_PORT)
 export RAILS_ENV := development
 export DB_ADAPTER := sqlserver
 export RAILS_MASTER_KEY := 
 export RAILS_LOG_TO_STDOUT := true
 export RAILS_SERVE_STATIC_FILES := true
-export APP_URL := localhost:$(WEB_PORT)
+export APP_URL = localhost:$(WEB_PORT)
 export APP_PROTOCOL := http
 export EXPORT_FILE := db_export.bak
+
+export DB_HOST = $(DB_SERVICE)
+export DB_USERNAME = $(DB_USER)
+
+# MAIL
+export SMTP_ADDRESS := smtp.mailgun.org
+export SMTP_PORT := 587
+export SMTP_AUTHENTICATION := plain
+export SMTP_ENABLE_STARTTLS_AUTO := true
+export MAILPIT_SMTP_PORT := 1025
+export MAILPIT_WEB_PORT := 8025
+
 export TEST_ALL ?= true
 
 # DOCKER UTILS
@@ -45,7 +58,7 @@ dev-setup: down-clean
 	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:create
 	sed 's/$(DB_SOURCE_NAME)/$(DB_TARGET_NAME)/g' $(DB_INIT_FILE) > setup_temp.sql
 	$(DOCKER_CMD) cp setup_temp.sql $$($(DOCKER_CMD) ps -q --filter label=com.docker.compose.project.working_dir=$$(pwd) --filter label=com.docker.compose.service=$(DB_SERVICE)):/tmp/setup.sql
-	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -i /tmp/setup.sql
+	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_SQLCMD_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -i /tmp/setup.sql
 	rm setup_temp.sql
 	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:schema:dump
 	$(COMPOSE_CMD) run --rm $(WEB_SERVICE) bin/rails db:migrate
@@ -103,7 +116,7 @@ web-shell:
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) /bin/bash
 
 db-shell:
-	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)'
+	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_SQLCMD_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)'
 
 db-setup:
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails db:create db:migrate
@@ -119,18 +132,18 @@ db-init:
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails db:create
 	$(COMPOSE_CMD) cp $(DB_INIT_FILE) $(DB_SERVICE):/tmp/init.sql
 	$(COMPOSE_CMD) exec $(DB_SERVICE) sed 's/$(DB_SOURCE_NAME)/$(DB_TARGET_NAME)/g' /tmp/init.sql > /tmp/setup.sql
-	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -i /tmp/setup.sql
+	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_SQLCMD_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -i /tmp/setup.sql
 	$(COMPOSE_CMD) exec $(WEB_SERVICE) bin/rails db:migrate
 
 export-db:
-	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -Q "BACKUP DATABASE [$(DB_TARGET_NAME)] TO DISK = N'/tmp/export.bak' WITH FORMAT, INIT"
+	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_SQLCMD_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -Q "BACKUP DATABASE [$(DB_TARGET_NAME)] TO DISK = N'/tmp/export.bak' WITH FORMAT, INIT"
 	$(COMPOSE_CMD) cp $(DB_SERVICE):/tmp/export.bak $(EXPORT_FILE)
 	@echo "Database exported to $(EXPORT_FILE)"
 
 import-db:
 	$(COMPOSE_CMD) cp $(or $(FILE),$(EXPORT_FILE)) $(DB_SERVICE):/tmp/import.bak
 	$(COMPOSE_CMD) exec -u root $(DB_SERVICE) chmod 644 /tmp/import.bak
-	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -Q "ALTER DATABASE [$(DB_TARGET_NAME)] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [$(DB_TARGET_NAME)] FROM DISK = N'/tmp/import.bak' WITH REPLACE; ALTER DATABASE [$(DB_TARGET_NAME)] SET MULTI_USER;"
+	$(COMPOSE_CMD) exec $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_SQLCMD_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -Q "ALTER DATABASE [$(DB_TARGET_NAME)] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [$(DB_TARGET_NAME)] FROM DISK = N'/tmp/import.bak' WITH REPLACE; ALTER DATABASE [$(DB_TARGET_NAME)] SET MULTI_USER;"
 	$(COMPOSE_CMD) restart $(WEB_SERVICE)
 	@echo "Database imported from $(or $(FILE),$(EXPORT_FILE))"
 
