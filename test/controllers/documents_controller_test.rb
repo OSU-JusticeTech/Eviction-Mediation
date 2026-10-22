@@ -4,18 +4,22 @@ require "tempfile"
 class DocumentsControllerTest < ActionDispatch::IntegrationTest
   include ActionMailer::TestHelper
 
-  test "agreement review sends change request approval revision and signing readiness emails" do
+  test "agreement review sends one actor-aware email to the other party per action" do
     file = create_agreement_draft
     log_in_as(@landlord)
-    assert_enqueued_emails 3 do
+    assert_enqueued_emails 1 do
       patch update_review_document_path(file.FileID), params: agreement_params.merge(
         agreement_version: 1, vacate_date: "2026-05-15"
       )
     end
     log_in_as(@tenant)
-    # All participants receive approval, revision, and ready-for-signing emails.
-    assert_enqueued_emails 9 do
-      patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
+    assert_enqueued_emails 1 do
+      assert_enqueued_email_with MediationMailer, :agreement_notification,
+        args: [ @landlord, @mediation.ConversationID, "agreement_revised", file.FileID, @tenant,
+                [ "Vacate date: 2026-05-01 → 2026-05-15" ],
+                "No suggestions remain pending. The agreement is ready for signing." ] do
+        patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
+      end
     end
     assert_no_enqueued_emails do
       patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }

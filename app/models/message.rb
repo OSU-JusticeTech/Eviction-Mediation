@@ -38,15 +38,37 @@ class Message < ApplicationRecord
   private
 
   def notify_new_message
-    return if self.is_system?
-
     mediation = notification_mediation
     return unless mediation && !mediation.past?
+
+    sender = User.find_by(UserID: self.SenderID)
+    agreements = file_drafts.select do |file|
+      file.agreement_document? && file.agreement_conversation_id == mediation.ConversationID
+    end
+    if agreements.any? && self.ConversationID == mediation.ConversationID
+      # The agreement email replaces the generic message email, including for
+      # the system message used when generating and sharing in one action.
+      recipients = notification_recipients.select { |user| [ mediation.TenantID, mediation.LandlordID ].include?(user.UserID) }
+      agreements.each do |file|
+        status = if file.TenantSignature && file.LandlordSignature
+          "Both parties have already signed this agreement."
+        elsif file.agreement_suggestions_pending?
+          "Suggestions remain pending. Review them before signing."
+        else
+          "The agreement is ready for signing. You can also suggest changes before signing."
+        end
+        recipients.each do |recipient|
+          MediationMailer.agreement_notification(recipient, mediation.ConversationID, "agreement_shared", file.FileID, sender, [], status).deliver_later
+        end
+      end
+      return
+    end
+    return if self.is_system?
 
     notification_recipients.each do |recipient|
       next unless recipient.notify_unread_messages?
 
-      MediationMailer.new_message_notification(recipient, mediation.ConversationID).deliver_later
+      MediationMailer.new_message_notification(recipient, mediation.ConversationID, sender).deliver_later
     end
   end
 end

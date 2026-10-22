@@ -12,7 +12,7 @@ class MessageNotificationTest < ActiveSupport::TestCase
   test "direct messages email only their recipient after saving" do
     assert_enqueued_emails 1 do
       assert_enqueued_email_with MediationMailer, :new_message_notification,
-        args: [ @landlord, @mediation.ConversationID ] do
+        args: [ @landlord, @mediation.ConversationID, @tenant ] do
         create_message(recipientID: @landlord.UserID)
       end
     end
@@ -39,7 +39,7 @@ class MessageNotificationTest < ActiveSupport::TestCase
     SideMessageGroup.create!(ConversationID: string.ConversationID, UserID: @tenant.UserID, MediatorID: @mediation.MediatorID)
     assert_enqueued_emails 1 do
       assert_enqueued_email_with MediationMailer, :new_message_notification,
-        args: [ @tenant, @mediation.ConversationID ] do
+        args: [ @tenant, @mediation.ConversationID, @mediation.mediator ] do
         create_message(ConversationID: string.ConversationID, SenderID: @mediation.MediatorID, recipientID: @tenant.UserID)
       end
     end

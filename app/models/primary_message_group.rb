@@ -41,6 +41,8 @@ class PrimaryMessageGroup < ApplicationRecord
   # made the change — controller, console, seeds, or a future caller.
   # ------------------------------------------------------------------
   after_save :sync_mediator_caseload, if: :caseload_columns_changed?
+  attr_accessor :notification_actor
+
   after_update_commit :notify_case_closed
 
   def notification_participants
@@ -177,8 +179,12 @@ class PrimaryMessageGroup < ApplicationRecord
   def notify_case_closed
     return unless past? && (saved_change_to_deleted_at? || saved_change_to_Outcome?)
 
+    outcome_updated = !saved_change_to_deleted_at?
+    actor = notification_actor || (User.find_by(UserID: self.EndedBy) unless outcome_updated)
     notification_participants.each do |recipient|
-      MediationMailer.case_closed_notification(recipient, self.ConversationID, self.Outcome).deliver_later
+      next if recipient.UserID == actor&.UserID
+
+      MediationMailer.case_closed_notification(recipient, self.ConversationID, self.Outcome, actor, outcome_updated).deliver_later
     end
   end
 

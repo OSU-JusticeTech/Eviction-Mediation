@@ -1,6 +1,11 @@
 <h1><%= @title %></h1>
 <p>Hello <%= @recipient.FName %>,</p>
 <p><%= @description %></p>
+<% if @changes.present? %>
+  <ul>
+    <% @changes.each do |change| %><li><%= change %></li><% end %>
+  </ul>
+<% end %>
 <% if @details.present? %><p><%= @details %></p><% end %>
 <p>Case #<%= @conversation_id %></p>
 <p><%= link_to "View in Eviction Mediation", @action_url %></p>

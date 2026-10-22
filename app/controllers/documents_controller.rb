@@ -394,7 +394,7 @@ class DocumentsController < ApplicationController
     end
     case result
     when :submitted
-      notify_agreement_participants(conversation, file, "agreement_changes_requested")
+      notify_agreement_participants(conversation, file, "agreement_suggestions_pending")
       announce_agreement(conversation, "#{agreement_actor_name} suggested changes to the agreement. Review the document to see them.")
       ActionCable.server.broadcast("document_#{file.FileID}", { type: "agreement_proposal_update", actor_id: @user.UserID })
       redirect_to view_file_path(file.FileID), notice: "Suggested changes sent for review."
@@ -421,6 +421,7 @@ class DocumentsController < ApplicationController
 
     result = nil
     completed_round = nil
+    accepted_changes = []
     file.with_lock do
       proposal = file.agreement_proposal
       changes = proposal["changes"] || {}
@@ -444,6 +445,13 @@ class DocumentsController < ApplicationController
             end
           end
           if valid_agreement_payment_terms?(accepted_terms)
+            accepted_changes = item[:fields].map do |field|
+              change = changes.fetch(field)
+              label = helpers.agreement_field_label(field)
+              before = helpers.agreement_field_value(field, change["from"])
+              after = helpers.agreement_field_value(field, change["to"])
+              "#{label}: #{before} → #{after}"
+            end
             item[:fields].each { |field| changes[field]["decision"] = decision }
             assign_agreement_template_variables(file.AgreementTemplate, accepted_terms)
             html = render_to_string(template: agreement_template_file(file.AgreementTemplate), formats: [:html], layout: false)
@@ -475,11 +483,10 @@ class DocumentsController < ApplicationController
 
     focus_path = view_file_path(file.FileID, anchor: "suggestion-#{params[:field]}")
     if result == :updated
-      notify_agreement_participants(conversation, file, "agreement_approved")
-      notify_agreement_participants(conversation, file, "agreement_revised")
+      notify_agreement_participants(conversation, file, "agreement_revised", changes: accepted_changes)
     end
     if completed_round
-      notify_agreement_review_completed(conversation, file, completed_round)
+      notify_agreement_review_completed(conversation, file, completed_round) unless result == :updated
       announce_agreement(conversation, agreement_review_completion_message(completed_round, file))
     end
     case result
@@ -954,14 +961,22 @@ class DocumentsController < ApplicationController
     end
   end
 
-  def notify_agreement_participants(conversation, file, event)
-    conversation.notification_participants.each do |recipient|
-      MediationMailer.agreement_notification(recipient, conversation.ConversationID, event, file.FileID).deliver_later
+  def notify_agreement_participants(conversation, file, event, changes: [])
+    signing_status = if file.agreement_suggestions_pending?
+      "Suggestions remain pending. Review them before signing."
+    else
+      "No suggestions remain pending. The agreement is ready for signing."
+    end
+    [ conversation.tenant, conversation.landlord ].compact.uniq(&:UserID).each do |recipient|
+      next if recipient.UserID == @user.UserID
+
+      MediationMailer.agreement_notification(recipient, conversation.ConversationID, event, file.FileID,
+                                            @user, changes, signing_status).deliver_later
     end
   end
 
   def notify_agreement_review_completed(conversation, file, completed_round)
-    event = completed_round[:countered] ? "agreement_changes_requested" : "agreement_ready"
+    event = completed_round[:countered] ? "agreement_suggestions_pending" : "agreement_ready"
     notify_agreement_participants(conversation, file, event)
   end
 
