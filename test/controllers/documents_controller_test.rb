@@ -2,6 +2,26 @@ require "test_helper"
 require "tempfile"
 
 class DocumentsControllerTest < ActionDispatch::IntegrationTest
+  include ActionMailer::TestHelper
+
+  test "agreement review sends change request approval revision and signing readiness emails" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    assert_enqueued_emails 3 do
+      patch update_review_document_path(file.FileID), params: agreement_params.merge(
+        agreement_version: 1, vacate_date: "2026-05-15"
+      )
+    end
+    log_in_as(@tenant)
+    # All participants receive approval, revision, and ready-for-signing emails.
+    assert_enqueued_emails 9 do
+      patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
+    end
+    assert_no_enqueued_emails do
+      patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
+    end
+  end
+
   setup do
     @tenant = users(:tenant1)
     @landlord = users(:landlord1)

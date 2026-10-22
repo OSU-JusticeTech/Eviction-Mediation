@@ -5,6 +5,9 @@ class FileDraft < ApplicationRecord
   has_many :file_attachments, foreign_key: :FileID
   has_many :messages, through: :file_attachments
 
+  after_create_commit :notify_agreement_shared
+  after_update_commit :notify_agreement_update
+
   def agreement_terms
     return {} unless has_attribute?(:AgreementTerms)
     JSON.parse(self[:AgreementTerms].presence || "{}")
@@ -91,5 +94,43 @@ class FileDraft < ApplicationRecord
 
   def uploaded_at
     self[:CreatedAt] || self[:created_at] || self[:UpdatedAt] || self[:updated_at]
+  end
+
+  private
+
+  def notify_agreement_participants(conversation, event)
+    conversation.notification_participants.each do |recipient|
+      MediationMailer.agreement_notification(recipient, conversation.ConversationID, event, self.FileID).deliver_later
+    end
+  end
+
+  def notify_agreement_shared
+    return unless agreement_document?
+
+    conversation = PrimaryMessageGroup.find_by(ConversationID: agreement_conversation_id)
+    return unless conversation && !conversation.past?
+
+    notify_agreement_participants(conversation, "agreement_created")
+    notify_agreement_participants(conversation, "agreement_ready") unless agreement_suggestions_pending?
+  end
+
+  def notify_agreement_update
+    if saved_change_to_AgreementConversationID? && agreement_conversation_id.present?
+      notify_agreement_shared
+      return
+    end
+    return unless agreement_document?
+
+    newly_signed = (saved_change_to_TenantSignature? && self.TenantSignature) ||
+                   (saved_change_to_LandlordSignature? && self.LandlordSignature)
+    return unless newly_signed
+
+    conversation = PrimaryMessageGroup.find_by(ConversationID: agreement_conversation_id)
+    return unless conversation && !conversation.past?
+
+    notify_agreement_participants(conversation, "agreement_signed")
+    if self.TenantSignature && self.LandlordSignature
+      notify_agreement_participants(conversation, "agreement_completed")
+    end
   end
 end

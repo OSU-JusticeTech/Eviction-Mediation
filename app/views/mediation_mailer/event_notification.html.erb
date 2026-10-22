@@ -1,0 +1,7 @@
+<h1><%= @title %></h1>
+<p>Hello <%= @recipient.FName %>,</p>
+<p><%= @description %></p>
+<% if @details.present? %><p><%= @details %></p><% end %>
+<p>Case #<%= @conversation_id %></p>
+<p><%= link_to "View in Eviction Mediation", @action_url %></p>
+<p>Please sign in to view the case details. This is an automated notification; please do not reply.</p>

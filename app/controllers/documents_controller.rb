@@ -394,6 +394,7 @@ class DocumentsController < ApplicationController
     end
     case result
     when :submitted
+      notify_agreement_participants(conversation, file, "agreement_changes_requested")
       announce_agreement(conversation, "#{agreement_actor_name} suggested changes to the agreement. Review the document to see them.")
       ActionCable.server.broadcast("document_#{file.FileID}", { type: "agreement_proposal_update", actor_id: @user.UserID })
       redirect_to view_file_path(file.FileID), notice: "Suggested changes sent for review."
@@ -473,7 +474,12 @@ class DocumentsController < ApplicationController
     end
 
     focus_path = view_file_path(file.FileID, anchor: "suggestion-#{params[:field]}")
+    if result == :updated
+      notify_agreement_participants(conversation, file, "agreement_approved")
+      notify_agreement_participants(conversation, file, "agreement_revised")
+    end
     if completed_round
+      notify_agreement_review_completed(conversation, file, completed_round)
       announce_agreement(conversation, agreement_review_completion_message(completed_round, file))
     end
     case result
@@ -551,6 +557,7 @@ class DocumentsController < ApplicationController
     end
 
     if completed_round
+      notify_agreement_review_completed(conversation, file, completed_round)
       announce_agreement(conversation, agreement_review_completion_message(completed_round, file))
       ActionCable.server.broadcast("document_#{file.FileID}", { type: "agreement_proposal_update", actor_id: @user.UserID })
     end
@@ -945,6 +952,17 @@ class DocumentsController < ApplicationController
     else
       "#{agreement_actor_name} reviewed the suggested changes. No further changes are pending."
     end
+  end
+
+  def notify_agreement_participants(conversation, file, event)
+    conversation.notification_participants.each do |recipient|
+      MediationMailer.agreement_notification(recipient, conversation.ConversationID, event, file.FileID).deliver_later
+    end
+  end
+
+  def notify_agreement_review_completed(conversation, file, completed_round)
+    event = completed_round[:countered] ? "agreement_changes_requested" : "agreement_ready"
+    notify_agreement_participants(conversation, file, event)
   end
 
   def valid_agreement_counteroffer?(field, raw_value)
