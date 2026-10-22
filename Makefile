@@ -50,7 +50,7 @@ export DOCKER_TOKEN :=
 -include env.mk
 
 # Ensures make ignores file/directory name collisions for these targets
-.PHONY: test pull-images css publish build-prod
+.PHONY: test test-db pull-images css publish build-prod
 
 dev-setup: down-clean
 	$(COMPOSE_CMD) build
@@ -81,31 +81,28 @@ logs:
 build:
 	$(COMPOSE_CMD) build
 
-# Pre-pull upstream images bypassing Docker Desktop's VPNKit proxy.
-# Workaround for WSL2/Windows EOF errors during pulls — run before dev-setup/build if pulls hang.
-pull-images:
-	@NO_PROXY="*" $(COMPOSE_CMD) pull --ignore-buildable
+test-db:
+	$(COMPOSE_CMD) up -d --wait $(DB_SERVICE)
+	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:drop db:create
+	$(COMPOSE_CMD) cp $(DB_INIT_FILE) $(DB_SERVICE):/tmp/test_init.sql
+	$(COMPOSE_CMD) exec -T $(DB_SERVICE) /opt/mssql-tools/bin/sqlcmd -S $(DB_SQLCMD_HOST) -U $(DB_USER) -P '$(DB_PASSWORD)' -i /tmp/test_init.sql
+	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test -e SCHEMA=tmp/schema_test.rb $(WEB_SERVICE) bin/rails db:migrate
 
-test:
+test: test-db
 ifeq ($(TEST_ALL),true)
 	$(COMPOSE_CMD) up -d db chrome web
-	$(COMPOSE_CMD) exec -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:create
-	$(COMPOSE_CMD) exec -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:prepare
 	$(COMPOSE_CMD) exec -e RAILS_ENV=test $(WEB_SERVICE) sh -lc 'rm -f coverage/.resultset.json coverage/.last_run.json'
 	@echo "Open http://localhost:7900/?autoconnect=1&resize=scale to watch browser actions"
 	@if [ -z "$(TEST)" ]; then \
-		$(COMPOSE_CMD) exec -e RAILS_ENV=test -e SYSTEM_TEST_HEADLESS=false $(WEB_SERVICE) bin/rails test; \
+		$(COMPOSE_CMD) exec -e RAILS_ENV=test -e SYSTEM_TEST_HEADLESS=false $(WEB_SERVICE) bin/rails test && \
 		$(COMPOSE_CMD) exec -e RAILS_ENV=test -e SYSTEM_TEST_HEADLESS=false $(WEB_SERVICE) bin/rails test test/system; \
 	else \
 		$(COMPOSE_CMD) exec -e RAILS_ENV=test -e SYSTEM_TEST_HEADLESS=false $(WEB_SERVICE) bin/rails test $(TEST); \
 	fi
 else
-	$(COMPOSE_CMD) up -d db
-	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:create
-	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails db:prepare
 	$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) sh -lc 'rm -f coverage/.resultset.json coverage/.last_run.json'
 	@if [ -z "$(TEST)" ]; then \
-		$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test; \
+		$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test && \
 		$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test test/system; \
 	else \
 		$(COMPOSE_CMD) run --rm -e RAILS_ENV=test $(WEB_SERVICE) bin/rails test $(TEST); \
