@@ -68,9 +68,9 @@ Run the full test suite (unit, integration, and system tests) via Docker:
 
 `make test`
 
-By default this runs headless. To run with a headed Chrome instance (viewable at `http://localhost:7900/?autoconnect=1&resize=scale`):
+By default this runs with a headed Chrome instance, viewable at `http://localhost:7900/?autoconnect=1&resize=scale`. To run headless (as CI does):
 
-`make test TEST_ALL=true`
+`make test TEST_ALL=false`
 
 Run a specific test file or directory:
 
