@@ -3,10 +3,8 @@ services:
     image: mcr.microsoft.com/azure-sql-edge:latest
     environment:
       ACCEPT_EULA: 'Y'
-      MSSQL_SA_PASSWORD: '${DB_PASSWORD:-StrongPassword1}'
+      MSSQL_SA_PASSWORD: '${DB_PASSWORD:?DB_PASSWORD is required}'
       MSSQL_USER: 'mssql'
-    ports:
-      - '${DB_HOST_PORT:-1433}:1433'
     volumes:
       - sqlserver_data:/var/opt/mssql
     restart: unless-stopped
@@ -20,7 +18,7 @@ services:
           '-U',
           '${DB_USER:-sa}',
           '-P',
-          '${DB_PASSWORD:-StrongPassword1}',
+          '${DB_PASSWORD}',
           '-Q',
           'SELECT 1',
         ]
@@ -32,8 +30,6 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - '${REDIS_PORT:-6379}:6379'
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -44,13 +40,13 @@ services:
       retries: 3
 
   web:
-    image: eviction-mediation-web-production
+    image: ${WEB_IMAGE_REF:-eviction-mediation-web-production}
     build:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
-      - .:/rails  # Bind mount for live code updates without rebuilding
+      - ./storage:/rails/storage  # Active Storage uploads (local disk service)
     ports:
       - '${WEB_PORT:-3000}:3000'
     depends_on:
@@ -58,60 +54,34 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      mailpit:
-        condition: service_started
-    environment:
-      RAILS_ENV: '${RAILS_ENV:-production}'
-      DB_ADAPTER: sqlserver
-      DB_HOST: '${DB_SERVICE:-db}'
-      DB_PORT: '1433'
-      DB_USERNAME: '${DB_USER:-sa}'
-      DB_PASSWORD: '${DB_PASSWORD:-StrongPassword1}'
-      RAILS_MASTER_KEY: '${RAILS_MASTER_KEY}'
-      MAILPIT_HOST: '${MAILPIT_HOST:-mailpit}'
-      MAILPIT_PORT: '${MAILPIT_SMTP_PORT:-1025}'
+    env_file: web.vars
+    environment: &app_env
+      RAILS_ENV: production
       REDIS_URL: 'redis://redis:6379/0'
-      # Add other production environment variables as needed
-      RAILS_LOG_TO_STDOUT: 'true'
-      RAILS_SERVE_STATIC_FILES: 'true'
-      APP_URL: '${APP_URL}'
-      APP_PROTOCOL: '${APP_PROTOCOL:-https}'
+      DB_PASSWORD: '${DB_PASSWORD:?DB_PASSWORD is required}'
+      RAILS_MASTER_KEY: '${RAILS_MASTER_KEY:?RAILS_MASTER_KEY is required}'
+      APP_URL: '${APP_URL:?APP_URL is required}'
+      SMTP_DOMAIN: '${SMTP_DOMAIN:?SMTP_DOMAIN is required}'
+      SMTP_USERNAME: '${SMTP_USERNAME:?SMTP_USERNAME is required}'
+      SMTP_PASSWORD: '${SMTP_PASSWORD:?SMTP_PASSWORD is required}'
 
   sidekiq:
-    image: eviction-mediation-web-production
+    image: ${WEB_IMAGE_REF:-eviction-mediation-web-production}
     build:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
-      - .:/rails  # Bind mount for live code updates
+      - ./storage:/rails/storage
     command: bundle exec sidekiq -C config/sidekiq.yml
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    environment:
-      RAILS_ENV: '${RAILS_ENV:-production}'
-      DB_ADAPTER: sqlserver
-      DB_HOST: '${DB_SERVICE:-db}'
-      DB_PORT: '1433'
-      DB_USERNAME: '${DB_USER:-sa}'
-      DB_PASSWORD: '${DB_PASSWORD:-StrongPassword1}'
-      RAILS_MASTER_KEY: '${RAILS_MASTER_KEY}'
-      REDIS_URL: 'redis://redis:6379/0'
-      RAILS_LOG_TO_STDOUT: 'true'
+    env_file: web.vars
+    environment: *app_env
 
-  mailpit:
-    image: axllent/mailpit:latest
-    restart: unless-stopped
-    ports:
-      - '${MAILPIT_WEB_PORT:-8025}:8025'  # Web UI
-      - '${MAILPIT_SMTP_PORT:-1025}:1025' # SMTP server
-    environment:
-      MP_SMTP_AUTH_ACCEPT_ANY: 1
-      MP_SMTP_AUTH_ALLOW_INSECURE: 1
-      
 volumes:
   sqlserver_data:
     driver: local

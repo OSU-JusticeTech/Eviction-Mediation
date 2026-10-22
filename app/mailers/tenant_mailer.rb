@@ -1,6 +1,4 @@
 class TenantMailer < ApplicationMailer
-  default from: Rails.application.credentials.dig(:smtp, :from) || "no-reply@example.com"
-
   def invitation_email(email, landlord)
     @landlord = landlord
     @email = email
