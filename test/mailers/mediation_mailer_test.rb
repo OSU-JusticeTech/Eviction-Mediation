@@ -59,6 +59,28 @@ class MediationMailerTest < ActionMailer::TestCase
     assert_includes mail.text_part.body.decoded, "(Mediator) updated the case outcome."
   end
 
+  test "session emails render actor times timezone and meeting link in both formats" do
+    start_time = Time.zone.local(2026, 10, 26, 10)
+    end_time = start_time + 30.minutes
+    %w[scheduled rescheduled updated canceled reminder_24h reminder_1h].each do |event|
+      mail = MediationMailer.session_notification(users(:tenant1), 1, event, users(:mediator1),
+                                                 start_time, end_time, "https://zoom.us/example",
+                                                 event == "rescheduled" ? [ start_time - 1.hour, end_time - 1.hour ] : nil)
+      assert_equal [ users(:tenant1).Email ], mail.to
+      [ mail.text_part.body.decoded, mail.html_part.body.decoded ].each do |body|
+        assert_includes body, "October 26, 2026 at 10:00 AM EDT (UTC-04:00)"
+        assert_includes body, "10:30 AM"
+        assert_includes body, "(Mediator)" unless event.start_with?("reminder")
+        if event == "canceled"
+          assert_not_includes body, "https://zoom.us/example"
+        else
+          assert_includes body, "https://zoom.us/example"
+        end
+        assert_includes body, "Previous time:" if event == "rescheduled"
+      end
+    end
+  end
+
   test "email document links follow the configured production host and protocol" do
     previous = MediationMailer.default_url_options.dup
     begin

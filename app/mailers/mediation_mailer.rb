@@ -57,9 +57,9 @@ class MediationMailer < ApplicationMailer
     when "canceled"
       [ "Mediation session canceled", "#{notification_actor_name(actor)} canceled the mediation session. Do not attend at the previously scheduled time." ]
     when "reminder_24h"
-      [ "Mediation session reminder: 24 hours", "Your mediation session is scheduled to start in 24 hours." ]
+      [ "Mediation session reminder: 24 hours", "Your mediation session is coming up. Please review the scheduled time below." ]
     when "reminder_1h"
-      [ "Mediation session reminder: 1 hour", "Your mediation session is scheduled to start in 1 hour." ]
+      [ "Mediation session reminder: 1 hour", "Your mediation session is coming up soon. Please review the scheduled time below." ]
     else
       raise ArgumentError, "Unknown session notification event: #{event}"
     end
