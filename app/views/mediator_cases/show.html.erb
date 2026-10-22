@@ -20,11 +20,35 @@
     <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
       <h1 style="white-space: nowrap;">Mediation Case Details</h1>
       <% if @mediation.deleted_at.nil? && !flagged %>
-        <div style="display: flex; gap: 0.75rem; flex-shrink: 0;">
+        <div style="display: flex; gap: 0.75rem; flex-shrink: 0; align-items: center;">
+          <% unless is_admin %>
+            <span class="conversation-status-pill conversation-status-pill--info" title="Time you've tracked on this case">
+              <i class="fa-solid fa-clock" aria-hidden="true"></i>
+              <span><%= format_duration(@time_logged) %> logged</span>
+            </span>
+          <% end %>
           <%= link_to message_path(@mediation.ConversationID), class: "btn btn-primary", style: ("width: auto;" unless is_admin) do %>
             <i class="fa-solid fa-comments"></i> Open Chat
           <% end %>
           <% unless is_admin %>
+            <% tracking_entry = current_time_entry %>
+            <% if tracking_entry && tracking_entry.ConversationID == @mediation.ConversationID %>
+              <%= button_to stop_time_entry_path(tracking_entry),
+                  method: :patch,
+                  data: { turbo: false },
+                  class: "btn btn-outline-primary",
+                  style: "width: auto;" do %>
+                <i class="fa-solid fa-circle-stop"></i> Stop Tracking
+              <% end %>
+            <% else %>
+              <%= button_to mediator_case_time_entries_path(@mediation.ConversationID),
+                  method: :post,
+                  data: { turbo: false },
+                  class: "btn btn-outline-primary",
+                  style: "width: auto;" do %>
+                <i class="fa-solid fa-stopwatch"></i> <%= tracking_entry ? "Track Time Here Instead" : "Start Time Tracking" %>
+              <% end %>
+            <% end %>
             <%= button_to end_mediation_path(@mediation.ConversationID),
                 method: :patch,
                 data: { turbo: false },

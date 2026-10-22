@@ -7,12 +7,15 @@
     group_titles        - Hash of category => heading string
                          (defaults to MessagesHelper::GROUP_TITLES for tenant/landlord)
     show_pending_chip   - whether to render the Pending filter chip (default: true)
+    time_totals         - Hash of ConversationID => tracked seconds; when given,
+                         admin cards show a "Time spent" line (default: nil)
 
   Headers and cards are rendered as flat siblings (not nested sections) so the
   Stimulus controller can window an arbitrary slice of them for pagination.
 %>
 <% group_titles      = local_assigns.fetch(:group_titles,     MessagesHelper::GROUP_TITLES) %>
 <% show_pending_chip = local_assigns.fetch(:show_pending_chip, true) %>
+<% time_totals       = local_assigns[:time_totals] %>
 <div class="mediation-board" data-controller="mediation-filter" data-mediation-filter-per-page-value="10">
   <div class="mediation-filter-bar">
     <div class="filter-chips" role="group" aria-label="Filter negotiations by status">
@@ -85,6 +88,7 @@
               mediation: mediation,
               role: role,
               board_group: category,
+              time_spent: time_totals && time_totals.fetch(mediation.ConversationID, 0),
               action: @mediation_actions&.dig(mediation.ConversationID) %>
       <% end %>
     <% end %>

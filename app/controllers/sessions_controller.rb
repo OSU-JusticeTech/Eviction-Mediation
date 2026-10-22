@@ -35,6 +35,7 @@ class SessionsController < ApplicationController
     end
 
     def destroy
+      MediatorTimeEntry.current_for(session[:user_id])&.close! if session[:user_id]
       session[:user_id] = nil
       redirect_to root_path, notice: "Logged out successfully!"
     end

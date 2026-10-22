@@ -1,0 +1,16 @@
+<%# locals: entry - the mediator's running MediatorTimeEntry %>
+<span class="conversation-status-pill conversation-status-pill--success time-tracker-pill" data-time-tracker-pill>
+  <%= link_to mediator_case_path(entry.ConversationID), class: "time-tracker-pill__link", title: "Tracking time on Case ##{entry.ConversationID}" do %>
+    <i class="fa-solid fa-stopwatch" aria-hidden="true"></i>
+    <span class="time-tracker-pill__label">Tracking · Case #<%= entry.ConversationID %></span>
+  <% end %>
+  <%= button_to stop_time_entry_path(entry),
+      method: :patch,
+      data: { turbo: false },
+      form_class: "time-tracker-pill__form",
+      class: "time-tracker-pill__stop",
+      title: "Stop time tracking",
+      "aria-label": "Stop time tracking" do %>
+    <i class="fa-solid fa-circle-stop" aria-hidden="true"></i>
+  <% end %>
+</span>

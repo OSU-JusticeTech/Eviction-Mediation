@@ -1,4 +1,4 @@
-<%# locals: mediation, role, board_group, action (the viewer's pending action, or nil) %>
+<%# locals: mediation, role, board_group, action (the viewer's pending action, or nil), time_spent (optional) %>
 <%#
   board_group - the category key this card belongs to in grouped_mediations
                 (:needs_action/:everything_else for tenant/landlord,
@@ -51,6 +51,9 @@
         <li><i class="fas fa-building" aria-hidden="true"></i> Landlord: <%= mediation.landlord&.Email %></li>
         <% if role == "Admin" && mediation.mediator.present? %>
           <li><i class="fas fa-gavel" aria-hidden="true"></i> Mediator: <%= mediation.mediator.FName %> <%= mediation.mediator.LName %></li>
+        <% end %>
+        <% if role == "Admin" && local_assigns[:time_spent] %>
+          <li><i class="fas fa-stopwatch" aria-hidden="true"></i> Time spent: <%= format_duration(time_spent) %></li>
         <% end %>
       <% else %>
         <li><i class="fas fa-envelope" aria-hidden="true"></i> <%= party.Email %></li>

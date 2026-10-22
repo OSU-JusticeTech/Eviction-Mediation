@@ -315,6 +315,18 @@
   border-color: #dc2626;
 }
 
+.btn-outline-primary {
+  background: transparent;
+  border: 2px solid #3b82f6;
+  color: #3b82f6;
+}
+
+.btn-outline-primary:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #2563eb;
+}
+
 .divider {
   display: flex;
   align-items: center;

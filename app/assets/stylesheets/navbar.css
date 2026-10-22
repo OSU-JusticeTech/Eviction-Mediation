@@ -372,3 +372,43 @@
         font-size: 16px;
     }
 }
+
+/* Mediator time-tracking indicator (reuses .conversation-status-pill from chat.css) */
+.time-tracker-pill {
+    padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+}
+
+.time-tracker-pill__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+.time-tracker-pill__form {
+    display: inline-flex;
+    margin: 0;
+}
+
+.time-tracker-pill__stop {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.15rem;
+    border: none;
+    background: transparent;
+    color: #059669;
+    cursor: pointer;
+    border-radius: 999px;
+}
+
+.time-tracker-pill__stop:hover {
+    color: #dc2626;
+}
+
+@media (max-width: 480px) {
+    .time-tracker-pill__label {
+        display: none;
+    }
+}
