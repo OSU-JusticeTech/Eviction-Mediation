@@ -27,6 +27,7 @@ class Admin::FlaggedMediationsController < ApplicationController
         :active
       end
     end
+    @time_totals = MediatorTimeEntry.totals_for(mediations.map(&:ConversationID))
     @has_past_mediations = mediations.any?(&:past?)
     @show_mediation_view = mediations.any?
   end

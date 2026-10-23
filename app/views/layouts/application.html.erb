@@ -68,6 +68,9 @@
         <div class="navbar-container">
           <%= render "shared/navbar" %>
         </div>
+        <% if current_time_entry %>
+          <%= render "shared/time_tracker", entry: current_time_entry %>
+        <% end %>
       <% end %>
     <% end %>
     

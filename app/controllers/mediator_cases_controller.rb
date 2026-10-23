@@ -23,6 +23,10 @@ class MediatorCasesController < ApplicationController
     ].compact.uniq
 
     @conversation_participants = User.where(UserID: participant_ids).index_by(&:UserID)
+
+    if @user.Role == "Mediator"
+      @time_logged = @mediation.time_entries.finished.where(MediatorID: @user.UserID).sum(:DurationSeconds)
+    end
   end
 
 

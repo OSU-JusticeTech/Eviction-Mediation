@@ -51,6 +51,23 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", mediator_case_path(active.id), text: "View Case"
   end
 
+  test "shows tracked time spent on each mediation card" do
+    started = 3.hours.ago
+    entry = MediatorTimeEntry.create!(
+      MediatorID: @completed.MediatorID,
+      ConversationID: @completed.ConversationID,
+      StartedAt: started,
+      LastActiveAt: started
+    )
+    entry.close!(at: started + 72.minutes)
+
+    get admin_mediations_url
+
+    assert_response :success
+    assert_select "ul.mediation-card-item__meta li", text: /Time spent: 1h 12m/
+    assert_select "ul.mediation-card-item__meta li", text: /Time spent: 0m/
+  end
+
   test "shows a specific mediation" do
     get admin_flagged_mediation_url(@unassigned)
 

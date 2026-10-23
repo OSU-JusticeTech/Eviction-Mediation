@@ -14,6 +14,9 @@
     </ul>
 
     <div class="navbar-right">
+        <% if current_time_entry %>
+            <%= render "shared/time_tracker_pill", entry: current_time_entry %>
+        <% end %>
         <%= link_to "Log Out", logout_path, method: :delete, class: "logout-btn navbar-logout" %>
         <button type="button" class="navbar-toggle" id="navbar-toggle" aria-label="Toggle navigation menu" aria-controls="navbar-menu" aria-expanded="false">
             <i class="fas fa-bars"></i>
