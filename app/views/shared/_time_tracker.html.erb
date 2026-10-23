@@ -1,0 +1,23 @@
+<%# locals: entry - the mediator's running MediatorTimeEntry %>
+<div data-controller="time-tracker"
+     data-time-tracker-entry-id-value="<%= entry.id %>"
+     data-time-tracker-heartbeat-url-value="<%= heartbeat_time_entry_path(entry) %>"
+     data-time-tracker-stop-url-value="<%= stop_time_entry_path(entry) %>"
+     data-time-tracker-idle-ms-value="<%= MediatorTimeEntry::IDLE_LIMIT.in_milliseconds %>"
+     data-time-tracker-confirm-ms-value="<%= MediatorTimeEntry::CONFIRM_WINDOW.in_milliseconds %>">
+  <div class="conversation-modal" data-time-tracker-target="modal" hidden role="dialog" aria-modal="true" aria-labelledby="time-tracker-modal-title">
+    <div class="conversation-modal__content">
+      <div class="conversation-modal__header">
+        <h3 id="time-tracker-modal-title">Are you still there?</h3>
+      </div>
+      <p class="conversation-modal__body">
+        You haven't been active for <%= MediatorTimeEntry::IDLE_LIMIT.in_minutes.to_i %> minutes. Time tracking on Case #<%= entry.ConversationID %>
+        will stop in <span data-time-tracker-target="countdown"><%= MediatorTimeEntry::CONFIRM_WINDOW.to_i %></span> seconds.
+      </p>
+      <div class="conversation-modal__actions">
+        <button type="button" class="conversation-action conversation-action--primary" data-action="time-tracker#confirm">I'm still here</button>
+        <button type="button" class="conversation-action conversation-action--ghost" data-action="time-tracker#stop">Stop tracking</button>
+      </div>
+    </div>
+  </div>
+</div>

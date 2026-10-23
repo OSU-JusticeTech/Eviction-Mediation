@@ -89,22 +89,5 @@ jobs:
           sudo chown -R 1000:1000 "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Start database
-        run: docker compose up -d --wait db
-
-      - name: Create and initialize test database
-        run: |
-          docker compose run --rm -e RAILS_ENV=test web bin/rails db:create
-          docker compose cp DBInitTest.sql db:/tmp/DBInitTest.sql
-          docker compose exec -T db /opt/mssql-tools/bin/sqlcmd \
-            -S localhost -U sa -P "$DB_PASSWORD" -d EVICTION_TEST -i /tmp/DBInitTest.sql
-          docker compose run --rm -e RAILS_ENV=test web bin/rails db:migrate
-
-      - name: Start web and browser
-        run: docker compose up -d --wait web chrome
-
       - name: Run tests (unit, integration, system)
-        run: |
-          docker compose exec -T web sh -lc 'rm -f coverage/.resultset.json coverage/.last_run.json'
-          docker compose exec -T -e RAILS_ENV=test web bin/rails test
-          docker compose exec -T -e RAILS_ENV=test web bin/rails test test/system
+        run: make test TEST_ALL=false WEB_IMAGE_REF=eviction-mediation-web-development

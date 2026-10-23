@@ -20,6 +20,7 @@ class PrimaryMessageGroup < ApplicationRecord
   belongs_to :tenant, class_name: "User", foreign_key: "TenantID"
   belongs_to :landlord, class_name: "User", foreign_key: "LandlordID"
   belongs_to :mediator, class_name: "User", foreign_key: "MediatorID", optional: true
+  has_many :time_entries, class_name: "MediatorTimeEntry", foreign_key: "ConversationID", primary_key: "ConversationID"
   belongs_to :linked_message_string, foreign_key: "ConversationID", primary_key: "ConversationID", class_name: "MessageString", optional: true
 
   # Mediations currently assigned to the given mediator and not yet ended.

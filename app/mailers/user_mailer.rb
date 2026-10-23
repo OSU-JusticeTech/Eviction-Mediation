@@ -1,7 +1,4 @@
 class UserMailer < ApplicationMailer
-  # Default sender email pulled securely from Rails credentials
-  default from: Rails.application.credentials.dig(:smtp, :from) || "Eviction Mediation <no-reply@example.com>"
-
   def welcome_email(user)
     @user = user
     @app_name = "Eviction Mediation and Education Platform"

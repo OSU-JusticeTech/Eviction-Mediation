@@ -68,9 +68,9 @@ Run the full test suite (unit, integration, and system tests) via Docker:
 
 `make test`
 
-By default this runs headless. To run with a headed Chrome instance (viewable at `http://localhost:7900/?autoconnect=1&resize=scale`):
+By default this runs with a headed Chrome instance, viewable at `http://localhost:7900/?autoconnect=1&resize=scale`. To run headless (as CI does):
 
-`make test TEST_ALL=true`
+`make test TEST_ALL=false`
 
 Run a specific test file or directory:
 
@@ -81,6 +81,10 @@ Run a specific test file or directory:
 Both flags can be combined — e.g. `make test TEST=test/system TEST_ALL=true` to watch system tests live in the browser.
 
 Coverage is generated via SimpleCov and should remain at or above 80%.
+
+### Email
+
+In development, all outgoing email is sent to Mailpit instead of real inboxes. Access Mailpit at `http://localhost:8025` (port can be changed with `${MAILPIT_WEB_PORT}`).
 
 ## Deployment
 

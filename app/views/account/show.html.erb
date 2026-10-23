@@ -219,6 +219,101 @@
               <div class="info-label">
                 Current Status
               </div>
+
+
+
+
+              <hr style="margin: 24px 0; border: none; border-top: 1px solid #e2e8f0;">
+
+                <!-- Weekly Working Hours -->
+                <div class="schedule-section" style="margin-bottom: 24px;">
+                  <h3 style="font-size: 1.1rem; color: #0b2b4b; font-weight: 600; margin-bottom: 12px;">
+                    <i class="fa-regular fa-clock"></i> Weekly Working Hours
+                  </h3>
+                  
+                  <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px; width: 100%;">
+                    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                      <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Day</label>
+                        <select id="avail-day" class="form-input" style="padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                          <option value="Monday">Monday</option>
+                          <option value="Tuesday">Tuesday</option>
+                          <option value="Wednesday">Wednesday</option>
+                          <option value="Thursday">Thursday</option>
+                          <option value="Friday">Friday</option>
+                          <option value="Saturday">Saturday</option>
+                          <option value="Sunday">Sunday</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Start Time</label>
+                        <input type="time" id="avail-start" class="form-input" style="padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                      </div>
+                      <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">End Time</label>
+                        <input type="time" id="avail-end" class="form-input" style="padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                      </div>
+                    </div>
+                    <button type="button" id="btn-add-avail" class="btn-primary" style="margin-left: auto; width: 140px; text-align: center; padding: 7px 16px; white-space: nowrap;">Add Slot</button>
+                  </div>
+
+                  <div id="availability-slots-list" style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #f8fafc;">
+                    <p style="color: #64748b; font-size: 0.9rem; margin: 0;">No regular hours added yet.</p>
+                  </div>
+                </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid #e2e8f0;">
+
+                <!-- Blocked Out Periods -->
+                <div class="schedule-section" style="margin-bottom: 24px;">
+                  <h3 style="font-size: 1.1rem; color: #0b2b4b; font-weight: 600; margin-bottom: 12px;">
+                    <i class="fa-solid fa-ban"></i> Blocked Periods & Out of Office
+                  </h3>
+
+                  <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px; width: 100%;">
+                    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                      <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Start Date & Time</label>
+                        <input type="datetime-local" id="block-start" class="form-input" style="padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                      </div>
+                      <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">End Date & Time</label>
+                        <input type="datetime-local" id="block-end" class="form-input" style="padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                      </div>
+                    </div>
+                    <button type="button" id="btn-add-block" class="btn-primary" style="margin-left: auto; width: 140px; text-align: center; padding: 7px 16px; white-space: nowrap;">Block Period</button>
+                  </div>
+
+                  <div id="blocked-slots-list" style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; background: #f8fafc;">
+                    <p style="color: #64748b; font-size: 0.9rem; margin: 0;">No blocked periods currently scheduled.</p>
+                  </div>
+                </div>
+
+                <hr style="margin: 24px 0; border: none; border-top: 1px solid #e2e8f0;">
+
+                <!-- Scheduled Meetings -->
+                <div class="schedule-section">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="font-size: 1.1rem; color: #0b2b4b; font-weight: 600; margin: 0;">
+                      <i class="fa-solid fa-handshake"></i> Scheduled Meetings
+                    </h3>
+                    <span id="meetings-count" style="font-size: 0.85rem; color: #64748b; font-weight: 500;"></span>
+                  </div>
+
+                  <div id="scheduled-meetings-list" style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; background: #f8fafc; text-align: center;">
+                      <p style="color: #64748b; font-size: 0.9rem; margin: 0;">Loading scheduled meetings...</p>
+                    </div>
+                  </div>
+                </div>
+
+
+
+
+
+
+
+
               <% status_text = @user.mediator.Available ? "Available" : "Not Available" %>
               <% status_class = @user.mediator.Available ? "status-available" : "status-unavailable" %>
               <div class="availability-badge <%= status_class %>">
@@ -243,33 +338,304 @@
 <%# Password Confirmation Error Control #%>
 
 <script>
-  document.addEventListener("turbo:load", function () {
-    const form = document.getElementById("password-form");
-    const password = document.getElementById("password");
-    const confirm = document.getElementById("password_confirmation");
-    const errorBox = document.getElementById("password-error");
+document.addEventListener("turbo:load", () => {
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-    if (!form || !password || !confirm || !errorBox) return;
+  // Load existing records on page load
+  loadAvailabilities();
+  loadBlocks();
 
-    function checkMatch() {
-      if (password.value !== confirm.value) {
-        errorBox.textContent = "⚠️Passwords do not match.";
-        errorBox.style.display = "block";
-        return false;
-      } else {
-        errorBox.textContent = "";
-        errorBox.style.display = "none";
-        return true;
-      }
+  // --- 1. Weekly Availability ---
+  const addAvailBtn = document.getElementById("btn-add-avail");
+  const availDay = document.getElementById("avail-day");
+  const availStart = document.getElementById("avail-start");
+  const availEnd = document.getElementById("avail-end");
+  const availList = document.getElementById("availability-slots-list");
+
+  addAvailBtn?.addEventListener("click", async () => {
+    if (!availStart.value || !availEnd.value) {
+      alert("Please enter both a start time and an end time.");
+      return;
     }
 
-    password.addEventListener("input", checkMatch);
-    confirm.addEventListener("input", checkMatch);
+    try {
+      const res = await fetch("/mediator_schedule_availabilities", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          availability: {
+            DayOfWeek: availDay.value,
+            StartTime: availStart.value,
+            EndTime: availEnd.value
+          }
+        })
+      });
 
-    form.addEventListener("submit", function (event) {
-      if (!checkMatch()) {
-        event.preventDefault();
+      if (!res.ok) {
+        const errData = await res.json();
+        alert(errData.errors ? errData.errors.join(", ") : "Failed to add slot.");
+        return;
       }
-    });
+
+      availStart.value = "";
+      availEnd.value = "";
+      loadAvailabilities();
+    } catch (err) {
+      console.error(err);
+      alert("An error occurred while saving availability.");
+    }
   });
+
+  async function loadAvailabilities() {
+    try {
+      const res = await fetch("/mediator_schedule_availabilities", {
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) return;
+      const slots = await res.json();
+
+      if (!slots || slots.length === 0) {
+        availList.innerHTML = '<p style="color: #64748b; font-size: 0.9rem; margin: 0;">No regular hours added yet.</p>';
+        return;
+      }
+
+      availList.innerHTML = slots.map(slot => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #e2e8f0;">
+          <span style="font-weight: 500; color: #0b2b4b;">
+            <strong>${slot.DayOfWeek}</strong>: 
+            ${formatTime(slot.StartTime)} – ${formatTime(slot.EndTime)}
+          </span>
+          <button type="button" onclick="deleteAvailability(${slot.id})" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 0.85rem; font-weight: 600;">
+            <i class="fa-solid fa-trash"></i> Remove
+          </button>
+        </div>
+      `).join("");
+    } catch (err) {
+      console.error("Error loading availabilities:", err);
+    }
+  }
+
+  window.deleteAvailability = async function(id) {
+    if (!confirm("Are you sure you want to remove this slot?")) return;
+    try {
+      const res = await fetch(`/mediator_schedule_availabilities/${id}`, {
+        method: "DELETE",
+        headers: {
+          "X-CSRF-Token": csrfToken,
+          "Accept": "application/json"
+        }
+      });
+      if (res.ok) loadAvailabilities();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // --- 2. Blocked Periods ---
+  const addBlockBtn = document.getElementById("btn-add-block");
+  const blockStart = document.getElementById("block-start");
+  const blockEnd = document.getElementById("block-end");
+  const blockList = document.getElementById("blocked-slots-list");
+
+  addBlockBtn?.addEventListener("click", async () => {
+    if (!blockStart.value || !blockEnd.value) {
+      alert("Please select both start and end dates/times.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/mediator_schedule_blocks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          block: {
+            StartTime: blockStart.value,
+            EndTime: blockEnd.value
+          }
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        alert(errData.errors ? errData.errors.join(", ") : "Failed to block period.");
+        return;
+      }
+
+      blockStart.value = "";
+      blockEnd.value = "";
+      loadBlocks();
+    } catch (err) {
+      console.error(err);
+      alert("An error occurred while creating block.");
+    }
+  });
+
+  async function loadBlocks() {
+    try {
+      const res = await fetch("/mediator_schedule_blocks", {
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) return;
+      const blocks = await res.json();
+
+      if (!blocks || blocks.length === 0) {
+        blockList.innerHTML = '<p style="color: #64748b; font-size: 0.9rem; margin: 0;">No blocked periods currently scheduled.</p>';
+        return;
+      }
+
+      blockList.innerHTML = blocks.map(b => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #e2e8f0;">
+          <span style="font-weight: 500; color: #b91c1c;">
+            <i class="fa-solid fa-ban"></i> ${formatDateTime(b.StartTime)} to ${formatDateTime(b.EndTime)}
+            ${b.Reason ? `<em>(${b.Reason})</em>` : ''}
+          </span>
+          <button type="button" onclick="deleteBlock(${b.id})" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 0.85rem; font-weight: 600;">
+            <i class="fa-solid fa-trash"></i> Remove
+          </button>
+        </div>
+      `).join("");
+    } catch (err) {
+      console.error("Error loading blocks:", err);
+    }
+  }
+
+  window.deleteBlock = async function(id) {
+    if (!confirm("Are you sure you want to remove this blocked period?")) return;
+    try {
+      const res = await fetch(`/mediator_schedule_blocks/${id}`, {
+        method: "DELETE",
+        headers: {
+          "X-CSRF-Token": csrfToken,
+          "Accept": "application/json"
+        }
+      });
+      if (res.ok) loadBlocks();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Helper date/time formatters
+  function formatTime(str) {
+    if (!str) return "";
+    const date = new Date(str.includes("T") ? str : `1970-01-01T${str}`);
+    return isNaN(date) ? str : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function formatDateTime(str) {
+    if (!str) return "";
+    const date = new Date(str);
+    return isNaN(date) ? str : date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  // --- 3. Scheduled Meetings ---
+  loadMeetings();
+
+  async function loadMeetings() {
+    const meetingsContainer = document.getElementById("scheduled-meetings-list");
+    const countDisplay = document.getElementById("meetings-count");
+
+    try {
+      const res = await fetch("/mediator_scheduled_meetings", {
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) throw new Error("Failed to load meetings");
+
+      const meetings = await res.json();
+
+      if (countDisplay) {
+        countDisplay.textContent = `${meetings.length} ${meetings.length === 1 ? 'meeting' : 'meetings'}`;
+      }
+
+      if (!meetings || meetings.length === 0) {
+        meetingsContainer.innerHTML = `
+          <div style="border: 1px dashed #cbd5e1; border-radius: 8px; padding: 24px; text-align: center; background: #f8fafc;">
+            <p style="color: #64748b; font-size: 0.9rem; margin: 0;">No mediation sessions currently scheduled.</p>
+          </div>
+        `;
+        return;
+      }
+
+      meetingsContainer.innerHTML = meetings.map(m => {
+        const status = (m.Status || "scheduled").toLowerCase();
+        let badgeBg = "#e0f2fe";
+        let badgeColor = "#0369a1";
+
+        if (status === "canceled") {
+          badgeBg = "#fee2e2";
+          badgeColor = "#b91c1c";
+        } else if (status === "completed") {
+          badgeBg = "#f1f5f9";
+          badgeColor = "#475569";
+        }
+
+        const startTime = new Date(m.StartTime);
+        const endTime = new Date(m.EndTime);
+        const durationMin = Math.round((endTime - startTime) / 60000);
+
+        return `
+          <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <span style="font-weight: 600; color: #0b2b4b; font-size: 1rem;">
+                  Case #${m.ConversationID || m.id}
+                </span>
+                <span style="font-size: 0.75rem; background: ${badgeBg}; color: ${badgeColor}; padding: 2px 8px; border-radius: 9999px; font-weight: 600; text-transform: uppercase;">
+                  ${status}
+                </span>
+              </div>
+              <div style="font-size: 0.85rem; color: #475569; display: flex; flex-direction: column; gap: 2px;">
+                <span>
+                  <i class="fa-regular fa-calendar"></i> ${formatDateTime(m.StartTime)} 
+                  ${durationMin > 0 ? `&bull; ${durationMin} mins` : ''}
+                </span>
+                ${m.ZoomLink ? `<span><i class="fa-solid fa-link"></i> <a href="${m.ZoomLink}" target="_blank" style="color: #0284c7;">Join Meeting</a></span>` : ''}
+              </div>
+            </div>
+            
+            <div style="display: flex; gap: 8px; align-items: center;">
+              ${status === 'scheduled' ? `
+                <button type="button" onclick="cancelMeeting(${m.id})" style="background: none; border: 1px solid #fca5a5; color: #ef4444; border-radius: 6px; padding: 6px 12px; font-size: 0.85rem; font-weight: 500; cursor: pointer;">
+                  Cancel
+                </button>
+              ` : ''}
+              <button type="button" class="btn-secondary" disabled style="opacity: 0.6; cursor: not-allowed; font-size: 0.85rem; padding: 6px 12px;">
+                <i class="fa-solid fa-video"></i> Zoom (Sprint 3)
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+    } catch (err) {
+      console.error("Error loading meetings:", err);
+      meetingsContainer.innerHTML = '<p style="color: #ef4444; font-size: 0.9rem;">Could not load scheduled meetings.</p>';
+    }
+  }
+
+  window.cancelMeeting = async function(id) {
+    try {
+      const res = await fetch(`/mediator_scheduled_meetings/${id}/cancel`, {
+        method: "PATCH",
+        headers: {
+          "X-CSRF-Token": csrfToken,
+          "Accept": "application/json"
+        }
+      });
+      if (res.ok) {
+        loadMeetings();
+      }
+    } catch (err) {
+      console.error("Failed to cancel meeting:", err);
+    }
+  };
+});
 </script>
