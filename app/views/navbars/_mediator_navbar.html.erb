@@ -5,7 +5,20 @@
 
     <ul class="navbar-menu" id="navbar-menu">
     <li><a href="/dashboard" title="Home" class="<%= active_nav_class('/dashboard') %>"><i class="fas fa-home"></i> Home</a></li>
-    <li><a href="/third_party_mediations" title="Mediations" class="<%= active_nav_class('/third_party_mediations') %>"><i class="fas fa-scale-balanced"></i> Mediations</a></li>
+    <li>
+        <a href="/third_party_mediations"
+            title="Mediations"
+            class="<%= active_nav_class('/third_party_mediations') %>">
+           <i class="fas fa-scale-balanced"></i> Mediations
+        </a>
+    </li>
+    <li>
+        <%= link_to edit_mediator_schedule_path,
+            title: "Edit Schedule",
+            class: active_nav_class(edit_mediator_schedule_path) do %>
+          <i class="fas fa-calendar-days"></i> Edit Schedule
+        <% end %>
+    </li>
         <%# No Need For this atm: <li><a href="/documents" title="Documents"><i class="fas fa-file-alt"></i> Documents</a></li> #%>
     <li><a href="/account" title="Account" class="<%= active_nav_class('/account') %>"><i class="fas fa-user"></i> Account</a></li>
         <li class="logout-nav">

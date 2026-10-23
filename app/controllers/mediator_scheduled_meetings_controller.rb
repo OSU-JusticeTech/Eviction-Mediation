@@ -10,6 +10,16 @@ class MediatorScheduledMeetingsController < ApplicationController
     render json: meetings
   end
 
+  # GET /mediator_scheduled_meetings/:id
+  def show
+    @meeting = MediatorScheduledMeeting.find_by(
+      id: params[:id],
+      MediatorID: @mediator_id
+    )
+
+    return head :not_found unless @meeting
+  end
+
   # POST /mediator_scheduled_meetings
   def create
     meeting = MediatorScheduledMeeting.new(meeting_params)
@@ -74,16 +84,18 @@ class MediatorScheduledMeetingsController < ApplicationController
 
   def require_mediator
     unless session[:user_id]
-      render json: { error: "Login required" },
-             status: :unauthorized
+      return redirect_to login_path, alert: "Please log in." if action_name == "show"
+
+      render json: { error: "Login required" }, status: :unauthorized
       return
     end
 
     user = User.find_by(UserID: session[:user_id])
 
     unless user && user.Role == "Mediator"
-      render json: { error: "Mediator access required" },
-             status: :forbidden
+      return redirect_to root_path, alert: "Mediator access required." if action_name == "show"
+
+      render json: { error: "Mediator access required" }, status: :forbidden
       return
     end
 

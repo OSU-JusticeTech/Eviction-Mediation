@@ -5,6 +5,7 @@ import "channels";
 import "chat/negotiation_chat";
 import "chat/mediator_chats";
 import "agreement_editor";
+import "mediator_schedule";
 
 (function () {
   if (window.__navToggleInit) return;

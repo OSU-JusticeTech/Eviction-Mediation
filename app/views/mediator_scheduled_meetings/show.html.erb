@@ -1,0 +1,140 @@
+<div class="modern-dashboard">
+  <div class="dashboard-content">
+
+    <div style="display: flex; justify-content: space-between;
+                align-items: center; gap: 16px; flex-wrap: wrap;
+                margin-bottom: 24px;">
+      <div>
+        <h1 style="font-size: 1.8rem; color: #0b2b4b;">
+          Meeting Details
+        </h1>
+        <p style="color: #64748b;">
+          View information about your scheduled mediation meeting.
+        </p>
+      </div>
+
+      <%= link_to dashboard_path, class: "schedule-btn schedule-btn-back" do %>
+        <i class="fa-solid fa-arrow-left"></i>
+        Back to Calendar
+      <% end %>
+    </div>
+
+    <div class="account-card">
+      <div class="card-header">
+        <h2>
+          <i class="fa-solid fa-calendar-check"></i>
+          Mediation Meeting
+        </h2>
+      </div>
+
+      <div class="card-body">
+        <div class="meeting-details-grid">
+
+          <div>
+            <strong>Case</strong>
+            <p>Case #<%= @meeting.ConversationID %></p>
+          </div>
+
+          <div>
+            <strong>Status</strong>
+            <p><%= @meeting.Status.capitalize %></p>
+          </div>
+
+          <div>
+            <strong>Date</strong>
+            <p><%= @meeting.StartTime.in_time_zone.strftime("%B %d, %Y") %></p>
+          </div>
+
+          <div>
+            <strong>Start Time</strong>
+            <p><%= @meeting.StartTime.in_time_zone.strftime("%I:%M %p") %></p>
+          </div>
+
+          <div>
+            <strong>End Time</strong>
+            <p><%= @meeting.EndTime.in_time_zone.strftime("%I:%M %p") %></p>
+          </div>
+
+          <div>
+            <strong>Duration</strong>
+            <p>
+              <%= ((@meeting.EndTime - @meeting.StartTime) / 60).to_i %>
+              minutes
+            </p>
+          </div>
+
+        </div>
+
+        <hr style="margin: 24px 0; border: none; border-top: 1px solid #e2e8f0;">
+
+        <h3>
+          <i class="fa-solid fa-video"></i>
+          Zoom Meeting
+        </h3>
+
+        <% if @meeting.ZoomLink.present? %>
+          <p>Your Zoom meeting link is available.</p>
+
+          <%= link_to "Join Zoom Meeting",
+                      @meeting.ZoomLink,
+                      class: "btn-primary",
+                      target: "_blank",
+                      rel: "noopener noreferrer" %>
+        <% else %>
+          <p style="color: #64748b;">
+            No Zoom meeting link has been generated yet.
+            Zoom integration is planned for the next sprint.
+          </p>
+        <% end %>
+
+        <div style="margin-top: 24px;">
+          <%= link_to "Open Mediation Case",
+                      mediator_case_path(@meeting.ConversationID),
+                      class: "btn-primary" %>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  .meeting-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .meeting-details-grid strong {
+    color: #475569;
+    font-size: 0.85rem;
+  }
+
+  .meeting-details-grid p {
+    margin-top: 6px;
+    font-size: 1rem;
+  }
+
+  .schedule-btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 7px;
+    background: #0f2b50;
+    color: white;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .schedule-btn-back:hover {
+    background: #1d4b80;
+    color: white;
+  }
+
+  @media (max-width: 600px) {
+    .meeting-details-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
