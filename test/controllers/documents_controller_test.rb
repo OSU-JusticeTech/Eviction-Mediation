@@ -984,7 +984,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to documents_path
     assert_equal "Document generated.", flash[:notice]
-    assert FileDraft.exists?(FileName: "#{@tenant.FName} #{@tenant.LName} - Agree to Vacate")
+    assert FileDraft.exists?(FileName: "Jane Doe - John Doe - Agree to Vacate", FileTypes: "pdf")
   end
 
   test "generate_filled_template supports pay and stay template" do

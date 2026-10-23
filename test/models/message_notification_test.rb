@@ -35,8 +35,8 @@ class MessageNotificationTest < ActiveSupport::TestCase
 
   test "private mediator messages do not email the other party" do
     string = MessageString.create!(Role: "Side")
-    @mediation.update!(TenantSideConversationID: string.ConversationID)
     SideMessageGroup.create!(ConversationID: string.ConversationID, UserID: @tenant.UserID, MediatorID: @mediation.MediatorID)
+    @mediation.update!(TenantSideConversationID: string.ConversationID)
     assert_enqueued_emails 1 do
       assert_enqueued_email_with MediationMailer, :new_message_notification,
         args: [ @tenant, @mediation.ConversationID, @mediation.mediator ] do
