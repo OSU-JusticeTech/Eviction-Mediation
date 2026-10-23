@@ -34,7 +34,7 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
     fill_in "email", with: @landlord.Email
     fill_in "password", with: "password"
     click_button "Log In"
-    click_button "OK" if page.has_button?("OK", wait: 1)
+    accept_terms_if_present
 
     page.driver.browser.manage.window.resize_to(1200, 650)
     visit view_file_path(@file.FileID)
@@ -68,7 +68,7 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
     fill_in "email", with: @landlord.Email
     fill_in "password", with: "password"
     click_button "Log In"
-    click_button "OK" if page.has_button?("OK", wait: 1)
+    accept_terms_if_present
     visit view_file_path(@file.FileID)
 
     within "#suggestion-vacate_date" do
@@ -101,7 +101,7 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
     fill_in "email", with: @landlord.Email
     fill_in "password", with: "password"
     click_button "Log In"
-    click_button "OK" if page.has_button?("OK", wait: 1)
+    accept_terms_if_present
 
     visit view_file_path(@file.FileID)
     click_link "Suggest Changes"
@@ -128,7 +128,7 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
     fill_in "email", with: @landlord.Email
     fill_in "password", with: "password"
     click_button "Log In"
-    click_button "OK" if page.has_button?("OK", wait: 1)
+    accept_terms_if_present
 
     visit view_file_path(@file.FileID)
     click_link "Suggest Changes"
@@ -158,7 +158,7 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
     fill_in "email", with: @landlord.Email
     fill_in "password", with: "password"
     click_button "Log In"
-    click_button "OK" if page.has_button?("OK", wait: 1)
+    accept_terms_if_present
 
     visit view_file_path(@file.FileID)
     page.driver.browser.manage.window.resize_to(1200, 650)
