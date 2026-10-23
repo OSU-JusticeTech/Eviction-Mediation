@@ -338,7 +338,7 @@
 <%# Password Confirmation Error Control #%>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("turbo:load", () => {
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
   // Load existing records on page load
