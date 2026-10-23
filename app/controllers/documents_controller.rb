@@ -22,6 +22,7 @@ class DocumentsController < ApplicationController
 
   def template_intake
     @template = params[:template]
+    @generation_fields = agreement_fields_for_template(@template)
     @template_name = case @template
     when "a" then "Agree to Vacate"
     when "b" then "Pay and Stay Agreement"
@@ -46,6 +47,14 @@ class DocumentsController < ApplicationController
         @tenant = @conversation.tenant
       end
     end
+
+    @generation_values = {
+      "landlord_name" => @landlord ? [@landlord.FName, @landlord.LName].compact.join(" ").strip : "",
+      "tenant_name" => @tenant ? [@tenant.FName, @tenant.LName].compact.join(" ").strip : [@user.FName, @user.LName].compact.join(" ").strip,
+      "address" => @tenant&.formatted_tenant_address || @user.formatted_tenant_address || "",
+      "negotiation_date" => Date.today.iso8601,
+      "best_option" => @default_resolution
+    }
   end
 
   def template_preview

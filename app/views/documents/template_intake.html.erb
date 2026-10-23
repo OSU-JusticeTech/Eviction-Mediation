@@ -1,3 +1,6 @@
+<% if %w[a b].include?(@template) %>
+  <%= render "generation_editor" %>
+<% else %>
 <div class="docs-wrapper">
   <h1 class="docs-title">Document Information</h1>
   <p class="docs-subtitle">Fill out the information below to generate your <%= @template_name %></p>
@@ -606,3 +609,4 @@
   }
 }
 </style>
+<% end %>

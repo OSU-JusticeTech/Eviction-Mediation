@@ -70,7 +70,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     get template_intake_path(template: "a"), params: { conversation_id: @mediation.ConversationID }
 
     assert_response :success
-    assert_select "textarea[name='additional_terms']", count: 1
+    assert_select "input[type='hidden'][name='additional_terms']", count: 1
   end
 
   test "generated agreement titles use both entered party names for every template" do

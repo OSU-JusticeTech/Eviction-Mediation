@@ -1,0 +1,66 @@
+<div class="docs-wrapper"
+     data-document-generation-editor
+     data-agreement-template="<%= @template %>">
+
+  <h1 class="docs-title">Create <%= @template_name %></h1>
+  <p class="docs-subtitle">
+    Click the highlighted fields in the agreement to enter information.
+    The legal terms cannot be edited.
+  </p>
+
+  <p data-agreement-edit-count role="status">No information entered yet</p>
+  <p data-agreement-editor-error role="alert" hidden></p>
+
+  <%= form_with url: generate_from_intake_path(template: @template),
+                method: :post,
+                local: true,
+                data: { turbo: false },
+                html: { id: "document-generation-form" } do %>
+
+    <%= hidden_field_tag :conversation_id, params[:conversation_id] if params[:conversation_id].present? %>
+
+    <% fields = @generation_fields %>
+
+    <% fields.each do |field| %>
+      <% next if field == "reason" %>
+
+      <%= hidden_field_tag field,
+                          @generation_values.fetch(field, ""),
+                          data: { agreement_term: field } %>
+    <% end %>
+
+    <div class="form-group" style="margin: 20px 0;">
+      <%= label_tag :reason, "Reason for Dispute", class: "form-label required-label" %>
+
+      <%= select_tag :reason,
+          options_for_select([
+            ["Select a reason", ""],
+            "Failure to Pay Rent",
+            "Violation of Lease Terms",
+            "Damage to Property",
+            "Illegal Activity",
+            "Nuisance or Disturbance",
+            "Expiration of Lease",
+            "Unknown"
+          ]),
+          class: "form-select",
+          required: true,
+          data: { agreement_term: "reason" } %>
+    </div>
+
+    <div class="form-actions">
+      <%= link_to "Back to Templates", generate_file_path(conversation_id: params[:conversation_id]), class: "btn btn-secondary" %>
+      <%= submit_tag "Generate Document",
+                     class: "btn btn-primary",
+                     data: { generation_finish: true } %>
+    </div>
+  <% end %>
+
+  <div class="document-preview-card">
+    <iframe src="<%= template_preview_path(template: @template) %>"
+            class="document-iframe"
+            title="Editable agreement preview"
+            style="width: 100%; height: 850px; border: 1px solid #ddd;">
+    </iframe>
+  </div>
+</div>
