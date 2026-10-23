@@ -19,4 +19,14 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     browser: :remote,
     url: ENV.fetch("SELENIUM_REMOTE_URL", "http://chrome:4444")
   }
+
+  def accept_terms_if_present
+    if page.has_css?("#termsOfUseModal[open]", wait: 2)
+      within("#termsOfUseModal") do
+        click_button "I Agree"
+      end
+
+      assert_no_selector "#termsOfUseModal[open]"
+    end
+  end
 end

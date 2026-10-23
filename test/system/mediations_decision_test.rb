@@ -68,8 +68,6 @@ class MediationsDecisionTest < ApplicationSystemTestCase
   end
 
   def dismiss_terms_modal_if_present
-    return unless page.has_button?("OK", wait: 1)
-
-    click_button "OK"
+    accept_terms_if_present
   end
 end
