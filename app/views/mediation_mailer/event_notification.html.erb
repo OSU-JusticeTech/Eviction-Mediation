@@ -1,12 +1,63 @@
-<h1><%= @title %></h1>
-<p>Hello <%= @recipient.FName %>,</p>
-<p><%= @description %></p>
-<% if @changes.present? %>
-  <ul>
-    <% @changes.each do |change| %><li><%= change %></li><% end %>
-  </ul>
-<% end %>
-<% if @details.present? %><p><%= @details %></p><% end %>
-<p>Case #<%= @conversation_id %></p>
-<p><%= link_to "View in Eviction Mediation", @action_url %></p>
-<p>Please sign in to view the case details. This is an automated notification; please do not reply.</p>
+
+<div style="margin:0;padding:20px 10px;background:#f5f7fb;font-family:Arial,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+
+    <!-- Header -->
+    <div style="background:#0b2b4b;color:white;padding:20px;text-align:center;font-size:22px;font-weight:bold;">
+      Eviction Mediation
+    </div>
+
+    <!-- Email Content -->
+    <div style="padding:25px;">
+      <h2 style="color:#333;"><%= @title %></h2>
+
+      <p style="font-size:16px;color:#555;">
+        Hello <%= @recipient.FName %>,
+      </p>
+
+      <p style="font-size:16px;color:#555;line-height:1.6;">
+        <%= @description %>
+      </p>
+
+      <% if @changes.present? %>
+        <ul style="font-size:16px;color:#555;line-height:1.8;padding-left:25px;">
+          <% @changes.each do |change| %>
+            <li><%= change %></li>
+          <% end %>
+        </ul>
+      <% end %>
+
+      <% if @details.present? %>
+        <p style="font-size:16px;color:#555;line-height:1.6;">
+          <%= @details %>
+        </p>
+      <% end %>
+
+      <p style="font-size:14px;color:#777;">
+        Case #<%= @conversation_id %>
+      </p>
+
+      <!-- Action Button -->
+      <div style="margin:30px 0;text-align:center;">
+        <a href="<%= @action_url %>"
+           style="display:inline-block;background:#1f6feb;color:#fff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:bold;">
+          View in Eviction Mediation
+        </a>
+      </div>
+
+      <p style="font-size:14px;color:#777;">
+        Please sign in to view the case details. This is an automated notification; please do not reply.
+      </p>
+
+      <p style="font-size:14px;color:#777;">
+        — The Eviction Mediation Team
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#f1f4f8;color:#888;padding:12px;text-align:center;font-size:12px;">
+      © <%= Date.current.year %> Eviction Mediation. All rights reserved.
+    </div>
+
+  </div>
+</div>
