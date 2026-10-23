@@ -394,6 +394,7 @@ class DocumentsController < ApplicationController
     end
     case result
     when :submitted
+      notify_agreement_participants(conversation, file, "agreement_suggestions_pending")
       announce_agreement(conversation, "#{agreement_actor_name} suggested changes to the agreement. Review the document to see them.")
       ActionCable.server.broadcast("document_#{file.FileID}", { type: "agreement_proposal_update", actor_id: @user.UserID })
       redirect_to view_file_path(file.FileID), notice: "Suggested changes sent for review."
@@ -420,6 +421,7 @@ class DocumentsController < ApplicationController
 
     result = nil
     completed_round = nil
+    accepted_changes = []
     file.with_lock do
       proposal = file.agreement_proposal
       changes = proposal["changes"] || {}
@@ -443,6 +445,13 @@ class DocumentsController < ApplicationController
             end
           end
           if valid_agreement_payment_terms?(accepted_terms)
+            accepted_changes = item[:fields].map do |field|
+              change = changes.fetch(field)
+              label = helpers.agreement_field_label(field)
+              before = helpers.agreement_field_value(field, change["from"])
+              after = helpers.agreement_field_value(field, change["to"])
+              "#{label}: #{before} → #{after}"
+            end
             item[:fields].each { |field| changes[field]["decision"] = decision }
             assign_agreement_template_variables(file.AgreementTemplate, accepted_terms)
             html = render_to_string(template: agreement_template_file(file.AgreementTemplate), formats: [:html], layout: false)
@@ -473,7 +482,11 @@ class DocumentsController < ApplicationController
     end
 
     focus_path = view_file_path(file.FileID, anchor: "suggestion-#{params[:field]}")
+    if result == :updated
+      notify_agreement_participants(conversation, file, "agreement_revised", changes: accepted_changes)
+    end
     if completed_round
+      notify_agreement_review_completed(conversation, file, completed_round) unless result == :updated
       announce_agreement(conversation, agreement_review_completion_message(completed_round, file))
     end
     case result
@@ -551,6 +564,7 @@ class DocumentsController < ApplicationController
     end
 
     if completed_round
+      notify_agreement_review_completed(conversation, file, completed_round)
       announce_agreement(conversation, agreement_review_completion_message(completed_round, file))
       ActionCable.server.broadcast("document_#{file.FileID}", { type: "agreement_proposal_update", actor_id: @user.UserID })
     end
@@ -890,7 +904,7 @@ class DocumentsController < ApplicationController
 
   def agreement_fields_for_template(template)
     case template
-    when "a" then AGREEMENT_COMMON_FIELDS + ["vacate_date"] + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
+    when "a" then AGREEMENT_COMMON_FIELDS + %w[vacate_date additional_terms] + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
     when "b" then AGREEMENT_COMMON_FIELDS + (AGREEMENT_FIELDS - AGREEMENT_COMMON_FIELDS - ["vacate_date"])
     else AGREEMENT_COMMON_FIELDS + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
     end
@@ -945,6 +959,25 @@ class DocumentsController < ApplicationController
     else
       "#{agreement_actor_name} reviewed the suggested changes. No further changes are pending."
     end
+  end
+
+  def notify_agreement_participants(conversation, file, event, changes: [])
+    signing_status = if file.agreement_suggestions_pending?
+      "Suggestions remain pending. Review them before signing."
+    else
+      "No suggestions remain pending. The agreement is ready for signing."
+    end
+    [ conversation.tenant, conversation.landlord ].compact.uniq(&:UserID).each do |recipient|
+      next if recipient.UserID == @user.UserID
+
+      MediationMailer.agreement_notification(recipient, conversation.ConversationID, event, file.FileID,
+                                            @user, changes, signing_status).deliver_later
+    end
+  end
+
+  def notify_agreement_review_completed(conversation, file, completed_round)
+    event = completed_round[:countered] ? "agreement_suggestions_pending" : "agreement_ready"
+    notify_agreement_participants(conversation, file, event)
   end
 
   def valid_agreement_counteroffer?(field, raw_value)
@@ -1004,6 +1037,7 @@ class DocumentsController < ApplicationController
     end
     @reason = terms["reason"].to_s
     @money_owed = terms["money_owed"].to_s
+    @additional_terms = terms["additional_terms"].to_s
     @monthly_rent = terms["monthly_rent"].to_s
     @vacate_date = terms["vacate_date"] if template == "a"
     @schedule = (1..6).filter_map do |i|
@@ -1014,7 +1048,7 @@ class DocumentsController < ApplicationController
       %w[rent_owed late_fees utilities other_charges other_charges_description lump_sum_amount
          lump_sum_date monthly_payment_amount monthly_payment_months monthly_payment_day
          monthly_payment_start final_payment_amount final_payment_date payment_method
-         payment_method_other_description additional_terms].each do |field|
+         payment_method_other_description].each do |field|
         instance_variable_set("@#{field}", terms[field].to_s)
       end
       %w[payment_lump_sum payment_monthly payment_final].each do |field|
@@ -1048,16 +1082,16 @@ class DocumentsController < ApplicationController
   end
 
   def generated_document_name(template)
-    creator_name = [ @user[:FName], @user[:LName] ].compact.join(" ").squeeze(" ").strip
-    creator_name = @user[:CompanyName].presence || "Creator" if creator_name.blank?
-    safe_creator_name = creator_name.gsub(/[^\w\- ]/, "").squeeze(" ").strip
+    party_names = %i[landlord_name tenant_name].map do |field|
+      params[field].to_s.gsub(/[^\w\- ]/, "").squeeze(" ").strip.presence
+    end
     document_type = {
       "a" => "Agree to Vacate",
       "b" => "Pay and Stay Agreement",
       "c" => "Mediation Agreement"
     }.fetch(template.to_s, "Agreement")
 
-    [ safe_creator_name.presence, document_type ].join(" - ")
+    [ *party_names, document_type ].compact.join(" - ")
   end
 
   def delete_physical_file(file)

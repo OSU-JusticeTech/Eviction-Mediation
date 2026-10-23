@@ -22,7 +22,57 @@ class MediatorScheduledMeeting < ApplicationRecord
   validate :not_during_blocked_period
   validate :within_mediator_availability
 
+  after_save_commit :send_meeting_notifications
+
+  # A snapshot invalidates old reminders without adding a database column.
+  def reminder_version
+    [ updated_at.utc.iso8601(6), self[:StartTime].utc.iso8601(6), self[:EndTime].utc.iso8601(6),
+      self[:ZoomLink], self[:ConversationID], self[:MediatorID] ]
+  end
+
+  def notification_recipients
+    recipients = [ conversation.tenant, conversation.landlord ]
+    recipients << User.find_by(UserID: self[:MediatorID])
+    recipients.compact.uniq(&:UserID)
+  end
+
   private
+
+  def send_meeting_notifications
+    return if conversation.past? || conversation.MediatorID != self[:MediatorID]
+
+    event = if self[:Status] == "canceled" && saved_change_to_Status?
+      "canceled"
+    elsif self[:Status] == "scheduled"
+      if previously_new_record? || saved_change_to_Status?
+        "scheduled"
+      elsif saved_change_to_StartTime? || saved_change_to_EndTime?
+        "rescheduled"
+      elsif saved_change_to_ZoomLink? || saved_change_to_ConversationID? || saved_change_to_MediatorID?
+        "updated"
+      end
+    end
+
+    if event
+      actor = User.find_by(UserID: self[:MediatorID])
+      previous_times = if event == "rescheduled"
+        [ saved_change_to_StartTime&.first || self[:StartTime], saved_change_to_EndTime&.first || self[:EndTime] ]
+      end
+      notification_recipients.each do |recipient|
+        MediationMailer.session_notification(recipient, self[:ConversationID], event, actor,
+                                             self[:StartTime], self[:EndTime], self[:ZoomLink], previous_times).deliver_later
+      end
+    end
+
+    return unless self[:Status] == "scheduled" && (event || saved_change_to_updated_at?)
+
+    [ 24.hours, 1.hour ].each do |lead_time|
+      reminder_at = self[:StartTime] - lead_time
+      next unless reminder_at.future?
+
+      MediationSessionReminderJob.set(wait_until: reminder_at).perform_later(id, reminder_version, lead_time.to_i)
+    end
+  end
 
   def end_after_start
     return if self[:StartTime].blank? || self[:EndTime].blank?

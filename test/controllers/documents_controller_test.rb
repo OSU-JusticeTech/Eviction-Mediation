@@ -2,6 +2,30 @@ require "test_helper"
 require "tempfile"
 
 class DocumentsControllerTest < ActionDispatch::IntegrationTest
+  include ActionMailer::TestHelper
+
+  test "agreement review sends one actor-aware email to the other party per action" do
+    file = create_agreement_draft
+    log_in_as(@landlord)
+    assert_enqueued_emails 1 do
+      patch update_review_document_path(file.FileID), params: agreement_params.merge(
+        agreement_version: 1, vacate_date: "2026-05-15"
+      )
+    end
+    log_in_as(@tenant)
+    assert_enqueued_emails 1 do
+      assert_enqueued_email_with MediationMailer, :agreement_notification,
+        args: [ @landlord, @mediation.ConversationID, "agreement_revised", file.FileID, @tenant,
+                [ "Vacate date: 2026-05-01 → 2026-05-15" ],
+                "No suggestions remain pending. The agreement is ready for signing." ] do
+        patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
+      end
+    end
+    assert_no_enqueued_emails do
+      patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }
+    end
+  end
+
   setup do
     @tenant = users(:tenant1)
     @landlord = users(:landlord1)
@@ -46,6 +70,62 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     get template_intake_path(template: "a"), params: { conversation_id: @mediation.ConversationID }
 
     assert_response :success
+    assert_select "textarea[name='additional_terms']", count: 1
+  end
+
+  test "generated agreement titles use both entered party names for every template" do
+    log_in_as(@mediator)
+
+    { "a" => "Agree to Vacate", "b" => "Pay and Stay Agreement", "c" => "Mediation Agreement" }.each do |template, name|
+      post generate_from_intake_path(template: template), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
+
+      assert_redirected_to message_path(@mediation.ConversationID)
+      file = FileAttachment.order(:MessageID).last.file_draft
+      assert_equal "Jane Doe - John Doe - #{name}", file.FileName
+    end
+  end
+
+  test "vacate agreement displays amount owed and additional terms without a payment schedule" do
+    log_in_as(@tenant)
+    post generate_from_intake_path(template: "a"), params: agreement_params.except(
+      :amount1, :date1, :amount2, :date2
+    ).merge(conversation_id: @mediation.ConversationID, additional_terms: "Return all keys.")
+    file = FileAttachment.order(:MessageID).last.file_draft
+    document = Nokogiri::HTML(File.read(Rails.root.join("public", file.FileURLPath)))
+
+    assert_match "The Tenant owes Landlord $900. Tenant agrees to pay Landlord in the following manner:",
+                 document.at_css("body > ol > li:nth-child(5)").text.squish
+    assert_equal "900", document.at_css('[data-agreement-field="money_owed"]').text
+    assert_equal "Return all keys.", document.at_css('[data-agreement-field="additional_terms"]').text
+    assert_equal 8, document.css("body > ol > li:not([data-agreement-payment-anchor])").count
+  end
+
+  test "vacate amount owed and additional terms can be suggested and accepted" do
+    file = create_agreement_draft
+    document = Nokogiri::HTML(File.read(Rails.root.join("public", file.FileURLPath)))
+    assert document.at_css('[data-agreement-field="additional_terms"]')
+
+    log_in_as(@landlord)
+    get view_file_path(file.FileID, edit: 1)
+    assert_response :success
+    assert_select "input[data-agreement-term='money_owed']"
+    assert_select "input[data-agreement-term='additional_terms']"
+
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, money_owed: "1000", additional_terms: "Return all keys."
+    )
+    assert_equal %w[additional_terms money_owed], file.reload.agreement_proposal["changes"].keys.sort
+
+    log_in_as(@tenant)
+    %w[money_owed additional_terms].each do |field|
+      patch decide_document_suggestion_path(file.FileID, field), params: { decision: "accepted" }
+    end
+    assert_not file.reload.agreement_suggestions_pending?
+    assert_equal "1000", file.agreement_terms["money_owed"]
+    assert_equal "Return all keys.", file.agreement_terms["additional_terms"]
+    document = Nokogiri::HTML(File.read(Rails.root.join("public", file.FileURLPath)))
+    assert_equal "1000", document.at_css('[data-agreement-field="money_owed"]').text
+    assert_equal "Return all keys.", document.at_css('[data-agreement-field="additional_terms"]').text
   end
 
   test "template intake handles unknown template" do
@@ -249,7 +329,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to documents_path
     assert_equal "Document generated successfully.", flash[:notice]
-    assert FileDraft.exists?(FileName: "#{@tenant.FName} #{@tenant.LName} - Agree to Vacate")
+    assert FileDraft.exists?(FileName: "Jane Doe - John Doe - Agree to Vacate")
   end
 
   test "generate_from_intake handles invalid negotiation date" do
@@ -904,7 +984,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to documents_path
     assert_equal "Document generated.", flash[:notice]
-    assert FileDraft.exists?(FileName: "#{@tenant.FName} #{@tenant.LName} - Agree to Vacate")
+    assert FileDraft.exists?(FileName: "Jane Doe - John Doe - Agree to Vacate", FileTypes: "pdf")
   end
 
   test "generate_filled_template supports pay and stay template" do

@@ -140,24 +140,31 @@
     
     <li>If Tenant fails to vacate as agreed, Landlord may submit an affidavit detailing the failure and be entitled to a (Comm Order?) return to possession as paragraph.</li>
     
-    <% if @schedule.present? && @schedule.any? %>
-    <li>Tenant agrees to pay Landlord in the following manner:
+    <li>The Tenant owes Landlord $<span class="inline-underline" data-agreement-field="money_owed"><%= @money_owed.present? ? @money_owed : '___________' %></span>. Tenant agrees to pay Landlord in the following manner:
       <ol class="payment-list">
-        <% @schedule.each do |index, amount, due_date| %>
+        <% Array(@schedule).each do |index, amount, due_date| %>
           <% if amount.present? %>
             <li data-agreement-payment-row="<%= index %>">$<span class="inline-underline" data-agreement-field="amount<%= index %>"><%= amount %></span> on or before <span class="inline-underline" data-agreement-field="date<%= index %>" data-agreement-format="long-date"><%= due_date.present? ? (Date.parse(due_date).strftime('%B %d, %Y') rescue due_date) : "_________________" %></span> by 5:00 PM</li>
           <% end %>
         <% end %>
       </ol>
     </li>
-    <% end %>
     <li data-agreement-payment-anchor style="display: none;"></li>
     
     <li>Payments shall be in the form of previous rent payments.</li>
     
     <li>Both parties agree that this Agreement may be executed in one or more counterparts, each of which may be signed by a party individually. Upon execution by all parties, their respective signed copies of this Agreement shall be combined into a single, integrated document. The integrated agreement shall be considered as one and the same.</li>
     
-    <li>Both parties agree that any additional provisions listed below are part of this agreement.</li>
+    <li>Both parties agree that any additional provisions listed below are part of this agreement.
+      <% if @additional_terms.present? %>
+        <p data-agreement-field="additional_terms"><%= @additional_terms %></p>
+      <% else %>
+        <p class="full-underline" data-agreement-field="additional_terms">___________</p>
+        <p class="full-underline">___________</p>
+        <p class="full-underline">___________</p>
+        <p class="full-underline">___________</p>
+      <% end %>
+    </li>
   </ol>
   
   <p style="text-align: center; margin-top: 40pt; font-weight: bold;">[SIGNATURE PAGE FOLLOWS]</p>

@@ -5,6 +5,8 @@ class FileDraft < ApplicationRecord
   has_many :file_attachments, foreign_key: :FileID
   has_many :messages, through: :file_attachments
 
+  after_update_commit :notify_agreement_update
+
   def agreement_terms
     return {} unless has_attribute?(:AgreementTerms)
     JSON.parse(self[:AgreementTerms].presence || "{}")
@@ -91,5 +93,31 @@ class FileDraft < ApplicationRecord
 
   def uploaded_at
     self[:CreatedAt] || self[:created_at] || self[:UpdatedAt] || self[:updated_at]
+  end
+
+  private
+
+  def notify_agreement_update
+    return unless agreement_document?
+
+    tenant_signed = saved_change_to_TenantSignature? && self.TenantSignature
+    landlord_signed = saved_change_to_LandlordSignature? && self.LandlordSignature
+    return unless tenant_signed || landlord_signed
+
+    conversation = PrimaryMessageGroup.find_by(ConversationID: agreement_conversation_id)
+    return unless conversation && !conversation.past?
+
+    actor = tenant_signed ? conversation.tenant : conversation.landlord
+    completed = self.TenantSignature && self.LandlordSignature
+    # Completion is a useful receipt for everyone; do not also send a signed email.
+    recipients = if completed
+      conversation.notification_participants
+    else
+      [ conversation.tenant, conversation.landlord ].reject { |user| user.UserID == actor.UserID }
+    end
+    event = completed ? "agreement_completed" : "agreement_signed"
+    recipients.each do |recipient|
+      MediationMailer.agreement_notification(recipient, conversation.ConversationID, event, self.FileID, actor).deliver_later
+    end
   end
 end

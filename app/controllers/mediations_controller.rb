@@ -243,7 +243,7 @@ class MediationsController < ApplicationController
     end
 
     if @survey.save
-      @mediation.update(Outcome: outcome)
+      @mediation.update(Outcome: outcome, notification_actor: @user)
       redirect_to messages_path, notice: "Thank you for completing the survey!"
     else
       render "mediations/survey_form", alert: "Please complete all required fields."
@@ -272,7 +272,7 @@ class MediationsController < ApplicationController
       return
     end
 
-    @mediation.update!(Outcome: outcome)
+    @mediation.update!(Outcome: outcome, notification_actor: @user)
     redirect_back fallback_location: mediation_summary_path(@mediation.ConversationID), notice: "Mediation outcome saved."
   end
 

@@ -1,0 +1,14 @@
+<%= @title %>
+
+Hello <%= @recipient.FName %>,
+
+<%= @description %>
+<% Array(@changes).each do |change| %>
+- <%= change %>
+<% end %>
+<%= @details if @details.present? %>
+
+Case #<%= @conversation_id %>
+View in Eviction Mediation: <%= @action_url %>
+
+Please sign in to view the case details. This is an automated notification; please do not reply.

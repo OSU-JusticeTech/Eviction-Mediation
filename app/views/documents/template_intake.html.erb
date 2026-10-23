@@ -272,6 +272,9 @@
         </div>
       </div>
       
+    <% end %>
+
+    <% if %w[a b].include?(@template) %>
       <!-- Additional Terms -->
       <div class="form-section">
         <h3 class="section-title">Additional Terms (Optional)</h3>
@@ -279,7 +282,7 @@
         <div class="form-group">
           <%= label_tag :additional_terms, "Any additional terms agreed to by both parties", class: "form-label" %>
           <%= text_area_tag :additional_terms, nil, class: "form-input", rows: 4, placeholder: "Enter any additional terms or conditions..." %>
-          <small class="form-hint">These will appear in Section 8 of the agreement</small>
+          <small class="form-hint">These will appear in <%= @template == 'a' ? 'bullet 8' : 'Section 8' %> of the agreement</small>
         </div>
       </div>
     <% end %>

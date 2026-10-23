@@ -50,6 +50,8 @@ class UnreadMessageNotificationJobTest < ActiveSupport::TestCase
       Contents: "hello landlord"
     )
 
+    # Isolate the reminder from the new-message email queued during setup.
+    clear_enqueued_jobs
     perform_enqueued_jobs { UnreadMessageNotificationJob.new.perform }
 
     assert_equal 1, ActionMailer::Base.deliveries.size
@@ -118,6 +120,8 @@ class UnreadMessageNotificationJobTest < ActiveSupport::TestCase
       Contents: "hello tenant"
     )
 
+    # Isolate the reminder from the new-message email queued during setup.
+    clear_enqueued_jobs
     perform_enqueued_jobs { UnreadMessageNotificationJob.new.perform }
 
     assert_equal 1, ActionMailer::Base.deliveries.size

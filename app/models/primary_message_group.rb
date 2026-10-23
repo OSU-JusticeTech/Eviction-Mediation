@@ -42,6 +42,13 @@ class PrimaryMessageGroup < ApplicationRecord
   # made the change — controller, console, seeds, or a future caller.
   # ------------------------------------------------------------------
   after_save :sync_mediator_caseload, if: :caseload_columns_changed?
+  attr_accessor :notification_actor
+
+  after_update_commit :notify_case_closed
+
+  def notification_participants
+    [ tenant, landlord, (mediator if self.MediatorAssigned?) ].compact.uniq(&:UserID)
+  end
 
   # ------------------------------------------------------------------
   # Status classification
@@ -169,6 +176,18 @@ class PrimaryMessageGroup < ApplicationRecord
   end
 
   private
+
+  def notify_case_closed
+    return unless past? && (saved_change_to_deleted_at? || saved_change_to_Outcome?)
+
+    outcome_updated = !saved_change_to_deleted_at?
+    actor = notification_actor || (User.find_by(UserID: self.EndedBy) unless outcome_updated)
+    notification_participants.each do |recipient|
+      next if recipient.UserID == actor&.UserID
+
+      MediationMailer.case_closed_notification(recipient, self.ConversationID, self.Outcome, actor, outcome_updated).deliver_later
+    end
+  end
 
   # Did this save touch a column that determines whether the mediation counts
   # toward a mediator's active caseload?
