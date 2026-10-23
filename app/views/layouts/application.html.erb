@@ -8,7 +8,7 @@
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
     <%= action_cable_meta_tag %>
-  
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
 
@@ -18,7 +18,7 @@
     <%#= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
 
     <%= javascript_importmap_tags %>
-    
+
     <%= yield :head %>
 
     <!-- App Icons -->
@@ -73,20 +73,20 @@
         <% end %>
       <% end %>
     <% end %>
-    
+
     <main id="main-content">
       <% if flash[:alert] %>
         <div class="flash-message flash-alert" data-controller="flash" data-flash-timeout-value="4500">
           <%= flash[:alert] %>
         </div>
       <% end %>
-      
+
       <% if flash[:notice] %>
         <div class="flash-message flash-notice" data-controller="flash" data-flash-timeout-value="4500">
           <%= flash[:notice] %>
         </div>
       <% end %>
-      
+
       <%= yield %>
     </main>
 
@@ -99,54 +99,36 @@
           </div>
           <div class="terms-body-wrapper">
           <div id="termsModalBody" class="conversation-modal__body" style="line-height: 1.6; overflow-y: auto; flex: 1; padding-right: 0.5rem;">
-            <h4 style="margin-top: 0.5rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Purpose</h4>
-            <p style="margin-bottom: 1rem;">Welcome to the Franklin County Municipal Court Self-Help Center's online eviction mediation tool! This tool is designed to promote communication between tenants and landlords before an eviction is filed.</p>
-
-            <h4 style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Respectful Use Only</h4>
-            <p style="margin-bottom: 0.5rem;">You may not use this tool to harass, threaten, or intimidate your landlord or tenant.</p>
-            <p style="margin-bottom: 0.5rem;">If at any time the communications become abusive or no progress is made, you can end the mediation.</p>
-            <p style="margin-bottom: 1rem;">All communication must be in good faith.</p>
-            
-            <p style="margin-bottom: 0.5rem;">A landlord will be considered to have made a good faith attempt when the following conditions are met:</p>
+            <h4 style="margin-top: 0.5rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Respectful Use</h4>
+            <p style="margin-bottom: 1rem;">
+              Do not harass, threaten, or intimidate anyone. Communicate honestly and respectfully. If communication becomes abusive or no progress is made, you can end the conversation. You do not have to agree to a settlement.
+            </p>
+            <h4 style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Mediation Steps and Certificates</h4>
+            <p style="margin-bottom: 0.5rem;">
+              To receive a Certificate of Mediation Attempt, a landlord must:
+            </p>
             <ol style="margin-left: 1.5rem; margin-bottom: 1rem;">
-              <li style="margin-bottom: 0.25rem;">The landlord initiates a mediation request OR responds to a mediation request from a tenant within three business days of the tenant's request.</li>
-              <li style="margin-bottom: 0.25rem;">The landlord provides accurate and complete contact information for the tenant.</li>
-              <li style="margin-bottom: 0.25rem;">The landlord responds to mediator outreach within three business days.</li>
+              <li style="margin-bottom: 0.5rem;">Start a mediation request or respond to a tenant's request within three business days.</li>
+              <li style="margin-bottom: 0.5rem;">Provide accurate and complete contact information for the tenant.</li>
+              <li style="margin-bottom: 0.5rem;">Respond to mediator outreach within three business days.</li>
             </ol>
-            
-            <p style="margin-bottom: 1rem;">A mediation provider will issue a Certificate of Mediation Attempt once these steps are completed. A settlement is not required.</p>
-
-            <h4 style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Handling Tenant Nonresponse</h4>
-            <p style="margin-bottom: 0.5rem;">A landlord will receive a Certification of Mediation Attempt even when the tenant does not respond, as long as the landlord participated as required.</p>
-            <p style="margin-bottom: 0.5rem;">A landlord will receive a Certificate of Mediation Attempt even if the mediation is terminated due to the tenant violating the respectful use policy, as long as the landlord had participated as required.</p>
-            
-            <p style="margin-bottom: 0.5rem;">A certificate will be issued when:</p>
-            <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
-              <li style="margin-bottom: 0.25rem;">The mediation request was submitted.</li>
-              <li style="margin-bottom: 0.25rem;">Five business days have passed with no tenant communication.</li>
-              <li style="margin-bottom: 0.25rem;">The landlord responded to any mediator questions.</li>
-            </ul>
-            
-            <p style="margin-bottom: 1rem;">If a tenant fails to respond, the landlords are not penalized for factors outside their control.</p>
-
-            <h4 style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Legal Disclaimer</h4>
-            <p style="margin-bottom: 0.5rem;">This mediation tool is for communication only.</p>
-            <p style="margin-bottom: 0.5rem;">This tool does not provide legal advice. It only offers information and a space to communicate.</p>
-            
-            <h4 style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Chat & Communication Terms</h4>
-            <p style="margin-bottom: 0.5rem;">Messages shared in the chat box are used for mediation and negotiation purposes only.</p>
-            <p style="margin-bottom: 0.5rem;">The mediator may review these messages to <strong>help guide the conversation</strong>, but they <strong>do not represent either party</strong>.</p>
-            <p style="margin-bottom: 0.5rem;">To act in good faith, users are expected to respond to messages within <strong>3 business days</strong>.</p>
-            <p style="margin-bottom: 1rem;">By continuing to use this service, you agree to these communication terms.</p>
-
-            <p style="margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: 600;">By clicking "OK", you understand and agree to these terms.</p>
+            <p style="margin-bottom: 1rem;">
+              A settlement is not required. A landlord who completes these steps may still receive a certificate if the tenant does not communicate for five business days or mediation ends because the tenant violated the Respectful Use policy.
+            </p>
+            <p style="margin-bottom: 1rem;">
+              A Certificate of Mediation Attempt does not carry legal weight or guarantee a specific outcome, but shows the court that Mediation was attempted.
+            </p>
+            <h4 style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Acknowledgment</h4>
+            <p style="margin-bottom: 1rem;">
+              By clicking "I Agree," you acknowledge that you have read the Legal Disclaimer and agree to these Terms of Use. This does not mean you agree to a settlement.
+            </p>
           </div>
           <div id="termsScrollHint" class="terms-scroll-hint" aria-hidden="true">
             <i class="fas fa-chevron-down"></i>
           </div>
           </div>
           <div class="conversation-modal__actions">
-            <button id="acceptTermsBtn" class="conversation-cta" style="background: #102a4d; color: white; border: none; padding: 0.75rem 2rem; border-radius: 999px; font-weight: 600; cursor: pointer; font-size: 0.95rem;">OK</button>
+            <button id="acceptTermsBtn" class="conversation-cta" style="background: #102a4d; color: white; border: none; padding: 0.75rem 2rem; border-radius: 999px; font-weight: 600; cursor: pointer; font-size: 0.95rem;">I Agree</button>
           </div>
         </div>
       </dialog>
@@ -156,7 +138,7 @@
           const modal = document.getElementById('termsOfUseModal');
           const acceptBtn = document.getElementById('acceptTermsBtn');
           const storageKey = 'evictionMediationTermsAccepted';
-          
+
           const termsBody = document.getElementById('termsModalBody');
           const scrollHint = document.getElementById('termsScrollHint');
 
@@ -214,7 +196,7 @@
               localStorage.setItem(storageKey, 'true');
             });
           }
-          
+
           // Show modal on page load
           document.addEventListener('DOMContentLoaded', showTermsModal);
           document.addEventListener('turbo:load', showTermsModal);

@@ -1,7 +1,7 @@
 <!-- Sign Up Page -->
 <div class="signup-page">
   <div class="signup-title">Eviction Mediation</div>
-  
+
   <div class="signup-container">
     <!-- Banner -->
     <div class="signup-banner">
@@ -214,7 +214,7 @@
               <%= f.check_box :ProfileDisclaimer, { required: true }, 'yes', 'no' %>
               <span class="checkmark"></span>
               <span class="disclaimer-text">
-                  I have read and agree to the 
+                  I have read and agree to the
                   <label for="toggleModal" class="disclaimer-link">Legal Disclaimer</label>
               </span>
           </label>
@@ -228,7 +228,7 @@
 
       <!-- Hidden inputs for tracking -->
       <input type="hidden" id="termsOpened" value="false">
-      
+
       <!-- Hidden Checkbox to Toggle Modal -->
       <input type="checkbox" id="toggleModal" class="toggle-checkbox">
 
@@ -238,25 +238,23 @@
           <!-- Clicking this label will uncheck the checkbox, closing the modal -->
           <label for="toggleModal" class="close-popup">&times;</label>
           <h4>Legal Disclaimer</h4>
-          <p style="text-align: center;">Please read this information before using this platform.</p>
-          <p style="text-align: center;">This platform is designed to help landlords and tenants participate in the existing process, learn about mediation, and communicate with each other. It also allows both sides to negotiate with support from a trained mediator if they opt for that option. <strong>The information provided is for mediation and negotiation purposes only.</strong></p>
-          <p><strong>1. Not Legal Advice.</strong></p>
-          <p>This platform does not give legal advice to any user. Nothing you read or discuss here should be taken as legal advice about your specific situation. <strong>Using this platform does not create a lawyer-client relationship.</strong> If you need legal advice, you should speak with an attorney or a legal aid organization.</p>
-          <p><strong>2. No Guarantees of Results.</strong></p>
-          <p>This <strong>platform cannot guarantee any specific outcome</strong>. We cannot promise that mediation will be successful or that your negotiation will reach an agreement. Results depend on your situation and the actions of each party.</p>
-          <p><strong>3. Role of the Mediator.</strong></p>
-          <p>Any mediator using this platform is here to <strong>help support communication</strong>, but they do not represent either party and cannot provide legal advice. Mediators do not make decisions for you and do not have the power to force an agreement.</p>
-          <p><strong>4. Confidentiality.</strong></p>
-          <p>Communications between users through this platform are <strong>not confidential</strong> unless a mediator formally joins the dispute. Mediators involved in cases are legally bound to confidentiality, but communications outside the mediation process are not protected.</p>
-          <p><strong>5. Enforceability of Agreements.</strong></p>
-          <p>Any agreement reached through this platform is <strong>not legally enforceable</strong> unless the final written agreement is signed by all parties. Talking through the platform or expressing agreement in the chat does not create a binding contract. A signed written document is required.</p>
-          <p><strong>6. Links to Outside Services.</strong></p>
-          <p>This platform may share links to outside community services such as rental help, mental health referrals, or other support programs. These organizations are <strong>not run by this platform or the court</strong>. We do not control them, and we are <strong>not responsible</strong> for their actions, information, or decisions.</p>
-          <p><strong>7. Information May Change.</strong></p>
-          <p>Laws, court rules, and procedures can change. We work to keep information accurate, but we <strong>cannot promise</strong> that everything is always current or applies to every situation.</p>
-          <p><strong>8. User Responsibility.</strong></p>
-          <p>You are responsible for your own choices, messages, and court deadlines. The platform and its mediators are here to support communication, but <strong>cannot act on your behalf</strong> or make decisions for you.</p>
-          <p><strong>By using this platform, you acknowledge that you have read, understood, and accept the terms of this disclaimer.</strong></p>
+          <p style="text-align: center;"><strong>Please read this information before using this platform.</strong></p>
+          <p>Welcome to the Franklin County Municipal Court Self-Help Center's online eviction mediation tool! This platform helps landlords and tenants communicate before an eviction is filed, learn about mediation, and negotiate with support from a trained mediator if they choose.</p>
+          <p><strong>1. Not Legal Advice</strong></p>
+          <p>This platform provides legal information meant to help with mediation and negotiation, not legal advice about your specific situation. Using this platform does not create a lawyer-client relationship. For legal advice, contact an attorney or legal aid.</p>
+          <p><strong>2. Mediator and Results</strong></p>
+          <p>Mediators support communication but do not represent either party or give legal advice. Mediators do not take sides, decide who is right, or force an agreement. Mediation and negotiation do not guarantee a settlement.</p>
+          <p><strong>3. Confidentiality</strong></p>
+          <p>Legal protections for communications depend on the circumstances and applicable law. Some communications connected to mediation may be protected from disclosure or use in court, subject to exceptions. Do not assume that every message sent through this platform receives those protections. Review the privacy notice and any mediation agreement before sharing sensitive information.</p>
+          <p><strong>4. Agreements May Be Binding</strong></p>
+          <p>An agreement reached through this platform may be legally binding. Electronic messages and signatures can have legal effect. Before accepting an agreement, read the complete agreement carefully, ask questions, and seek legal advice if needed. Keep a copy of any agreement you accept.</p>
+          <p><strong>5. Links to Outside Services</strong></p>
+          <p>This platform may share links to rental help, mental health services, legal information, or other support programs. These organizations are not run by this platform or the court. Outside organizations are responsible for their own information, eligibility requirements, and services. We do not control their decisions or guarantee assistance.</p>
+          <p><strong>6. Information May Change</strong></p>
+          <p>Laws, court rules, and procedures can change. We work to keep information accurate, but cannot promise that everything is current or applies to every situation.</p>
+          <p><strong>7. Your Responsibilities</strong></p>
+          <p>You are responsible for your own choices, messages, and court deadlines. Using this platform does not, by itself, stop an eviction or change a court deadline. The platform and its mediators cannot act on your behalf.</p>
+          <p>Messages sent through this platform and agreements reached here are not court filings. Follow court procedures for filing documents and requesting court action, if needed.</p>
           <div style="text-align: center; margin-top: 20px;">
             <button type="button" id="agreeButton" class="btn-primary" style="padding: 12px 40px; font-size: 16px;">I Agree</button>
           </div>
@@ -267,7 +265,7 @@
       <%= f.submit "Sign Up", class: "signup-btn" %>
     <% end %>
 
-    <p class="signup-text">Already have an account? 
+    <p class="signup-text">Already have an account?
       <%= link_to "Log in", login_path, class: "signup-link" %></p>
     </div>
 
