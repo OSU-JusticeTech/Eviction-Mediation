@@ -1,0 +1,228 @@
+<div class="modern-dashboard">
+  <div class="dashboard-content">
+
+    <div style="display: flex; justify-content: space-between;
+                align-items: center; margin-bottom: 24px; gap: 16px; flex-wrap: wrap;">
+      <div>
+        <h1 style="font-size: 1.8rem; font-weight: 700; color: #0b2b4b;">
+          Edit Schedule
+        </h1>
+        <p style="color: #64748b;">
+          Manage your weekly availability, blocked periods, and mediation meetings.
+        </p>
+      </div>
+
+      <%= link_to dashboard_path, class: "schedule-btn schedule-btn-back" do %>
+        <i class="fa-solid fa-arrow-left"></i>
+         Back to Dashboard
+      <% end %>
+    </div>
+
+    <div class="account-card">
+      <div class="card-header">
+        <h2><i class="fa-regular fa-clock"></i> Weekly Working Hours</h2>
+      </div>
+
+      <div class="card-body">
+        <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+          <div>
+            <label for="avail-day">Day</label>
+            <select id="avail-day" class="form-input">
+              <% Date::DAYNAMES.each_with_index do |day, index| %>
+                <option value="<%= index %>"><%= day %></option>
+              <% end %>
+            </select>
+          </div>
+
+          <div>
+            <label for="avail-start">Start Time</label>
+            <input type="time" id="avail-start" class="form-input">
+          </div>
+
+          <div>
+            <label for="avail-end">End Time</label>
+            <input type="time" id="avail-end" class="form-input">
+          </div>
+
+          <button type="button" id="btn-add-avail" class="btn-primary">
+            Add Slot
+          </button>
+        </div>
+
+        <div id="availability-slots-list">
+          Loading availability...
+        </div>
+      </div>
+    </div>
+
+    <div class="account-card" style="margin-top: 24px;">
+      <div class="card-header">
+        <h2><i class="fa-solid fa-ban"></i> Blocked Periods</h2>
+      </div>
+
+      <div class="card-body">
+        <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+          <div>
+            <label for="block-start">Start Date & Time</label>
+            <input type="datetime-local" id="block-start" class="form-input">
+          </div>
+
+          <div>
+            <label for="block-end">End Date & Time</label>
+            <input type="datetime-local" id="block-end" class="form-input">
+          </div>
+
+          <button type="button" id="btn-add-block" class="btn-primary">
+            Block Period
+          </button>
+        </div>
+
+        <div id="blocked-slots-list">
+          Loading blocked periods...
+        </div>
+      </div>
+    </div>
+
+  <div class="account-card" style="margin-top: 24px;">
+    <div class="card-header">
+      <h2><i class="fa-solid fa-handshake"></i> Scheduled Meetings</h2>
+    </div>
+
+    <div class="card-body">
+      <h3 style="margin-bottom: 16px; color: #0b2b4b;">
+        Create Meeting
+      </h3>
+
+    <div class="schedule-meeting-form">
+      <div>
+        <label for="meeting-case">Mediation Case</label>
+        <select id="meeting-case" class="form-input">
+          <option value="">Select a case</option>
+          <% @assigned_cases.each do |mediation| %>
+            <option value="<%= mediation.ConversationID %>">
+              Case #<%= mediation.ConversationID %>
+            </option>
+          <% end %>
+        </select>
+      </div>
+
+      <div>
+        <label for="meeting-date">Meeting Date</label>
+        <input type="date" id="meeting-date" class="form-input">
+      </div>
+
+      <div>
+        <label for="meeting-start">Start Time</label>
+        <input type="time" id="meeting-start" class="form-input">
+      </div>
+
+      <div>
+        <label for="meeting-duration">Duration</label>
+        <select id="meeting-duration" class="form-input">
+          <option value="30" selected>30 minutes</option>
+          <option value="45">45 minutes</option>
+          <option value="60">60 minutes</option>
+          <option value="90">90 minutes</option>
+        </select>
+      </div>
+
+      <button type="button" id="btn-create-meeting" class="btn-primary">
+        <i class="fa-solid fa-calendar-plus"></i>
+        Create Meeting
+      </button>
+    </div>
+
+    <p id="meeting-form-message" role="status"></p>
+
+    <hr style="margin: 24px 0; border: none; border-top: 1px solid #e2e8f0;">
+
+    <span id="meetings-count"></span>
+
+    <div id="scheduled-meetings-list" style="margin-top: 16px;">
+      Loading meetings...
+    </div>
+  </div>
+</div>
+
+<style>
+  .schedule-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.4;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.2s, box-shadow 0.2s;
+    white-space: nowrap;
+  }
+
+  .schedule-btn-danger {
+    background-color: #fff;
+    color: #dc2626;
+    border-color: #fca5a5;
+  }
+
+  .schedule-btn-danger:hover {
+    background-color: #fee2e2;
+    border-color: #ef4444;
+  }
+
+  .schedule-btn-back {
+    background-color: #0f2b50;
+    color: #fff;
+  }
+
+  .schedule-btn-back:hover {
+    background-color: #1d4b80;
+    color: #fff;
+  }
+
+  .schedule-btn:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 2px;
+  }
+
+  .schedule-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .schedule-meeting-form {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.schedule-meeting-form > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 145px;
+  flex: 1;
+}
+
+.schedule-meeting-form label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.schedule-meeting-form .form-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+}
+
+.schedule-meeting-form .btn-primary {
+  min-height: 40px;
+}
+</style>
