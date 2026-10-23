@@ -904,7 +904,7 @@ class DocumentsController < ApplicationController
 
   def agreement_fields_for_template(template)
     case template
-    when "a" then AGREEMENT_COMMON_FIELDS + ["vacate_date"] + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
+    when "a" then AGREEMENT_COMMON_FIELDS + %w[vacate_date additional_terms] + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
     when "b" then AGREEMENT_COMMON_FIELDS + (AGREEMENT_FIELDS - AGREEMENT_COMMON_FIELDS - ["vacate_date"])
     else AGREEMENT_COMMON_FIELDS + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
     end
@@ -1037,6 +1037,7 @@ class DocumentsController < ApplicationController
     end
     @reason = terms["reason"].to_s
     @money_owed = terms["money_owed"].to_s
+    @additional_terms = terms["additional_terms"].to_s
     @monthly_rent = terms["monthly_rent"].to_s
     @vacate_date = terms["vacate_date"] if template == "a"
     @schedule = (1..6).filter_map do |i|
@@ -1047,7 +1048,7 @@ class DocumentsController < ApplicationController
       %w[rent_owed late_fees utilities other_charges other_charges_description lump_sum_amount
          lump_sum_date monthly_payment_amount monthly_payment_months monthly_payment_day
          monthly_payment_start final_payment_amount final_payment_date payment_method
-         payment_method_other_description additional_terms].each do |field|
+         payment_method_other_description].each do |field|
         instance_variable_set("@#{field}", terms[field].to_s)
       end
       %w[payment_lump_sum payment_monthly payment_final].each do |field|
@@ -1081,16 +1082,16 @@ class DocumentsController < ApplicationController
   end
 
   def generated_document_name(template)
-    creator_name = [ @user[:FName], @user[:LName] ].compact.join(" ").squeeze(" ").strip
-    creator_name = @user[:CompanyName].presence || "Creator" if creator_name.blank?
-    safe_creator_name = creator_name.gsub(/[^\w\- ]/, "").squeeze(" ").strip
+    party_names = %i[landlord_name tenant_name].map do |field|
+      params[field].to_s.gsub(/[^\w\- ]/, "").squeeze(" ").strip.presence
+    end
     document_type = {
       "a" => "Agree to Vacate",
       "b" => "Pay and Stay Agreement",
       "c" => "Mediation Agreement"
     }.fetch(template.to_s, "Agreement")
 
-    [ safe_creator_name.presence, document_type ].join(" - ")
+    [ *party_names, document_type ].compact.join(" - ")
   end
 
   def delete_physical_file(file)
