@@ -38,6 +38,11 @@ Rails.application.routes.draw do
   # Mediator availability toggle from dashboard
   patch "/mediator/availability", to: "mediator_availability#update", as: "mediator_availability"
 
+  # Mediator schedule management page
+    get "/mediator/schedule",
+      to: "mediator_schedules#edit",
+      as: "edit_mediator_schedule"
+
   # Mediator Scheduling
   resources :mediator_schedule_availabilities,
             only: [:index, :create, :update, :destroy]
@@ -46,9 +51,9 @@ Rails.application.routes.draw do
           only: [:index, :create, :update, :destroy]
 
   resources :mediator_scheduled_meetings,
-          only: [:index, :create, :update] do
+          only: [ :index, :show, :create, :update ] do
     member do
-    patch :cancel
+      patch :cancel
     end
   end
 
