@@ -34,6 +34,365 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     @mediation = primary_message_groups(:one)
   end
 
+
+  test "mediator suggestion requires both parties to accept before updating agreement" do
+    file = create_agreement_draft
+    original_date = file.agreement_terms["vacate_date"]
+    confirmation_text = "Both the landlord and tenant have approved a suggested change."
+
+    # Mediator proposes a change.
+    log_in_as(@mediator)
+
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: file.AgreementVersion,
+      vacate_date: "2026-05-15"
+    )
+
+    assert_response :redirect
+
+    proposal = file.reload.agreement_proposal
+
+    assert_equal true, proposal["mediator_proposal"]
+    assert_equal "pending", proposal["changes"]["vacate_date"]["party_decisions"]["landlord"]
+    assert_equal "pending", proposal["changes"]["vacate_date"]["party_decisions"]["tenant"]
+
+    # Landlord accepts first.
+    log_in_as(@landlord)
+
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    assert_response :redirect
+    assert_equal original_date, file.reload.agreement_terms["vacate_date"]
+    assert_equal "accepted",
+                 file.agreement_proposal["changes"]["vacate_date"]["party_decisions"]["landlord"]
+
+    assert_equal 0, Message.where(
+      ConversationID: file.agreement_conversation_id,
+      is_system: true
+    ).where("Contents LIKE ?", "%#{confirmation_text}%").count
+
+    # Tenant accepts second.
+    log_in_as(@tenant)
+
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    assert_response :redirect
+    assert_equal "2026-05-15", file.reload.agreement_terms["vacate_date"]
+    assert_equal "accepted", file.agreement_proposal["changes"]["vacate_date"]["decision"]
+    assert_not file.agreement_suggestions_pending?
+
+    assert_equal 1, Message.where(
+      ConversationID: file.agreement_conversation_id,
+      is_system: true
+    ).where("Contents LIKE ?", "%#{confirmation_text}%").count
+
+    # Repeated approval must not create another confirmation.
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    assert_equal 1, Message.where(
+      ConversationID: file.agreement_conversation_id,
+      is_system: true
+    ).where("Contents LIKE ?", "%#{confirmation_text}%").count
+  end
+
+
+  test "mediator suggestion rejection leaves agreement unchanged" do
+    file = create_agreement_draft
+    original_date = file.agreement_terms["vacate_date"]
+
+    log_in_as(@mediator)
+
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: file.AgreementVersion,
+      vacate_date: "2026-05-15"
+    )
+
+    assert_response :redirect
+    assert_equal true, file.reload.agreement_proposal["mediator_proposal"]
+
+    # Tenant rejects the mediator's suggestion.
+    log_in_as(@tenant)
+
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "rejected" }
+
+    assert_response :redirect
+
+    file.reload
+
+    assert_equal original_date, file.agreement_terms["vacate_date"]
+    assert_equal "rejected", file.agreement_proposal["changes"]["vacate_date"]["decision"]
+    assert_equal "rejected",
+                file.agreement_proposal["changes"]["vacate_date"]["party_decisions"]["tenant"]
+    assert_not file.agreement_suggestions_pending?
+
+    # Landlord cannot accept a suggestion that has already been rejected.
+    log_in_as(@landlord)
+
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    assert_response :redirect
+
+    file.reload
+
+    assert_equal original_date, file.agreement_terms["vacate_date"]
+    assert_equal "rejected", file.agreement_proposal["changes"]["vacate_date"]["decision"]
+  end
+
+  test "landlord counteroffer to mediator suggestion requires tenant acceptance" do
+    file = create_agreement_draft
+    original_date = file.agreement_terms["vacate_date"]
+
+    log_in_as(@mediator)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: file.AgreementVersion,
+      vacate_date: "2026-05-15"
+    )
+    assert_equal true, file.reload.agreement_proposal["mediator_proposal"]
+
+    log_in_as(@landlord)
+    patch counteroffer_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { counteroffer: { vacate_date: "2026-05-20" } }
+
+    assert_response :redirect
+    change = file.reload.agreement_proposal["changes"]["vacate_date"]
+    assert_equal "2026-05-20", change["to"]
+    assert_equal @landlord.UserID, change["offered_by_id"]
+    assert_equal "accepted", change["party_decisions"]["landlord"]
+    assert_equal "pending", change["party_decisions"]["tenant"]
+    assert_equal original_date, file.agreement_terms["vacate_date"]
+
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    assert_response :redirect
+    assert_equal "2026-05-20", file.reload.agreement_terms["vacate_date"]
+    assert_not file.agreement_suggestions_pending?
+  end
+
+  test "tenant counteroffer to mediator suggestion requires landlord acceptance" do
+    file = create_agreement_draft
+
+    log_in_as(@mediator)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: file.AgreementVersion,
+      vacate_date: "2026-05-15"
+    )
+
+    log_in_as(@tenant)
+    patch counteroffer_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { counteroffer: { vacate_date: "2026-05-25" } }
+
+    assert_response :redirect
+    change = file.reload.agreement_proposal["changes"]["vacate_date"]
+    assert_equal "accepted", change["party_decisions"]["tenant"]
+    assert_equal "pending", change["party_decisions"]["landlord"]
+
+    log_in_as(@landlord)
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    assert_response :redirect
+    assert_equal "2026-05-25", file.reload.agreement_terms["vacate_date"]
+  end
+
+  test "mediator suggestion supports repeated counteroffers" do
+    file = create_agreement_draft
+    original_date = file.agreement_terms["vacate_date"]
+
+    log_in_as(@mediator)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: file.AgreementVersion,
+      vacate_date: "2026-05-15"
+    )
+
+    log_in_as(@landlord)
+    patch counteroffer_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { counteroffer: { vacate_date: "2026-05-20" } }
+
+    log_in_as(@tenant)
+    patch counteroffer_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { counteroffer: { vacate_date: "2026-05-25" } }
+
+    change = file.reload.agreement_proposal["changes"]["vacate_date"]
+    assert_equal "2026-05-25", change["to"]
+    assert_equal "pending", change["party_decisions"]["landlord"]
+    assert_equal "accepted", change["party_decisions"]["tenant"]
+    assert_equal original_date, file.agreement_terms["vacate_date"]
+
+    log_in_as(@landlord)
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    assert_equal "2026-05-25", file.reload.agreement_terms["vacate_date"]
+  end
+
+  test "mediator counteroffer rejection does not change agreement" do
+    file = create_agreement_draft
+    original_date = file.agreement_terms["vacate_date"]
+
+    log_in_as(@mediator)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: file.AgreementVersion,
+      vacate_date: "2026-05-15"
+    )
+
+    log_in_as(@landlord)
+    patch counteroffer_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { counteroffer: { vacate_date: "2026-05-20" } }
+
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "rejected" }
+
+    assert_response :redirect
+    assert_equal original_date, file.reload.agreement_terms["vacate_date"]
+    assert_equal "rejected", file.agreement_proposal["changes"]["vacate_date"]["decision"]
+    assert_not file.agreement_suggestions_pending?
+  end
+
+  test "accepting one mediator suggestion preserves other pending suggestions" do
+    file = create_agreement_draft
+    original_amount = file.agreement_terms["money_owed"]
+
+    log_in_as(@mediator)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: file.AgreementVersion,
+      vacate_date: "2026-05-15",
+      money_owed: "1200"
+    )
+
+    assert_equal 2, file.reload.agreement_proposal["changes"].size
+
+    log_in_as(@landlord)
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    file.reload
+    assert_equal "2026-05-15", file.agreement_terms["vacate_date"]
+    assert_equal original_amount, file.agreement_terms["money_owed"]
+    assert file.agreement_suggestions_pending?
+
+    log_in_as(@landlord)
+    patch decide_document_suggestion_path(file.FileID, "money_owed"),
+          params: { decision: "accepted" }
+
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "money_owed"),
+          params: { decision: "accepted" }
+
+    assert_equal "1200", file.reload.agreement_terms["money_owed"]
+    assert_not file.agreement_suggestions_pending?
+  end
+
+  test "mediator grouped payment suggestion requires both parties" do
+    file = create_agreement_draft
+    original_amount = file.agreement_terms["amount1"]
+    original_date = file.agreement_terms["date1"]
+
+    log_in_as(@mediator)
+
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: file.AgreementVersion,
+      amount1: "750",
+      date1: "2026-06-01"
+    )
+
+    file.reload
+
+
+    item = file.agreement_suggestion_items.find do |suggestion|
+      suggestion[:key] == "payment1"
+    end
+
+    assert_not_nil item, "Expected grouped payment suggestion"
+
+    # Landlord accepts first.
+    log_in_as(@landlord)
+
+    patch decide_document_suggestion_path(file.FileID, "payment1"),
+          params: { decision: "accepted" }
+
+    file.reload
+
+    assert_equal original_amount, file.agreement_terms["amount1"]
+    assert_equal original_date, file.agreement_terms["date1"]
+
+    # Tenant accepts second.
+    log_in_as(@tenant)
+
+    patch decide_document_suggestion_path(file.FileID, "payment1"),
+          params: { decision: "accepted" }
+
+    file.reload
+
+    assert_equal "750", file.agreement_terms["amount1"]
+    assert_equal "2026-06-01", file.agreement_terms["date1"]
+  end
+
+  test "mediator suggestion prevents duplicate and outsider decisions" do
+    file = create_agreement_draft
+
+    log_in_as(@mediator)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: file.AgreementVersion,
+      vacate_date: "2026-05-15"
+    )
+
+    log_in_as(@landlord)
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    assert_equal "accepted",
+                file.reload.agreement_proposal["changes"]["vacate_date"]["party_decisions"]["landlord"]
+
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "rejected" }
+
+    assert_equal "accepted",
+                file.reload.agreement_proposal["changes"]["vacate_date"]["party_decisions"]["landlord"]
+
+    log_in_as(@outsider)
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    assert_not_equal "accepted",
+                    file.reload.agreement_proposal["changes"]["vacate_date"]["party_decisions"]["tenant"]
+    assert_equal "pending", file.agreement_proposal["changes"]["vacate_date"]["decision"]
+  end
+
+  test "mediator cannot approve own suggestion or sign agreement" do
+    file = create_agreement_draft
+
+    log_in_as(@mediator)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: file.AgreementVersion,
+      vacate_date: "2026-05-15"
+    )
+
+    patch decide_document_suggestion_path(file.FileID, "vacate_date"),
+          params: { decision: "accepted" }
+
+    change = file.reload.agreement_proposal["changes"]["vacate_date"]
+    assert_equal "pending", change["party_decisions"]["tenant"]
+    assert_equal "pending", change["party_decisions"]["landlord"]
+
+    get view_file_path(file.FileID)
+    assert_response :success
+
+    assert_select "button", text: /Sign Agreement/i, count: 0
+  end
+
+
   test "admin cannot generate documents from intake" do
     log_in_as(users(:admin1))
 
