@@ -333,9 +333,16 @@ class DocumentsController < ApplicationController
       @offer_authors = User.where(UserID: offerer_ids).index_by(&:UserID)
       @reviewer_id = active_agreement_reviewer_id(@file, @agreement_proposal, @conversation) if @conversation && @file.agreement_suggestions_pending?
     end
-    @editing_agreement = params[:edit] == "1" && @file.agreement_editable? &&
-                         @user_role_in_conversation.present? && !@file.agreement_suggestions_pending? &&
-                         params[:view_mode] != "simple"
+    @can_suggest_agreement = @file.agreement_document? &&
+                         @conversation.present? &&
+                         @file.agreement_conversation_id.to_s == @conversation.ConversationID.to_s &&
+                         agreement_suggester?(@conversation)
+
+    @editing_agreement = params[:edit] == "1" &&
+                        @file.agreement_editable? &&
+                        @can_suggest_agreement &&
+                        !@file.agreement_suggestions_pending? &&
+                        params[:view_mode] != "simple"
     @editable_agreement_fields = agreement_fields_for_template(@file.AgreementTemplate) if @editing_agreement
     if params[:edit].present? && !@editing_agreement
       return redirect_to view_file_path(@file.FileID), alert: "This agreement is not available for editing."
@@ -347,7 +354,7 @@ class DocumentsController < ApplicationController
     return render plain: "File not found", status: :not_found unless @file
 
     @conversation = agreement_conversation(@file)
-    return render plain: "Unauthorized", status: :forbidden unless @conversation && agreement_party?(@conversation)
+    return render plain: "Unauthorized", status: :forbidden unless agreement_suggester?(@conversation)
     return redirect_to view_file_path(@file.FileID), alert: "This agreement can no longer be changed." unless @file.agreement_editable?
     return redirect_to view_file_path(@file.FileID), alert: "Review the pending suggestions before proposing more changes." if @file.agreement_suggestions_pending?
 
@@ -359,7 +366,7 @@ class DocumentsController < ApplicationController
     return render plain: "File not found", status: :not_found unless file
 
     conversation = agreement_conversation(file)
-    return render plain: "Unauthorized", status: :forbidden unless conversation && agreement_party?(conversation)
+    return render plain: "Unauthorized", status: :forbidden unless agreement_suggester?(conversation)
     return redirect_to view_file_path(file.FileID), alert: "This agreement can no longer be changed." unless file.agreement_editable?
 
     terms = agreement_terms_from_params
@@ -393,10 +400,44 @@ class DocumentsController < ApplicationController
         elsif changes.empty?
           result = :unchanged
         else
-          file.update!(AgreementProposal: JSON.generate({ "base_version" => file.AgreementVersion,
-                                                          "proposer_id" => @user.UserID,
-                                                          "reviewer_id" => other_agreement_party_id(conversation, @user.UserID),
-                                                          "changes" => changes }))
+          reviewer_ids =
+            if @user.mediator?
+              [conversation.TenantID, conversation.LandlordID].uniq
+            else
+              [other_agreement_party_id(conversation, @user.UserID)]
+            end
+
+          proposal = {
+            "base_version" => file.AgreementVersion,
+            "proposer_id" => @user.UserID,
+            "changes" => changes
+          }
+
+          if @user.mediator?
+            proposal["mediator_proposal"] = true
+            proposal["reviewer_ids"] = reviewer_ids
+
+            changes.each_value do |change|
+              change["party_decisions"] = {
+                "tenant" => "pending",
+                "landlord" => "pending"
+              }
+            end
+
+            # Keep amount and date changes together as one payment suggestion.
+            (1..6).each do |number|
+              amount_key = "amount#{number}"
+              date_key = "date#{number}"
+
+              if changes.key?(amount_key) && changes.key?(date_key)
+                changes[amount_key]["group_key"] = "payment#{number}"
+              end
+            end
+          else
+            proposal["reviewer_id"] = reviewer_ids.first
+          end
+
+          file.update!(AgreementProposal: JSON.generate(proposal))
           result = :submitted
         end
       end
@@ -427,6 +468,12 @@ class DocumentsController < ApplicationController
 
     decision = params[:decision].to_s
     return render plain: "Invalid decision", status: :unprocessable_entity unless %w[accepted rejected].include?(decision)
+
+    proposal = file.agreement_proposal
+
+    if mediator_agreement_proposal?(proposal)
+      return decide_mediator_suggestion(file, conversation, decision)
+    end
 
     result = nil
     completed_round = nil
@@ -541,6 +588,12 @@ class DocumentsController < ApplicationController
 
     conversation = agreement_conversation(file)
     return render plain: "Unauthorized", status: :forbidden unless conversation && agreement_party?(conversation)
+
+    proposal = file.agreement_proposal
+
+    if mediator_agreement_proposal?(proposal)
+      return counteroffer_mediator_suggestion(file, conversation)
+    end
 
     result = nil
     completed_round = nil
@@ -770,7 +823,7 @@ class DocumentsController < ApplicationController
 
     if params[:editable_preview] == "1"
       conversation = agreement_conversation(file)
-      return render plain: "Unauthorized", status: :forbidden unless conversation && agreement_party?(conversation) &&
+      return render plain: "Unauthorized", status: :forbidden unless agreement_suggester?(conversation) &&
         file.agreement_editable? && !file.agreement_suggestions_pending?
 
       assign_agreement_template_variables(file.AgreementTemplate, file.agreement_terms)
@@ -905,6 +958,263 @@ class DocumentsController < ApplicationController
                         payment_method payment_method_other_description additional_terms].freeze
   AGREEMENT_COMMON_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed
                                monthly_rent best_option].freeze
+
+  def decide_mediator_suggestion(file, conversation, decision)
+    result = :unavailable
+    accepted_changes = []
+
+    file.with_lock do
+      proposal = file.agreement_proposal
+      role = agreement_review_party(conversation)
+
+      item = file.agreement_suggestion_items.find do |suggestion|
+        suggestion[:key] == params[:field].to_s
+      end
+
+      if mediator_agreement_reviewer?(proposal, conversation) &&
+        role.present? &&
+        file.agreement_editable? &&
+        file.agreement_suggestions_pending? &&
+        proposal["base_version"].to_i == file.AgreementVersion &&
+        item.present?
+
+        changes = proposal["changes"]
+        fields = item[:fields]
+
+        valid_item = fields.all? do |field|
+          change = changes[field]
+          change["decision"] == "pending" &&
+            change.fetch("party_decisions", {})[role] == "pending"
+        end
+
+        if valid_item
+          fields.each do |field|
+            changes[field]["party_decisions"][role] = decision
+          end
+
+          statuses = fields.map do |field|
+            mediator_suggestion_decision_status(changes[field])
+          end
+
+          status = if statuses.all? { |value| value == "accepted" }
+                    "accepted"
+                  elsif statuses.any? { |value| value == "rejected" }
+                    "rejected"
+                  else
+                    "pending"
+                  end
+
+          if status == "accepted"
+            accepted_terms = file.agreement_terms.dup
+
+            fields.each do |field|
+              change = changes[field]
+
+              if change["to"].present?
+                accepted_terms[field] = change["to"]
+              else
+                accepted_terms.delete(field)
+              end
+            end
+
+            if valid_agreement_payment_terms?(accepted_terms)
+              accepted_changes = fields.map do |field|
+                change = changes[field]
+                "#{helpers.agreement_field_label(field)}: " \
+                  "#{helpers.agreement_field_value(field, change['from'])} → " \
+                  "#{helpers.agreement_field_value(field, change['to'])}"
+              end
+
+              fields.each { |field| changes[field]["decision"] = "accepted" }
+
+              assign_agreement_template_variables(
+                file.AgreementTemplate,
+                accepted_terms
+              )
+
+              html = render_to_string(
+                template: agreement_template_file(file.AgreementTemplate),
+                formats: [:html],
+                layout: false
+              )
+
+              file.AgreementTerms = JSON.generate(accepted_terms)
+              file.AgreementVersion += 1
+
+              file.TenantSignature = false
+              file.LandlordSignature = false
+              file.TenantSignedAt = nil
+              file.LandlordSignedAt = nil
+              file.TenantSignatureName = nil
+              file.LandlordSignatureName = nil
+
+              proposal["base_version"] = file.AgreementVersion
+              file.AgreementProposal = JSON.generate(proposal)
+
+              replace_agreement_html(file, html)
+              result = :updated
+            else
+              fields.each do |field|
+                changes[field]["party_decisions"][role] = "pending"
+              end
+              result = :invalid_payment
+            end
+          elsif status == "rejected"
+            fields.each { |field| changes[field]["decision"] = "rejected" }
+            file.update!(AgreementProposal: JSON.generate(proposal))
+            result = :rejected
+          else
+            file.update!(AgreementProposal: JSON.generate(proposal))
+            result = :pending
+          end
+        end
+      end
+    end
+
+    if result == :updated
+      notify_agreement_participants(
+        conversation,
+        file,
+        "agreement_revised",
+        changes: accepted_changes
+      )
+
+      announce_agreement(
+        conversation,
+        "Both the landlord and tenant have approved a suggested change. " \
+        "The agreement has been updated."
+      )
+    end
+
+    if %i[updated rejected pending].include?(result)
+      ActionCable.server.broadcast(
+        "document_#{file.FileID}",
+        { type: "agreement_proposal_update", actor_id: @user.UserID }
+      )
+    end
+
+    focus_path = view_file_path(
+      file.FileID,
+      anchor: "suggestion-#{params[:field]}"
+    )
+
+    message = case result
+              when :updated then "Both parties accepted. The agreement has been updated."
+              when :rejected then "Suggestion rejected."
+              when :pending then "Decision saved. Waiting for the other party."
+              when :invalid_payment then "A payment date needs a payment amount."
+              else "This suggestion is no longer available. Refresh the agreement."
+              end
+
+    if request.format.json?
+      render json: (
+        %i[updated rejected pending].include?(result) ?
+          { status: result, field: params[:field], decision: decision } :
+          { error: message }
+      ), status: (
+        result == :unavailable ? :conflict :
+        result == :invalid_payment ? :unprocessable_entity : :ok
+      )
+    else
+      redirect_to focus_path,
+                  (result == :unavailable || result == :invalid_payment ?
+                    { alert: message } : { notice: message })
+    end
+  end
+
+  def counteroffer_mediator_suggestion(file, conversation)
+    result = :unavailable
+
+    file.with_lock do
+      proposal = file.agreement_proposal
+
+      item = file.agreement_suggestion_items.find do |suggestion|
+        suggestion[:key] == params[:field].to_s
+      end
+
+      if file.agreement_editable? &&
+        file.agreement_suggestions_pending? &&
+        proposal["base_version"].to_i == file.AgreementVersion &&
+        item.present? &&
+        mediator_can_counteroffer?(item, proposal, conversation)
+
+        values = params.fetch(
+          :counteroffer,
+          ActionController::Parameters.new
+        ).permit(*item[:fields]).to_h
+
+        candidate_terms = file.agreement_terms.merge(values)
+
+        if !valid_agreement_payment_terms?(candidate_terms)
+          result = :invalid_payment
+        elsif item[:fields].any? { |field|
+                !values.key?(field) ||
+                  !valid_agreement_counteroffer?(field, values[field])
+              } ||
+              item[:fields].all? { |field|
+                values[field].to_s.strip ==
+                  proposal["changes"][field]["to"].to_s
+              }
+          result = :invalid
+        else
+          decisions = mediator_counteroffer_decisions(conversation)
+
+          item[:fields].each do |field|
+            change = proposal["changes"][field]
+
+            change["to"] = values[field].to_s.strip
+            change["offered_by_id"] = @user.UserID
+            change["party_decisions"] = decisions.dup
+            change["decision"] = "pending"
+          end
+
+          file.update!(AgreementProposal: JSON.generate(proposal))
+          result = :countered
+        end
+      end
+    end
+
+    if result == :countered
+      ActionCable.server.broadcast(
+        "document_#{file.FileID}",
+        {
+          type: "agreement_proposal_update",
+          actor_id: @user.UserID
+        }
+      )
+    end
+
+    focus_path = view_file_path(
+      file.FileID,
+      anchor: "suggestion-#{params[:field]}"
+    )
+
+    message = case result
+              when :countered
+                "Counteroffer submitted. Waiting for the other party."
+              when :invalid_payment
+                "A payment date needs a payment amount."
+              when :invalid
+                "Enter a valid counteroffer that differs from the current offer."
+              else
+                "This suggestion is no longer available. Refresh the agreement."
+              end
+
+    if request.format.json?
+      render json: (
+        result == :countered ?
+          { status: "countered", field: params[:field] } :
+          { error: message }
+      ), status: (
+        result == :countered ? :ok :
+        result == :unavailable ? :conflict : :unprocessable_entity
+      )
+    else
+      redirect_to focus_path,
+                  (result == :countered ?
+                    { notice: message } : { alert: message })
+    end
+  end
 
   def agreement_terms_from_params
     keys = AGREEMENT_FIELDS + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
@@ -1076,6 +1386,72 @@ class DocumentsController < ApplicationController
 
   def agreement_creator?(conversation)
     agreement_party?(conversation) || conversation.MediatorID == @user.UserID
+  end
+
+  def agreement_suggester?(conversation)
+    return false unless conversation
+
+    agreement_party?(conversation) ||
+      (
+        @user.mediator? &&
+        conversation.MediatorID == @user.UserID &&
+        conversation.MediatorAssigned?
+      )
+  end
+
+  def mediator_agreement_proposal?(proposal)
+    proposal["mediator_proposal"] == true
+  end
+
+  def mediator_agreement_reviewer?(proposal, conversation)
+    return false unless mediator_agreement_proposal?(proposal)
+    return false unless agreement_party?(conversation)
+
+    proposal.fetch("reviewer_ids", []).map(&:to_i).include?(@user.UserID)
+  end
+
+  def agreement_review_party(conversation)
+    return "tenant" if @user.UserID == conversation.TenantID
+    return "landlord" if @user.UserID == conversation.LandlordID
+
+    nil
+  end
+
+  def mediator_suggestion_decision_status(change)
+    decisions = change.fetch("party_decisions", {})
+
+    return "rejected" if decisions.value?("rejected")
+    return "accepted" if decisions["tenant"] == "accepted" &&
+                        decisions["landlord"] == "accepted"
+
+    "pending"
+  end
+
+  def mediator_counteroffer_decisions(conversation)
+    role = agreement_review_party(conversation)
+    return nil unless %w[tenant landlord].include?(role)
+
+    other_role = role == "tenant" ? "landlord" : "tenant"
+
+    {
+      role => "accepted",
+      other_role => "pending"
+    }
+  end
+
+  def mediator_can_counteroffer?(item, proposal, conversation)
+    role = agreement_review_party(conversation)
+    return false unless role.present?
+    return false unless mediator_agreement_reviewer?(proposal, conversation)
+
+    item[:fields].all? do |field|
+      change = proposal.fetch("changes", {})[field]
+
+      change.is_a?(Hash) &&
+        change["decision"] == "pending" &&
+        change.fetch("party_decisions", {})[role] == "pending" &&
+        item[:offered_by_id].to_i != @user.UserID
+    end
   end
 
   def announce_agreement(conversation, contents)

@@ -42,10 +42,10 @@
   </div>
 
   <% if @conversation && @landlord && @tenant && @file.FileTypes == "html" && params[:view_mode] != 'simple' %>
-    <% if @file.agreement_editable? && @user_role_in_conversation %>
+    <% if @file.agreement_editable? && @can_suggest_agreement %>
       <div class="signature-status-card">
         <h3>Review Agreement</h3>
-        <p>Review the document below before signing. If a date, amount, or other term needs work, you can suggest changes below.</p>
+        <p>Review the document below. If a date, amount, or other term needs work, you can suggest changes below.</p>
       </div>
     <% end %>
     <!-- Signature Status Card -->
@@ -127,7 +127,16 @@
   <% if @conversation && @landlord && @tenant && @file.FileTypes == "html" && params[:view_mode] != 'simple' %>
     <% if @agreement_proposal.present? && @agreement_proposal.fetch("changes", {}).present? %>
       <% suggestions_pending = @file.agreement_suggestions_pending? %>
-      <% can_decide = suggestions_pending && @user_role_in_conversation && @reviewer_id == @user.UserID %>
+      <% mediator_proposal = @agreement_proposal["mediator_proposal"] == true %>
+      <% can_decide = if mediator_proposal
+                        suggestions_pending &&
+                          @user_role_in_conversation.present? &&
+                          @agreement_proposal.fetch("reviewer_ids", []).map(&:to_i).include?(@user.UserID)
+                      else
+                        suggestions_pending &&
+                          @user_role_in_conversation.present? &&
+                          @reviewer_id == @user.UserID
+                      end %>
       <div class="signature-status-card agreement-suggestions-card">
         <div class="agreement-suggestions-heading">
           <div>
@@ -140,6 +149,24 @@
           <% @file.agreement_suggestion_items.each do |item| %>
             <% field = item[:key] %>
             <% change = item[:change] %>
+            <% mediator_proposal_item = @agreement_proposal["mediator_proposal"] == true %>
+            <% review_role = if @user.UserID == @conversation&.TenantID
+                              "tenant"
+                            elsif @user.UserID == @conversation&.LandlordID
+                              "landlord"
+                            end %>
+
+            <% can_decide_item = if mediator_proposal_item
+                                  can_decide &&
+                                    review_role.present? &&
+                                    item[:fields].all? do |candidate|
+                                      field_change = @agreement_proposal["changes"][candidate]
+                                      field_change["decision"] == "pending" &&
+                                        field_change.fetch("party_decisions", {})[review_role] == "pending"
+                                    end
+                                else
+                                  can_decide
+                                end %>
             <% label = item[:payment_group] ? "Payment #{field.delete_prefix('payment')}#{item[:removed_payment] ? ' removed' : (item[:added_payment] ? ' added' : '')}" : agreement_field_label(field) %>
             <% offerer = @offer_authors&.dig(item[:offered_by_id].to_i) %>
             <% staged = @agreement_proposal.fetch('draft_counteroffers', {})[field] if can_decide %>
@@ -178,12 +205,44 @@
                   <% end %>
                 </div>
               <% end %>
-              <% if suggestions_pending && change['decision'] == 'pending' && item[:offered_by_id].to_i == @user.UserID %>
-                <p class="suggestion-review-note">Waiting for the other party to review this offer.</p>
-              <% elsif suggestions_pending && (staged || change['decision'] != 'pending') %>
-                <p class="suggestion-review-note">Decision recorded. This item is closed.</p>
+              <% if mediator_proposal_item %>
+                <% party_decisions = @agreement_proposal["changes"][item[:fields].first].fetch("party_decisions", {}) %>
+                <% landlord_decision = party_decisions["landlord"] %>
+                <% tenant_decision = party_decisions["tenant"] %>
+
+                <% if change["decision"] == "accepted" %>
+                  <p class="suggestion-review-note">
+                    Accepted by both parties. This change has been applied to the agreement.
+                  </p>
+                <% elsif change["decision"] == "rejected" %>
+                  <p class="suggestion-review-note">
+                    Suggestion rejected. No changes were applied.
+                  </p>
+                <% elsif landlord_decision == "accepted" && tenant_decision == "pending" %>
+                  <p class="suggestion-review-note">
+                    Waiting for tenant to review.
+                  </p>
+                <% elsif tenant_decision == "accepted" && landlord_decision == "pending" %>
+                  <p class="suggestion-review-note">
+                    Waiting for landlord to review.
+                  </p>
+                <% elsif landlord_decision == "pending" && tenant_decision == "pending" %>
+                  <p class="suggestion-review-note">
+                    Waiting for landlord and tenant to review.
+                  </p>
+                <% end %>
+              <% else %>
+                <% if suggestions_pending && change['decision'] == 'pending' && item[:offered_by_id].to_i == @user.UserID %>
+                  <p class="suggestion-review-note">
+                    Waiting for the other party to review this offer.
+                  </p>
+                <% elsif suggestions_pending && (staged || change['decision'] != 'pending') %>
+                  <p class="suggestion-review-note">
+                    Decision recorded. This item is closed.
+                  </p>
+                <% end %>
               <% end %>
-              <% if can_decide && !staged && item[:fields].all? { |candidate| @agreement_proposal["changes"][candidate]["decision"] == "pending" } && item[:offered_by_id].to_i != @user.UserID %>
+              <% if can_decide_item && !staged && item[:fields].all? { |candidate| @agreement_proposal["changes"][candidate]["decision"] == "pending" } && item[:offered_by_id].to_i != @user.UserID %>
                 <div class="suggestion-actions">
                   <%= button_to "Accept", decide_document_suggestion_path(@file.FileID, field), method: :patch,
                       params: { decision: "accepted" }, aria: { label: "Accept #{label}" },
@@ -235,10 +294,16 @@
       </div>
     <% end %>
 
-    <% if @file.agreement_editable? && !@file.agreement_suggestions_pending? && @user_role_in_conversation && !@editing_agreement %>
+    <% if @file.agreement_editable? && !@file.agreement_suggestions_pending? && @can_suggest_agreement && !@editing_agreement %>
       <div class="signature-status-card agreement-suggestion-entry-card">
         <h3>Suggest Changes</h3>
-        <p>The changes will be shared for review, and the other party will need to accept or reject the changes before signing.</p>
+        <p>
+          <% if @user.mediator? %>
+            Your suggested changes will be sent to both the landlord and tenant for review.
+          <% else %>
+            Your suggested changes will be sent to the other party for review before signing.
+          <% end %>
+        </p>
         <div class="form-actions">
           <%= link_to "Suggest Changes", review_document_path(@file.FileID), class: "agreement-action" %>
         </div>
