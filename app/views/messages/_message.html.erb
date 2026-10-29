@@ -20,8 +20,12 @@
             <div class="attachment-body">
               <div class="attachment-name"><%= file.FileName.presence || "Untitled document" %></div>
               <div class="attachment-actions">
-                <% if file.agreement_document? && %w[Tenant Landlord].include?(current_user.Role) %>
-                  <%= link_to "Review & Sign", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                <% if file.agreement_document? && %w[Tenant Landlord Mediator].include?(current_user.Role) %>
+                  <% if current_user.Role == "Mediator" %>
+                    <%= link_to "Review & Suggest Changes", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                  <% else %>
+                    <%= link_to "Review & Sign", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                  <% end %>
                 <% else %>
                   <%= link_to "View", view_file_path(file.FileID, view_mode: 'simple'), class: "attachment-link" %>
                   <span aria-hidden="true" class="attachment-dot">·</span>
@@ -91,8 +95,12 @@
               <div class="attachment-body">
                 <div class="attachment-name"><%= file.FileName.presence || "Untitled document" %></div>
                 <div class="attachment-actions">
-                  <% if file.agreement_document? && %w[Tenant Landlord].include?(current_user.Role) %>
-                    <%= link_to "Review & Sign", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                  <% if file.agreement_document? && %w[Tenant Landlord Mediator].include?(current_user.Role) %>
+                    <% if current_user.Role == "Mediator" %>
+                      <%= link_to "Review & Suggest Changes", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                    <% else %>
+                      <%= link_to "Review & Sign", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
+                    <% end %>
                   <% else %>
                     <%= link_to "View", view_file_path(file.FileID, view_mode: 'simple'), class: "attachment-link" %>
                     <span aria-hidden="true" class="attachment-dot">·</span>
