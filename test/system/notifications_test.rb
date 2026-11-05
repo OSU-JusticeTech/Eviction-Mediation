@@ -11,8 +11,10 @@ class NotificationsTest < ApplicationSystemTestCase
 
     assert_selector "#notification_menu .notification-bell"
 
-    [ "Messages", "Documents" ].each do |label|
+    { "Messages" => messages_path, "Documents" => documents_path }.each do |label, path|
       within(".navbar-menu") { click_link label, exact: true }
+      assert_current_path path
+      assert_selector ".navbar-menu a.active[href='#{path}']"
       assert_selector "#notification_menu .notification-bell"
 
       # Exercise the same frame reload used by the 30-second polling timer.
