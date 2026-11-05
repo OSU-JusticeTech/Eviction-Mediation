@@ -590,7 +590,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
   test "vacate amount owed and additional terms can be suggested and accepted" do
     file = create_agreement_draft
-    document = Nokogiri::HTML(File.read(Rails.root.join("public", file.FileURLPath)))
+    document = Nokogiri::HTML(File.read(DocumentStorage.configured.resolve(file.FileURLPath)))
     assert document.at_css('[data-agreement-field="additional_terms"]')
 
     log_in_as(@landlord)
@@ -611,7 +611,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_not file.reload.agreement_suggestions_pending?
     assert_equal "1000", file.agreement_terms["money_owed"]
     assert_equal "Return all keys.", file.agreement_terms["additional_terms"]
-    document = Nokogiri::HTML(File.read(Rails.root.join("public", file.FileURLPath)))
+    document = Nokogiri::HTML(File.read(DocumentStorage.configured.resolve(file.FileURLPath)))
     assert_equal "1000", document.at_css('[data-agreement-field="money_owed"]').text
     assert_equal "Return all keys.", document.at_css('[data-agreement-field="additional_terms"]').text
   end
@@ -907,7 +907,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   %w[a b c].each do |template|
     test "agreement template #{template} escapes both signatures and preserves document markup" do
       travel_to Time.zone.local(2026, 11, 5, 12) do
-        file = create_agreement_draft(template: template)
+        file = create_agreement_draft(template: template, legacy: true)
         path = Rails.root.join("public", file.FileURLPath)
         original_html = File.read(path)
         original_document = Nokogiri::HTML(original_html)
@@ -1061,7 +1061,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "conversation agreement can be reviewed and signed immediately after reading it" do
-    file = create_agreement_draft
+    file = create_agreement_draft(legacy: true)
     assert file.agreement_document?
     assert_equal @mediation.ConversationID, file.AgreementConversationID
 
@@ -1119,7 +1119,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "accepted suggestions update the document immediately while remaining suggestions stay pending" do
-    file = create_agreement_draft
+    file = create_agreement_draft(legacy: true)
     log_in_as(@landlord)
     get review_document_path(file.FileID)
     assert_redirected_to view_file_path(file.FileID, edit: 1)
@@ -1136,7 +1136,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     post apply_signature_document_path(file.FileID), params: { signature_name: "Jane Doe", agreement_version: 1 }
     assert file.reload.LandlordSignature
-    original_html = File.read(Rails.root.join("public", file.FileURLPath))
+    original_html = File.read(DocumentStorage.configured.resolve(file.FileURLPath))
 
     patch update_review_document_path(file.FileID), params: agreement_params.merge(
       agreement_version: 1, vacate_date: "2026-05-15", amount2: "400", date2: "2026-05-15"
@@ -1146,7 +1146,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert file.LandlordSignature
     assert file.agreement_suggestions_pending?
     assert_equal "2026-04-30", file.agreement_terms["date2"]
-    assert_equal original_html, File.read(Rails.root.join("public", file.FileURLPath))
+    assert_equal original_html, File.read(DocumentStorage.configured.resolve(file.FileURLPath))
     assert_equal 1, file.file_attachments.count
     assert_equal 0, Message.order(:MessageID).last.file_attachments.count
 
@@ -1177,7 +1177,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_not file.LandlordSignature
     assert_equal "2026-05-15", file.agreement_terms["vacate_date"]
     assert_equal "2026-04-30", file.agreement_terms["date2"]
-    assert_not_equal original_html, File.read(Rails.root.join("public", file.FileURLPath))
+    assert_not_equal original_html, File.read(DocumentStorage.configured.resolve(file.FileURLPath))
     assert_equal "Landlord Jane Doe suggested changes to the agreement. Review the document to see them.", Message.order(:MessageID).last.Contents
     patch decide_document_suggestion_path(file.FileID, "date2"), params: { decision: "rejected" }
     assert_redirected_to view_file_path(file.FileID, anchor: "suggestion-date2")
@@ -1187,7 +1187,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_nil file.LandlordSignedAt
     assert_equal "2026-05-15", file.agreement_terms["vacate_date"]
     assert_equal "2026-04-30", file.agreement_terms["date2"]
-    assert_not_equal original_html, File.read(Rails.root.join("public", file.FileURLPath))
+    assert_not_equal original_html, File.read(DocumentStorage.configured.resolve(file.FileURLPath))
     revision_message = Message.order(:MessageID).last
     assert_equal "Agreement revised to version 2 by Tenant John Doe. Please review the new terms.", revision_message.Contents
     assert_equal 0, revision_message.file_attachments.count
@@ -1332,7 +1332,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 2, file.reload.AgreementVersion
     assert_equal "250", file.agreement_terms["amount3"]
     assert_equal "2026-06-01", file.agreement_terms["date3"]
-    assert_includes File.read(Rails.root.join("public", file.FileURLPath)), "data-agreement-payment-row=\"3\""
+    assert_includes File.read(DocumentStorage.configured.resolve(file.FileURLPath)), "data-agreement-payment-row=\"3\""
   end
 
   test "a date-only payment suggestion is refused while the schedule remains optional" do
@@ -1375,7 +1375,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "rejecting every suggestion keeps the agreement and signatures" do
-    file = create_agreement_draft
+    file = create_agreement_draft(legacy: true)
     log_in_as(@landlord)
     post apply_signature_document_path(file.FileID), params: { signature_name: "Jane Doe", agreement_version: 1 }
     patch update_review_document_path(file.FileID), params: agreement_params.merge(
@@ -1541,10 +1541,10 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "unmatched payment suggestion keeps the signed document unchanged until reviewed" do
-    file = create_agreement_draft
+    file = create_agreement_draft(legacy: true)
     log_in_as(@landlord)
     post apply_signature_document_path(file.FileID), params: { signature_name: "Jane Doe", agreement_version: 1 }
-    original_html = File.read(Rails.root.join("public", file.FileURLPath))
+    original_html = File.read(DocumentStorage.configured.resolve(file.FileURLPath))
 
     patch update_review_document_path(file.FileID), params: agreement_params.merge(
       agreement_version: 1, amount2: "300"
@@ -1554,7 +1554,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, file.reload.AgreementVersion
     assert file.LandlordSignature
     assert file.agreement_suggestions_pending?
-    assert_equal original_html, File.read(Rails.root.join("public", file.FileURLPath))
+    assert_equal original_html, File.read(DocumentStorage.configured.resolve(file.FileURLPath))
   end
 
   test "unrelated users cannot revise an agreement" do
@@ -1862,6 +1862,132 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "private upload details"
   end
 
+  %w[a b c].each do |template|
+    test "revision renders template #{template} with escaped accepted terms" do
+      file = create_agreement_draft(template: template)
+      value = %q{<script>alert("revision")</script> & home}
+      log_in_as(@landlord)
+      patch update_review_document_path(file.FileID), params: agreement_params.merge(
+        agreement_version: 1, address: value
+      )
+      log_in_as(@tenant)
+      patch decide_document_suggestion_path(file.FileID, "address"), params: { decision: "accepted" }, as: :json
+      assert_response :success
+      assert_equal "updated", response.parsed_body["status"]
+      document = Nokogiri::HTML(DocumentStorage.configured.resolve(file.reload.FileURLPath).read)
+      assert_equal value, document.at_css('[data-agreement-field="address"]').text
+      assert_empty document.css("script")
+      assert document.at_css("h1")
+    end
+  end
+
+  [false, true].each do |mediator|
+    [false, true].each do |legacy|
+      test "#{mediator ? 'mediator final' : 'ordinary'} acceptance preserves #{legacy ? 'legacy' : 'private'} source" do
+        file = prepare_agreement_revision(mediator: mediator, legacy: legacy)
+        locator = file.FileURLPath
+        path = DocumentStorage.configured.resolve(locator)
+        bytes = path.binread
+        attachments = FileAttachment.where(FileID: file.FileID).pluck(:MessageID)
+        public_files = Dir.glob(Rails.root.join("public", "userFiles", "*"))
+        patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }, as: :json
+        assert_response :success
+        assert_equal "updated", response.parsed_body["status"]
+        file.reload
+        assert_equal 2, file.AgreementVersion
+        assert_equal "2026-05-15", file.agreement_terms["vacate_date"]
+        assert_not file.LandlordSignature
+        assert_not file.TenantSignature
+        assert_nil file.LandlordSignedAt
+        assert_nil file.TenantSignedAt
+        assert_nil file.LandlordSignatureName
+        assert_nil file.TenantSignatureName
+        assert_equal "accepted", file.agreement_proposal["changes"]["vacate_date"]["decision"]
+        assert_match %r{\AprivateDocuments/}, file.FileURLPath
+        assert_not_equal locator, file.FileURLPath
+        assert_equal bytes, path.binread
+        assert_equal attachments, FileAttachment.where(FileID: file.FileID).pluck(:MessageID)
+        assert_equal public_files, Dir.glob(Rails.root.join("public", "userFiles", "*"))
+        assert_includes DocumentStorage.configured.resolve(file.FileURLPath).read, "2026"
+      end
+    end
+
+    [:missing, :publication, :database, :rollback].each do |failure|
+      test "#{mediator ? 'mediator final' : 'ordinary'} #{failure} failure preserves persisted review without success events" do
+        file = prepare_agreement_revision(mediator: mediator)
+        before = file.attributes
+        path = DocumentStorage.configured.resolve(file.FileURLPath)
+        bytes = path.binread
+        File.delete(path) if failure == :missing
+        files = Dir.children(@document_storage_root).sort
+        message_count = Message.count
+        request_revision = -> {
+          assert_no_enqueued_emails do
+            ActionCable.server.stub(:broadcast, ->(*) { flunk "Failed revision broadcast success" }) do
+              patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }, as: :json
+            end
+          end
+          assert_response :service_unavailable
+        }
+        case failure
+        when :publication
+          File.stub(:link, ->(*) { raise Errno::EACCES }) { request_revision.call }
+        when :database, :rollback
+          save = FileDraft.instance_method(:save!)
+          FileDraft.define_method(:save!) do |*args, **kwargs|
+            if self.AgreementVersion == 2
+              raise ActiveRecord::Rollback if failure == :rollback
+              raise ActiveRecord::RecordInvalid.new(self)
+            end
+            save.bind(self).call(*args, **kwargs)
+          end
+          begin
+            request_revision.call
+          ensure
+            FileDraft.define_method(:save!, save)
+          end
+        else
+          request_revision.call
+        end
+        assert_equal before, file.reload.attributes
+        assert_equal message_count, Message.count
+        assert_equal files, Dir.children(@document_storage_root).sort
+        assert_equal bytes, path.binread unless failure == :missing
+        assert_nil flash[:notice]
+      end
+    end
+
+    test "#{mediator ? 'mediator' : 'ordinary'} rejection is database only" do
+      file = prepare_agreement_revision(mediator: mediator)
+      locator = file.FileURLPath
+      files = Dir.children(@document_storage_root).sort
+      DocumentRevision.stub(:new, ->(*) { flunk "Rejection invoked revision" }) do
+        patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "rejected" }, as: :json
+      end
+      assert_response :success
+      assert_equal locator, file.reload.FileURLPath
+      assert_equal 1, file.AgreementVersion
+      assert file.LandlordSignature
+      assert_equal files, Dir.children(@document_storage_root).sort
+    end
+
+    [:stale, :unauthorized].each do |reason|
+      test "#{mediator ? 'mediator' : 'ordinary'} #{reason} acceptance cannot revise" do
+        file = prepare_agreement_revision(mediator: mediator)
+        file.update!(AgreementVersion: 2) if reason == :stale
+        log_in_as(@landlord) if reason == :unauthorized
+        before = file.reload.attributes
+        DocumentRevision.stub(:new, ->(*) { flunk "Unavailable suggestion invoked revision" }) do
+          assert_no_enqueued_emails do
+            patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }, as: :json
+          end
+        end
+        assert_response :conflict
+        assert_equal before, file.reload.attributes
+      end
+    end
+  end
+
   private
 
   def with_publication_cleanup_failure
@@ -1904,6 +2030,25 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_nil assigns(:pmg)
   end
 
+  def prepare_agreement_revision(mediator:, legacy: false)
+    file = create_agreement_draft(legacy: legacy)
+    log_in_as(mediator ? @mediator : @landlord)
+    patch update_review_document_path(file.FileID), params: agreement_params.merge(
+      agreement_version: 1, vacate_date: "2026-05-15"
+    )
+    if mediator
+      log_in_as(@landlord)
+      DocumentRevision.stub(:new, ->(*) { flunk "First mediator approval invoked revision" }) do
+        patch decide_document_suggestion_path(file.FileID, "vacate_date"), params: { decision: "accepted" }, as: :json
+      end
+      assert_equal "pending", response.parsed_body["status"]
+    end
+    file.reload.update!(LandlordSignature: true, LandlordSignedAt: Time.current, LandlordSignatureName: "Jane")
+    log_in_as(@tenant)
+    get view_file_path(file.FileID)
+    file.reload
+  end
+
   def agreement_params
     { landlord_name: "Jane Doe", tenant_name: "John Doe", address: "123 Main Street",
       negotiation_date: "2026-03-20", reason: "Failure to Pay Rent", money_owed: "900",
@@ -1911,12 +2056,13 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
       amount1: "500", date1: "2026-03-30", amount2: "400", date2: "2026-04-30" }
   end
 
-  def create_agreement_draft(template: "a")
+  def create_agreement_draft(template: "a", legacy: false)
     log_in_as(@tenant)
     post generate_from_intake_path(template: template), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
     file = FileAttachment.order(:MessageID).last.file_draft
-    # Revision/signature tests exercise the unchanged legacy workflows.
-    # Creation-specific tests assert the private locator without this fixture conversion.
+    return file unless legacy
+
+    # Signing remains a legacy workflow until Stage 2B-3.
     private_path = DocumentStorage.configured.resolve(file.FileURLPath)
     legacy_locator = "userFiles/#{File.basename(private_path)}"
     FileUtils.mkdir_p(Rails.root.join("public", "userFiles"))

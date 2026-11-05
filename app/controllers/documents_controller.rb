@@ -470,11 +470,18 @@ class DocumentsController < ApplicationController
     result = nil
     completed_round = nil
     accepted_changes = []
+    # Keep access, reviewer eligibility, and proposal checks locked through publication.
     file.with_lock do
+      conversation = agreement_conversation(file)
+      conversation.lock! if conversation
+      unless find_file_for_user(file.FileID) && conversation && agreement_party?(conversation)
+        result = :unavailable
+        next
+      end
       proposal = file.agreement_proposal
       changes = proposal["changes"] || {}
       item = file.agreement_suggestion_items.find { |suggestion| suggestion[:key] == params[:field].to_s }
-      if !file.agreement_editable? || !file.agreement_suggestions_pending? ||
+      if mediator_agreement_proposal?(proposal) || !file.agreement_editable? || !file.agreement_suggestions_pending? ||
          proposal["base_version"].to_i != file.AgreementVersion || item.nil? ||
          active_agreement_reviewer_id(file, proposal, conversation) != @user.UserID ||
          item[:offered_by_id].to_i == @user.UserID ||
@@ -503,19 +510,23 @@ class DocumentsController < ApplicationController
             item[:fields].each { |field| changes[field]["decision"] = decision }
             assign_agreement_template_variables(file.AgreementTemplate, accepted_terms)
             html = render_to_string(template: agreement_template_file(file.AgreementTemplate), formats: [:html], layout: false)
-            file.AgreementTerms = JSON.generate(accepted_terms)
-            file.AgreementVersion += 1
-            file.TenantSignature = false
-            file.LandlordSignature = false
-            file.TenantSignedAt = nil
-            file.LandlordSignedAt = nil
-            file.TenantSignatureName = nil
-            file.LandlordSignatureName = nil
-            proposal["base_version"] = file.AgreementVersion
-            proposal["round_accepted"] = true
-            file.AgreementProposal = JSON.generate(proposal)
-            replace_agreement_html(file, html)
-            completed_round = finish_agreement_review_round(file, proposal, conversation)
+            DocumentRevision.new.call(
+              file: file, extension: "html",
+              writer: ->(_original, path, _locked) { File.write(path, html) }
+            ) do
+              file.AgreementTerms = JSON.generate(accepted_terms)
+              file.AgreementVersion += 1
+              file.TenantSignature = false
+              file.LandlordSignature = false
+              file.TenantSignedAt = nil
+              file.LandlordSignedAt = nil
+              file.TenantSignatureName = nil
+              file.LandlordSignatureName = nil
+              proposal["base_version"] = file.AgreementVersion
+              proposal["round_accepted"] = true
+              file.AgreementProposal = JSON.generate(proposal)
+              completed_round = finish_agreement_review_round(file, proposal, conversation)
+            end
             result = :updated
           else
             result = :invalid_payment
@@ -572,6 +583,8 @@ class DocumentsController < ApplicationController
         redirect_to view_file_path(file.FileID), alert: "This suggestion is no longer available. Refresh the agreement."
       end
     end
+  rescue DocumentRevision::Failure
+    render plain: "Unable to revise agreement. Please try again.", status: :service_unavailable
   end
 
   def counteroffer_suggestion
@@ -931,7 +944,14 @@ class DocumentsController < ApplicationController
     result = :unavailable
     accepted_changes = []
 
+    # Keep access, reviewer eligibility, and proposal checks locked through publication.
     file.with_lock do
+      conversation = agreement_conversation(file)
+      conversation.lock! if conversation
+      unless find_file_for_user(file.FileID) && conversation && agreement_party?(conversation)
+        result = :unavailable
+        next
+      end
       proposal = file.agreement_proposal
       role = agreement_review_party(conversation)
 
@@ -1006,20 +1026,23 @@ class DocumentsController < ApplicationController
                 layout: false
               )
 
-              file.AgreementTerms = JSON.generate(accepted_terms)
-              file.AgreementVersion += 1
+              DocumentRevision.new.call(
+                file: file, extension: "html",
+                writer: ->(_original, path, _locked) { File.write(path, html) }
+              ) do
+                file.AgreementTerms = JSON.generate(accepted_terms)
+                file.AgreementVersion += 1
 
-              file.TenantSignature = false
-              file.LandlordSignature = false
-              file.TenantSignedAt = nil
-              file.LandlordSignedAt = nil
-              file.TenantSignatureName = nil
-              file.LandlordSignatureName = nil
+                file.TenantSignature = false
+                file.LandlordSignature = false
+                file.TenantSignedAt = nil
+                file.LandlordSignedAt = nil
+                file.TenantSignatureName = nil
+                file.LandlordSignatureName = nil
 
-              proposal["base_version"] = file.AgreementVersion
-              file.AgreementProposal = JSON.generate(proposal)
-
-              replace_agreement_html(file, html)
+                proposal["base_version"] = file.AgreementVersion
+                file.AgreementProposal = JSON.generate(proposal)
+              end
               result = :updated
             else
               fields.each do |field|
@@ -1088,6 +1111,8 @@ class DocumentsController < ApplicationController
                   (result == :unavailable || result == :invalid_payment ?
                     { alert: message } : { notice: message })
     end
+  rescue DocumentRevision::Failure
+    render plain: "Unable to revise agreement. Please try again.", status: :service_unavailable
   end
 
   def counteroffer_mediator_suggestion(file, conversation)
@@ -1289,17 +1314,6 @@ class DocumentsController < ApplicationController
     name = [ @user.FName, @user.LName ].compact.join(" ").squeeze(" ").strip
     name = @user.CompanyName.presence || @user.Email if name.blank?
     "#{@user.Role} #{name}"
-  end
-
-  def replace_agreement_html(file, html)
-    path = Rails.root.join("public", file.FileURLPath)
-    Tempfile.create(["agreement-", ".html"], path.dirname) do |temp|
-      temp.write(html)
-      temp.flush
-      temp.chmod(File.stat(path).mode & 0o777)
-      file.save!
-      File.rename(temp.path, path)
-    end
   end
 
   def agreement_template_file(template)
