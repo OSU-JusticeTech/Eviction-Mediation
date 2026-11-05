@@ -108,6 +108,36 @@ class DocumentStorage
     false
   end
 
+  # Inventory only: enumerate immediate entries without reading bytes or walking
+  # directories/symlinks. Never expose a deletion candidate API from this scan.
+  def private_inventory_entries
+    protect_io do
+      checked_root!(@configuration.root)
+      @configuration.root.children.map do |path|
+        locator = PRIVATE_PREFIX + path.basename.to_s
+        [locator, private_inventory_status(locator)]
+      end
+    end
+  end
+
+  def private_inventory_status(locator)
+    unless locator.is_a?(String) && locator.start_with?(PRIVATE_PREFIX)
+      raise InvalidLocator, "Only private documents can be inventoried"
+    end
+    root, name = location(locator)
+    protect_io do
+      checked_root!(root)
+      stat = begin
+        root.join(name).lstat
+      rescue Errno::ENOENT
+        return :missing
+      end
+      stat.file? && stat.nlink == 1 ? :present : :unsafe
+    end
+  rescue InvalidLocator
+    :unsafe
+  end
+
   private
 
   def location(locator)
