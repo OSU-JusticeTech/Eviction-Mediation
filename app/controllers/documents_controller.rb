@@ -60,8 +60,8 @@ class DocumentsController < ApplicationController
 
   def template_preview
     @template = params[:template]
-    
-    
+
+
     @landlord = ""
     @tenant = ""
     @address = ""
@@ -71,8 +71,8 @@ class DocumentsController < ApplicationController
     @monthly_rent = ""
     @best = ""
     @vacate_date = ""
-    
-    
+
+
     @schedule = []
 
     template_file = case @template
@@ -659,47 +659,50 @@ class DocumentsController < ApplicationController
     @file = find_file_for_user(params[:id])
     return render plain: "File not found", status: :not_found unless @file
 
-    unless @file.agreement_signable?
-      return redirect_to view_file_path(@file.FileID), alert: "This agreement must be shared in a conversation before signing."
-    end
-
-    # Load conversation to verify authorization
-    file_attachment = FileAttachment.find_by(FileID: @file.FileID)
-    unless file_attachment || @file.agreement_conversation_id.present?
-      flash[:alert] = "This document is not linked to a conversation and cannot be signed."
-      return redirect_to view_file_path(@file.FileID)
-    end
-
-    message = Message.find_by(MessageID: file_attachment.MessageID) if file_attachment && @file.agreement_conversation_id.blank?
-    unless message || @file.agreement_conversation_id.present?
-      flash[:alert] = "Unable to locate conversation for this document."
-      return redirect_to view_file_path(@file.FileID)
-    end
-
-    conversation = @file.agreement_conversation_id.present? ? agreement_conversation(@file) : PrimaryMessageGroup.find_by(ConversationID: message.ConversationID)
-    unless conversation
-      flash[:alert] = "Unable to locate conversation for this document."
-      return redirect_to view_file_path(@file.FileID)
-    end
-
-    # Verify user is either landlord or tenant
-    is_landlord = @user.UserID == conversation.LandlordID
-    is_tenant = @user.UserID == conversation.TenantID
-
-    unless is_landlord || is_tenant
-      flash[:alert] = "You are not authorized to sign this document."
-      return redirect_to view_file_path(@file.FileID)
-    end
-
-    signature_name = params[:signature_name]&.strip
-
-    if signature_name.blank?
-      flash[:alert] = "Please provide your name to sign the document."
-      return redirect_to view_file_path(@file.FileID)
-    end
-
     signature_result = nil
+    conversation = is_landlord = signature_name = nil
     @file.with_lock do
+      unless find_file_for_user(@file.FileID)
+        return render plain: "File not found", status: :not_found
+      end
+      unless @file.agreement_signable?
+        return redirect_to view_file_path(@file.FileID), alert: "This agreement must be shared in a conversation before signing."
+      end
+
+      # Load conversation to verify authorization
+      file_attachment = FileAttachment.find_by(FileID: @file.FileID)
+      unless file_attachment || @file.agreement_conversation_id.present?
+        flash[:alert] = "This document is not linked to a conversation and cannot be signed."
+        return redirect_to view_file_path(@file.FileID)
+      end
+
+      message = Message.find_by(MessageID: file_attachment.MessageID) if file_attachment && @file.agreement_conversation_id.blank?
+      unless message || @file.agreement_conversation_id.present?
+        flash[:alert] = "Unable to locate conversation for this document."
+        return redirect_to view_file_path(@file.FileID)
+      end
+
+      conversation = @file.agreement_conversation_id.present? ? agreement_conversation(@file) : PrimaryMessageGroup.find_by(ConversationID: message.ConversationID)
+      unless conversation
+        flash[:alert] = "Unable to locate conversation for this document."
+        return redirect_to view_file_path(@file.FileID)
+      end
+
+      # Verify user is either landlord or tenant
+      is_landlord = @user.UserID == conversation.LandlordID
+      is_tenant = @user.UserID == conversation.TenantID
+
+      unless (is_landlord || is_tenant) && !@user.mediator? && @user.Role != "Admin"
+        flash[:alert] = "You are not authorized to sign this document."
+        return redirect_to view_file_path(@file.FileID)
+      end
+
+      signature_name = params[:signature_name]&.strip
+
+      if signature_name.blank?
+        flash[:alert] = "Please provide your name to sign the document."
+        return redirect_to view_file_path(@file.FileID)
+      end
       if @file.agreement_suggestions_pending?
         signature_result = :suggestions_pending
       elsif @file.agreement_document? && params[:agreement_version].to_i != @file.AgreementVersion
@@ -707,17 +710,20 @@ class DocumentsController < ApplicationController
       elsif (is_landlord && @file.LandlordSignature) || (is_tenant && @file.TenantSignature)
         signature_result = :already_signed
       else
-        if is_landlord
-          @file.LandlordSignature = true
-          @file.LandlordSignedAt = Time.current
-          @file.LandlordSignatureName = signature_name
-        else
-          @file.TenantSignature = true
-          @file.TenantSignedAt = Time.current
-          @file.TenantSignatureName = signature_name
+        signed_at = Time.current
+        role = is_landlord ? "Landlord" : "Tenant"
+        DocumentRevision.new.call(
+          file: @file, extension: "html",
+          writer: ->(original, path, locked) {
+            html = AgreementSignature.new.call(original, file: locked, role: role,
+                                              name: signature_name, signed_at: signed_at)
+            path.binwrite(html)
+          }
+        ) do |locked|
+          locked.public_send("#{role}Signature=", true)
+          locked.public_send("#{role}SignedAt=", signed_at)
+          locked.public_send("#{role}SignatureName=", signature_name)
         end
-        @file.save!
-        update_document_with_signature(@file, is_landlord, signature_name)
         signature_result = :signed
       end
     end
@@ -784,6 +790,8 @@ class DocumentsController < ApplicationController
     end
 
     redirect_to view_file_path(@file.FileID)
+  rescue DocumentRevision::Failure
+    redirect_to view_file_path(@file.FileID), alert: "Failed to save signature. Please try again."
   end
 
   # download of the stored file
@@ -1472,45 +1480,6 @@ class DocumentsController < ApplicationController
 
   def find_file_for_user(id)
     FileDraft.find_viewable_by(@user, id)
-  end
-
-  def update_document_with_signature(file, is_landlord, signature_name)
-    file_path = Rails.root.join("public", file.FileURLPath)
-    return unless File.exist?(file_path)
-
-    html_content = File.read(file_path)
-    signed_date = Time.current.strftime("%B %d, %Y")
-
-    escaped_signature_name = ERB::Util.html_escape(signature_name)
-    role = is_landlord ? "Landlord" : "Tenant"
-
-    if html_content =~ /<strong>#{role}:<\/strong>\s*<span class="signature-line">/
-      # Pay and Stay format
-      html_content.gsub!(/(<strong>#{role}:<\/strong>\s*<span class="signature-line">)___________(<\/span>)/m) do
-        "#{Regexp.last_match(1)}/s/ #{escaped_signature_name}#{Regexp.last_match(2)}"
-      end
-      html_content.gsub!(/(<strong>#{role}:<\/strong>\s*<span class="signature-line">.*?<\/span>\s*<span style="margin-left: 50px;"><strong>Date:<\/strong> <span class="date-line">)___________(<\/span>)/m) do
-        "#{Regexp.last_match(1)}#{signed_date}#{Regexp.last_match(2)}"
-      end
-    elsif html_content =~ /<strong>#{role} Signature:<\/strong>/
-      # Mediation Agreement format
-      html_content.gsub!(/(<strong>#{role} Signature:<\/strong>\s*<span class="line">)(<\/span>)/) do
-        "#{Regexp.last_match(1)}/s/ #{escaped_signature_name}#{Regexp.last_match(2)}"
-      end
-      html_content.gsub!(/(<strong>#{role} Signature:<\/strong>\s*<span class="line">.*?<\/span>\s*<strong>Date:<\/strong> )__________/m) do
-        "#{Regexp.last_match(1)}#{signed_date}"
-      end
-    else
-      # Agree to Vacate format
-      html_content.gsub!(/(<span class="sig-underline">)(<\/span>\s*<div class="sig-label">\s*<span>#{role}<\/span>)/m) do
-        "#{Regexp.last_match(1)}/s/ #{escaped_signature_name}#{Regexp.last_match(2)}"
-      end
-      html_content.gsub!(/(<span>#{role}<\/span>\s*<span style="float: right;">)Date(<\/span>)/m) do
-        "#{Regexp.last_match(1)}#{signed_date}#{Regexp.last_match(2)}"
-      end
-    end
-
-    File.write(file_path, html_content)
   end
 
   def next_filedraft_pk_value

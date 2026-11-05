@@ -904,11 +904,13 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "John Doe", file.reload.TenantSignatureName
   end
 
-  %w[a b c].each do |template|
-    test "agreement template #{template} escapes both signatures and preserves document markup" do
+  %w[a b c].product([false, true], [false, true]).each do |template, legacy, landlord_first|
+    test "agreement template #{template} legacy #{legacy} landlord first #{landlord_first} escapes signatures and preserves markup" do
       travel_to Time.zone.local(2026, 11, 5, 12) do
-        file = create_agreement_draft(template: template, legacy: true)
-        path = Rails.root.join("public", file.FileURLPath)
+        file = create_agreement_draft(template: template, legacy: legacy)
+        metadata = file.attributes.except("FileURLPath", "TenantSignature", "LandlordSignature", "TenantSignedAt", "LandlordSignedAt", "TenantSignatureName", "LandlordSignatureName", "UpdatedAt", "updated_at")
+        attachments = file.file_attachments.pluck(:MessageID)
+        path = DocumentStorage.configured.resolve(file.FileURLPath)
         original_html = File.read(path)
         original_document = Nokogiri::HTML(original_html)
         names = {
@@ -916,19 +918,26 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
           "Landlord" => %q{Landlord <img src=x onerror="alert('x')"> & \1 \2 \& \` \' \\ &amp;}
         }
 
+        names = names.to_a.reverse.to_h if landlord_first
+        previous_locator = file.FileURLPath
         names.each do |role, name|
           log_in_as(role == "Tenant" ? @tenant : @landlord)
           post apply_signature_document_path(file.FileID), params: { signature_name: name, agreement_version: 1 }
 
           assert_redirected_to view_file_path(file.FileID)
+          refute_equal previous_locator, file.reload.FileURLPath
+          previous_locator = file.FileURLPath
+          assert_equal Time.current, file.public_send("#{role}SignedAt")
           assert_equal name, file.reload.public_send("#{role}SignatureName")
           assert_equal true, file.public_send("#{role}Signature")
-          html = File.read(path)
+          assert_equal original_html, File.read(path)
+          assert_match(/\AprivateDocuments\//, file.FileURLPath)
+          html = DocumentStorage.configured.resolve(file.FileURLPath).read
           assert_includes html, "/s/ #{ERB::Util.html_escape(name)}"
           refute_includes html, name
         end
 
-        signed_document = Nokogiri::HTML(File.read(path))
+        signed_document = Nokogiri::HTML(DocumentStorage.configured.resolve(file.FileURLPath).read)
         selectors = { "a" => ".sig-block", "b" => ".signature-section p", "c" => ".signature-section .signature-line" }
         signature_selectors = { "a" => ".sig-underline", "b" => "span.signature-line", "c" => "span.line" }
         signed_document.css(selectors.fetch(template)).each do |block|
@@ -936,14 +945,101 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
           assert_equal "/s/ #{names.fetch(role)}", block.at_css(signature_selectors.fetch(template)).text
           assert_includes block.text, "November 05, 2026"
         end
+        assert_equal metadata, file.attributes.slice(*metadata.keys)
+        assert_equal attachments, file.file_attachments.pluck(:MessageID)
         # Only signature text and dates may change; retain all elements and attributes.
         assert_equal original_document.css("*").map { |node| [node.name, node.attributes.transform_values(&:value)] },
           signed_document.css("*").map { |node| [node.name, node.attributes.transform_values(&:value)] }
-        restored_html = File.read(path)
+        restored_html = DocumentStorage.configured.resolve(file.FileURLPath).read
         names.each_value { |name| restored_html.sub!("/s/ #{ERB::Util.html_escape(name)}") { template == "b" ? "___________" : "" } }
         restored_html.gsub!("November 05, 2026", { "a" => "Date", "b" => "___________", "c" => "__________" }.fetch(template))
         assert_equal original_html, restored_html
       end
+    end
+  end
+
+  %w[missing invalid unreadable legacy_disabled malformed date pdf publication database transformation].each do |failure|
+    test "signing #{failure} failure preserves metadata bytes and sends no success events" do
+      file = create_agreement_draft(template: "b", legacy: failure == "legacy_disabled")
+      storage = DocumentStorage.configured
+      source = storage.resolve(file.FileURLPath)
+      case failure
+      when "missing" then file.update!(FileURLPath: "privateDocuments/absent.html")
+      when "invalid" then file.update!(FileURLPath: "../outside.html")
+      when "malformed" then source.write(source.read.gsub("___________", "broken"))
+      when "date" then source.write(source.read.gsub('class="date-line"', 'class="broken"'))
+      when "pdf" then file.update!(FileTypes: "pdf")
+      end
+      before = file.reload.attributes
+      bytes = source.binread
+      publications = Dir.children(@document_storage_root).sort
+      log_in_as(@tenant)
+      request = -> {
+        assert_no_enqueued_emails do
+          assert_no_difference("Message.count") do
+            ActionCable.server.stub(:broadcast, ->(*) { flunk "Failure broadcast success" }) do
+              post apply_signature_document_path(file.FileID), params: { signature_name: "Tenant", agreement_version: 1 }
+            end
+          end
+        end
+      }
+      case failure
+      when "publication"
+        File.stub(:link, ->(*) { raise Errno::EACCES }) { request.call }
+      when "database"
+        record = FileDraft.find(file.FileID)
+        record.stub(:save!, ->(*) { raise ActiveRecord::RecordInvalid.new(record) }) do
+          FileDraft.stub(:find_viewable_by, record) { request.call }
+        end
+      when "unreadable"
+        File.stub(:binread, ->(*) { raise IOError, "Unreadable source" }) { request.call }
+      when "legacy_disabled"
+        Rails.application.config.x.document_storage = DocumentStorageConfiguration.new(
+          root: @document_storage_root, public_root: Rails.root.join("public"), legacy_reads_enabled: false
+        )
+        request.call
+      when "transformation"
+        transformer = Object.new
+        def transformer.call(*) = raise(AgreementSignature::Invalid)
+        AgreementSignature.stub(:new, transformer) { request.call }
+      else
+        request.call
+      end
+      assert_redirected_to view_file_path(file.FileID)
+      assert_equal "Failed to save signature. Please try again.", flash[:alert]
+      assert_equal before, file.reload.attributes
+      assert_equal bytes, source.binread
+      assert_equal publications, Dir.children(@document_storage_root).sort
+    end
+  end
+
+  %w[duplicate stale pending outsider mediator admin].each do |rejection|
+    test "signing #{rejection} rejection leaves private document unchanged without success events" do
+      file = create_agreement_draft
+      case rejection
+      when "duplicate" then file.update!(TenantSignature: true, TenantSignedAt: Time.current, TenantSignatureName: "Prior")
+      when "pending"
+        file.update!(AgreementProposal: { base_version: 1, changes: { vacate_date: { decision: "pending" } } }.to_json)
+      end
+      actor = { "outsider" => @outsider, "mediator" => @mediator, "admin" => users(:admin1) }.fetch(rejection, @tenant)
+      log_in_as(actor)
+      before = file.reload.attributes
+      source = DocumentStorage.configured.resolve(file.FileURLPath)
+      bytes = source.binread
+      publications = Dir.children(@document_storage_root).sort
+      assert_no_enqueued_emails do
+        assert_no_difference("Message.count") do
+          ActionCable.server.stub(:broadcast, ->(*) { flunk "Rejected signature broadcast success" }) do
+            post apply_signature_document_path(file.FileID), params: {
+              signature_name: "Signer", agreement_version: rejection == "stale" ? 0 : 1
+            }
+          end
+        end
+      end
+      assert_nil flash[:success]
+      assert_equal before, file.reload.attributes
+      assert_equal bytes, source.binread
+      assert_equal publications, Dir.children(@document_storage_root).sort
     end
   end
 
@@ -1061,7 +1157,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "conversation agreement can be reviewed and signed immediately after reading it" do
-    file = create_agreement_draft(legacy: true)
+    file = create_agreement_draft
     assert file.agreement_document?
     assert_equal @mediation.ConversationID, file.AgreementConversationID
 
@@ -1119,7 +1215,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "accepted suggestions update the document immediately while remaining suggestions stay pending" do
-    file = create_agreement_draft(legacy: true)
+    file = create_agreement_draft
     log_in_as(@landlord)
     get review_document_path(file.FileID)
     assert_redirected_to view_file_path(file.FileID, edit: 1)
@@ -1375,7 +1471,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "rejecting every suggestion keeps the agreement and signatures" do
-    file = create_agreement_draft(legacy: true)
+    file = create_agreement_draft
     log_in_as(@landlord)
     post apply_signature_document_path(file.FileID), params: { signature_name: "Jane Doe", agreement_version: 1 }
     patch update_review_document_path(file.FileID), params: agreement_params.merge(
@@ -1541,20 +1637,41 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "unmatched payment suggestion keeps the signed document unchanged until reviewed" do
-    file = create_agreement_draft(legacy: true)
+    file = create_agreement_draft
+    unsigned_locator = file.FileURLPath
     log_in_as(@landlord)
     post apply_signature_document_path(file.FileID), params: { signature_name: "Jane Doe", agreement_version: 1 }
-    original_html = File.read(DocumentStorage.configured.resolve(file.FileURLPath))
+    assert_redirected_to view_file_path(file.FileID)
+
+    # Signing publishes a new private revision; capture that revision after reloading.
+    file.reload
+    signed_locator = file.FileURLPath
+    assert_not_equal unsigned_locator, signed_locator
+    assert_match(/\AprivateDocuments\//, signed_locator)
+    assert file.LandlordSignature
+    assert_not file.TenantSignature
+    assert_equal "Jane Doe", file.LandlordSignatureName
+    assert_not_nil file.LandlordSignedAt
+    signed_html = File.binread(DocumentStorage.configured.resolve(signed_locator))
+    assert_includes signed_html, "/s/ Jane Doe"
+    assert_includes signed_html, file.LandlordSignedAt.strftime("%B %d, %Y")
+    signature_metadata = file.attributes.slice(
+      "LandlordSignature", "TenantSignature", "LandlordSignedAt", "TenantSignedAt",
+      "LandlordSignatureName", "TenantSignatureName"
+    )
+    signed_version = file.AgreementVersion
+    assert_equal 1, signed_version
 
     patch update_review_document_path(file.FileID), params: agreement_params.merge(
       agreement_version: 1, amount2: "300"
     )
 
     assert_redirected_to view_file_path(file.FileID)
-    assert_equal 1, file.reload.AgreementVersion
-    assert file.LandlordSignature
+    assert_equal signed_version, file.reload.AgreementVersion
+    assert_equal signed_locator, file.FileURLPath
+    assert_equal signature_metadata, file.attributes.slice(*signature_metadata.keys)
     assert file.agreement_suggestions_pending?
-    assert_equal original_html, File.read(DocumentStorage.configured.resolve(file.FileURLPath))
+    assert_equal signed_html, File.binread(DocumentStorage.configured.resolve(file.FileURLPath))
   end
 
   test "unrelated users cannot revise an agreement" do
@@ -2062,7 +2179,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     file = FileAttachment.order(:MessageID).last.file_draft
     return file unless legacy
 
-    # Signing remains a legacy workflow until Stage 2B-3.
+    # Explicit compatibility fixture for permitted legacy reads.
     private_path = DocumentStorage.configured.resolve(file.FileURLPath)
     legacy_locator = "userFiles/#{File.basename(private_path)}"
     FileUtils.mkdir_p(Rails.root.join("public", "userFiles"))
@@ -2109,7 +2226,8 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   def create_linked_signable_file(conversation_id:)
-    file = create_stored_file_draft(creator_id: @landlord.UserID, ext: ".html", content: "<strong>Tenant:</strong> <span class=\"signature-line\">___________</span>")
+    file = create_agreement_draft(template: "b")
+    file.update!(AgreementTemplate: nil, AgreementVersion: nil, AgreementConversationID: nil)
     message = Message.create!(
       ConversationID: conversation_id,
       SenderID: @landlord.UserID,
