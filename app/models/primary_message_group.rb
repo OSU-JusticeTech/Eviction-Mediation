@@ -45,6 +45,9 @@ class PrimaryMessageGroup < ApplicationRecord
   attr_accessor :notification_actor
 
   after_update_commit :notify_case_closed
+  # Persist these in-app alerts in the assignment transaction. The admin flow
+  # saves this case again to link side chats before the transaction commits.
+  after_update :notify_mediator_assignment
 
   def notification_participants
     [ tenant, landlord, (mediator if self.MediatorAssigned?) ].compact.uniq(&:UserID)
@@ -177,6 +180,16 @@ class PrimaryMessageGroup < ApplicationRecord
 
   private
 
+  def notify_mediator_assignment
+    return if past? || !self.MediatorAssigned? || self.MediatorID.nil?
+    return unless saved_change_to_MediatorID? || saved_change_to_MediatorAssigned?
+
+    reassigned = saved_change_to_MediatorID? && self.MediatorID_before_last_save.present?
+    [ tenant, landlord ].compact.uniq(&:UserID).each do |recipient|
+      MediationNotifications.mediator_assignment_notification(recipient, self.ConversationID, mediator, reassigned)
+    end
+  end
+
   def notify_case_closed
     return unless past? && (saved_change_to_deleted_at? || saved_change_to_Outcome?)
 
@@ -185,7 +198,7 @@ class PrimaryMessageGroup < ApplicationRecord
     notification_participants.each do |recipient|
       next if recipient.UserID == actor&.UserID
 
-      MediationMailer.case_closed_notification(recipient, self.ConversationID, self.Outcome, actor, outcome_updated).deliver_later
+      MediationNotifications.case_closed_notification(recipient, self.ConversationID, self.Outcome, actor, outcome_updated)
     end
   end
 

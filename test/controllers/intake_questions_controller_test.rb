@@ -200,6 +200,7 @@ class IntakeQuestionsControllerTest < ActionDispatch::IntegrationTest
 
     landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(landlord2.Email) }
     assert_not_empty landlord_emails
+    assert_equal "mediation_request", landlord2.notifications.sole.event
   end
 
   test "does not email the landlord when completing pre-request intake and their preference is off" do
@@ -216,6 +217,7 @@ class IntakeQuestionsControllerTest < ActionDispatch::IntegrationTest
 
     landlord_emails = ActionMailer::Base.deliveries.select { |m| m.to.include?(landlord2.Email) }
     assert_empty landlord_emails
+    assert_equal "mediation_request", landlord2.notifications.sole.event
   end
 
   test "rejects Unknown-only reason when completing intake before a request" do

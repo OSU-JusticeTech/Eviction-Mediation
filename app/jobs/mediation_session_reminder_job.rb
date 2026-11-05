@@ -16,8 +16,8 @@ class MediationSessionReminderJob < ApplicationJob
     actor = User.find_by(UserID: meeting[:MediatorID])
     event = lead_time == 24.hours.to_i ? "reminder_24h" : "reminder_1h"
     meeting.notification_recipients.each do |recipient|
-      MediationMailer.session_notification(recipient, meeting[:ConversationID], event, actor,
-                                           meeting[:StartTime], meeting[:EndTime], meeting[:ZoomLink]).deliver_later
+      MediationNotifications.session_notification(recipient, meeting[:ConversationID], event, actor,
+                                                  meeting[:StartTime], meeting[:EndTime], meeting[:ZoomLink])
     end
   end
 end
