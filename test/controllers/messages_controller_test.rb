@@ -65,6 +65,27 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to messages_path
   end
 
+  test "summary signed document links use authorized record routes for both storage types" do
+    @mediation.update!(deleted_at: Time.current)
+    message = Message.create!(ConversationID: @mediation.ConversationID, SenderID: @tenant.UserID,
+      MessageDate: Time.current, Contents: "Signed documents")
+    files = ["userFiles/historical.html", "privateDocuments/current.html"].map do |locator|
+      file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "Signed agreement", FileTypes: "html",
+        FileURLPath: locator, TenantSignature: true, LandlordSignature: true)
+      FileAttachment.create!(FileID: file.FileID, MessageID: message.MessageID)
+      file
+    end
+    log_in_as(@tenant)
+    get mediation_summary_path(@mediation.ConversationID)
+    assert_response :success
+    files.each do |file|
+      assert_select "a[href=?]", view_file_path(file.FileID), text: "Signed agreement"
+      assert_not_includes response.body, file.FileURLPath
+    end
+    assert_select "a[href^='/userFiles/']", count: 0
+    assert_select "a[href^='/privateDocuments/']", count: 0
+  end
+
   test "mediator is redirected from index" do
     mediator = users(:mediator1)
     log_in_as(mediator)

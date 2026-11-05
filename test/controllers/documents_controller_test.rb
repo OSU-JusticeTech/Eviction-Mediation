@@ -833,6 +833,35 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   %w[download_file download_document view_inline_document].each do |route|
+    test "#{route} preserves authorized legacy delivery while rejecting unsafe legacy locators" do
+      file = create_stored_file_draft(creator_id: @tenant.UserID, ext: ".txt", content: "legacy protected bytes")
+      path = Rails.root.join("public", file.FileURLPath)
+      begin
+        get public_send("#{route}_path", file.FileID)
+        assert_redirected_to login_path
+        log_in_as(@outsider)
+        get public_send("#{route}_path", file.FileID)
+        assert_response :not_found
+        log_in_as(@tenant)
+        get public_send("#{route}_path", file.FileID)
+        assert_response :success
+        assert_equal "legacy protected bytes", response.body
+        assert_match(route == "view_inline_document" ? /inline/ : /attachment/, response.headers["Content-Disposition"])
+        assert_includes response.headers["Cache-Control"], "no-store"
+
+        ["userFiles/missing-#{SecureRandom.hex(8)}.txt", "userFiles/../secret.txt",
+         "userFiles/%2e%2e.txt", "userFiles/nested/file.txt", "userFiles/a\\b.txt"].each do |locator|
+          file.update!(FileURLPath: locator)
+          get public_send("#{route}_path", file.FileID)
+          assert_response :not_found
+          assert_not_includes response.body, Rails.root.to_s
+          assert_not_includes response.body, locator
+        end
+      ensure
+        File.delete(path) if path.exist?
+      end
+    end
+
     test "#{route} sandboxes untrusted stored HTML without changing bytes or disposition" do
       log_in_as(@tenant)
       html = '<!doctype html><script>parent.document.body.textContent = document.cookie</script><p>Document</p>'
@@ -943,6 +972,30 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
       )
       get public_send("#{route}_path", file.FileID)
       assert_response :not_found
+    end
+  end
+
+  test "direct legacy HTTP requests deny anonymous and authenticated users despite existing file" do
+    middleware = Rails.application.middleware.map(&:klass)
+    assert_includes middleware, LegacyDocumentAccessBlocker
+    if middleware.include?(ActionDispatch::Static)
+      assert_operator middleware.index(LegacyDocumentAccessBlocker), :<, middleware.index(ActionDispatch::Static)
+    end
+    file = create_stored_file_draft(creator_id: @tenant.UserID, ext: ".txt", content: "direct access forbidden")
+    path = Rails.root.join("public", file.FileURLPath)
+    begin
+      get "/#{file.FileURLPath}"
+      assert_response :not_found
+      assert_not_includes response.body, "direct access forbidden"
+      log_in_as(@tenant)
+      get "/#{file.FileURLPath}"
+      assert_response :not_found
+      assert_not_includes response.body, "direct access forbidden"
+      get download_file_path(file.FileID)
+      assert_response :success
+      assert_equal "direct access forbidden", response.body
+    ensure
+      File.delete(path) if path.exist?
     end
   end
 
