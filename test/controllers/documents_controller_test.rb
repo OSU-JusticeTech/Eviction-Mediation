@@ -740,6 +740,51 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "John Doe", file.reload.TenantSignatureName
   end
 
+  %w[a b c].each do |template|
+    test "agreement template #{template} escapes both signatures and preserves document markup" do
+      travel_to Time.zone.local(2026, 11, 5, 12) do
+        log_in_as(@tenant)
+        post generate_from_intake_path(template: template), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
+        file = FileAttachment.order(:MessageID).last.file_draft
+        path = Rails.root.join("public", file.FileURLPath)
+        original_html = File.read(path)
+        original_document = Nokogiri::HTML(original_html)
+        names = {
+          "Tenant" => %q{Tenant <script>alert("x")</script> & ' \1 \2 \& \` \' \\ &lt;},
+          "Landlord" => %q{Landlord <img src=x onerror="alert('x')"> & \1 \2 \& \` \' \\ &amp;}
+        }
+
+        names.each do |role, name|
+          log_in_as(role == "Tenant" ? @tenant : @landlord)
+          post apply_signature_document_path(file.FileID), params: { signature_name: name, agreement_version: 1 }
+
+          assert_redirected_to view_file_path(file.FileID)
+          assert_equal name, file.reload.public_send("#{role}SignatureName")
+          assert_equal true, file.public_send("#{role}Signature")
+          html = File.read(path)
+          assert_includes html, "/s/ #{ERB::Util.html_escape(name)}"
+          refute_includes html, name
+        end
+
+        signed_document = Nokogiri::HTML(File.read(path))
+        selectors = { "a" => ".sig-block", "b" => ".signature-section p", "c" => ".signature-section .signature-line" }
+        signature_selectors = { "a" => ".sig-underline", "b" => "span.signature-line", "c" => "span.line" }
+        signed_document.css(selectors.fetch(template)).each do |block|
+          role = block.text.include?("Landlord") ? "Landlord" : "Tenant"
+          assert_equal "/s/ #{names.fetch(role)}", block.at_css(signature_selectors.fetch(template)).text
+          assert_includes block.text, "November 05, 2026"
+        end
+        # Only signature text and dates may change; retain all elements and attributes.
+        assert_equal original_document.css("*").map { |node| [node.name, node.attributes.transform_values(&:value)] },
+          signed_document.css("*").map { |node| [node.name, node.attributes.transform_values(&:value)] }
+        restored_html = File.read(path)
+        names.each_value { |name| restored_html.sub!("/s/ #{ERB::Util.html_escape(name)}") { template == "b" ? "___________" : "" } }
+        restored_html.gsub!("November 05, 2026", { "a" => "Date", "b" => "___________", "c" => "__________" }.fetch(template))
+        assert_equal original_html, restored_html
+      end
+    end
+  end
+
   test "apply signature prevents duplicate tenant signature" do
     log_in_as(@tenant)
     file = create_linked_signable_file(conversation_id: @mediation.ConversationID)

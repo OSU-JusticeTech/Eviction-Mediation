@@ -1539,49 +1539,32 @@ class DocumentsController < ApplicationController
     html_content = File.read(file_path)
     signed_date = Time.current.strftime("%B %d, %Y")
 
-    if is_landlord
-      # Try new Pay and Stay format first
-      if html_content =~ /<strong>Landlord:<\/strong>\s*<span class="signature-line">/
-        html_content.gsub!(
-          /(<strong>Landlord:<\/strong>\s*<span class="signature-line">)___________(<\/span>)/m,
-          "\\1/s/ #{signature_name}\\2"
-        )
-        html_content.gsub!(
-          /(<strong>Landlord:<\/strong>\s*<span class="signature-line">.*?<\/span>\s*<span style="margin-left: 50px;"><strong>Date:<\/strong> <span class="date-line">)___________(<\/span>)/m,
-          "\\1#{signed_date}\\2"
-        )
-      else
-        # Fall back to old format
-        html_content.gsub!(
-          /<span class="sig-underline"><\/span>\s*<div class="sig-label">\s*<span>Landlord<\/span>/m,
-          "<span class=\"sig-underline\">/s/ #{signature_name}</span>\n      <div class=\"sig-label\">\n        <span>Landlord</span>"
-        )
-        html_content.gsub!(
-          /(<span>Landlord<\/span>\s*<span style="float: right;">)Date(<\/span>)/m,
-          "\\1#{signed_date}\\2"
-        )
+    escaped_signature_name = ERB::Util.html_escape(signature_name)
+    role = is_landlord ? "Landlord" : "Tenant"
+
+    if html_content =~ /<strong>#{role}:<\/strong>\s*<span class="signature-line">/
+      # Pay and Stay format
+      html_content.gsub!(/(<strong>#{role}:<\/strong>\s*<span class="signature-line">)___________(<\/span>)/m) do
+        "#{Regexp.last_match(1)}/s/ #{escaped_signature_name}#{Regexp.last_match(2)}"
+      end
+      html_content.gsub!(/(<strong>#{role}:<\/strong>\s*<span class="signature-line">.*?<\/span>\s*<span style="margin-left: 50px;"><strong>Date:<\/strong> <span class="date-line">)___________(<\/span>)/m) do
+        "#{Regexp.last_match(1)}#{signed_date}#{Regexp.last_match(2)}"
+      end
+    elsif html_content =~ /<strong>#{role} Signature:<\/strong>/
+      # Mediation Agreement format
+      html_content.gsub!(/(<strong>#{role} Signature:<\/strong>\s*<span class="line">)(<\/span>)/) do
+        "#{Regexp.last_match(1)}/s/ #{escaped_signature_name}#{Regexp.last_match(2)}"
+      end
+      html_content.gsub!(/(<strong>#{role} Signature:<\/strong>\s*<span class="line">.*?<\/span>\s*<strong>Date:<\/strong> )__________/m) do
+        "#{Regexp.last_match(1)}#{signed_date}"
       end
     else
-      # Try new Pay and Stay format first
-      if html_content =~ /<strong>Tenant:<\/strong>\s*<span class="signature-line">/
-        html_content.gsub!(
-          /(<strong>Tenant:<\/strong>\s*<span class="signature-line">)___________(<\/span>)/m,
-          "\\1/s/ #{signature_name}\\2"
-        )
-        html_content.gsub!(
-          /(<strong>Tenant:<\/strong>\s*<span class="signature-line">.*?<\/span>\s*<span style="margin-left: 50px;"><strong>Date:<\/strong> <span class="date-line">)___________(<\/span>)/m,
-          "\\1#{signed_date}\\2"
-        )
-      else
-        # Fall back to old format
-        html_content.gsub!(
-          /<span class="sig-underline"><\/span>\s*<div class="sig-label">\s*<span>Tenant<\/span>/m,
-          "<span class=\"sig-underline\">/s/ #{signature_name}</span>\n      <div class=\"sig-label\">\n        <span>Tenant</span>"
-        )
-        html_content.gsub!(
-          /(<span>Tenant<\/span>\s*<span style="float: right;">)Date(<\/span>)/m,
-          "\\1#{signed_date}\\2"
-        )
+      # Agree to Vacate format
+      html_content.gsub!(/(<span class="sig-underline">)(<\/span>\s*<div class="sig-label">\s*<span>#{role}<\/span>)/m) do
+        "#{Regexp.last_match(1)}/s/ #{escaped_signature_name}#{Regexp.last_match(2)}"
+      end
+      html_content.gsub!(/(<span>#{role}<\/span>\s*<span style="float: right;">)Date(<\/span>)/m) do
+        "#{Regexp.last_match(1)}#{signed_date}#{Regexp.last_match(2)}"
       end
     end
 
