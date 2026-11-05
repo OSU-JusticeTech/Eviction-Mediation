@@ -1,4 +1,5 @@
 class MediatorMessagesController < ApplicationController
+  AttachmentError = Class.new(StandardError)
   before_action :require_login
   before_action :set_user
   before_action :set_side_conversation
@@ -29,20 +30,31 @@ class MediatorMessagesController < ApplicationController
       MessageDate: Time.current
     )
 
-    if @message.save
-      if params[:file_id].present?
-        file_draft = FileDraft.find_by(FileID: params[:file_id])
-
-        if file_draft
-          FileAttachment.create!(
-            MessageID: @message.MessageID,
-            FileID: file_draft.FileID
-          )
-        else
-          Rails.logger.error "FileDraft not found with ID: #{params[:file_id]}"
+    begin
+      message_saved = Message.transaction do
+        file_draft = nil
+        if params[:file_id].present?
+          file_draft = FileDraft.where(CreatorID: @user.UserID, UserDeletedAt: nil)
+                                .lock.find_by(FileID: params[:file_id])
+          raise AttachmentError, "The selected document could not be found." unless file_draft
+          if file_draft.has_attribute?(:AgreementTemplate) && file_draft[:AgreementTemplate].present?
+            raise AttachmentError, "Agreements must be shared in the primary conversation."
+          end
         end
-      end
 
+        saved = @message.save
+        FileAttachment.create!(MessageID: @message.MessageID, FileID: file_draft.FileID) if saved && file_draft
+        saved
+      end
+    rescue AttachmentError => e
+      respond_to do |format|
+        format.json { render json: { error: e.message }, status: :unprocessable_entity }
+        format.html { head :unprocessable_entity }
+      end
+      return
+    end
+
+    if message_saved
       attachments_payload = @message
         .file_attachments
         .includes(:file_draft)

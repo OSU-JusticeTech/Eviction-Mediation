@@ -161,33 +161,19 @@ class MediatorMessagesControllerTest < ActionDispatch::IntegrationTest
 
   test "create with file attachment persists attachment" do
     log_in_as(@tenant)
+    file_drafts(:one).update!(CreatorID: @tenant.UserID, UserDeletedAt: nil)
 
-    assert_difference("FileAttachment.count", 1) do
-      post mediator_messages_path,
-        params: {
-          conversation_id: @side_conversation.ConversationID,
-          recipient_id: @side_conversation.MediatorID,
-          Contents: "Attached",
-          file_id: file_drafts(:one).FileID
-        },
-        as: :json
-    end
-
-    assert_response :success
-  end
-
-  test "create with missing file draft still succeeds without attachment" do
-    log_in_as(@tenant)
-
-    assert_no_difference("FileAttachment.count") do
-      post mediator_messages_path,
-        params: {
-          conversation_id: @side_conversation.ConversationID,
-          recipient_id: @side_conversation.MediatorID,
-          Contents: "Missing file",
-          file_id: "does-not-exist"
-        },
-        as: :json
+    assert_difference(["Message.count", "FileAttachment.count"], 1) do
+      assert_broadcasts("side_messages_#{@side_conversation.ConversationID}", 1) do
+        post mediator_messages_path,
+          params: {
+            conversation_id: @side_conversation.ConversationID,
+            recipient_id: @side_conversation.MediatorID,
+            Contents: "Attached",
+            file_id: file_drafts(:one).FileID
+          },
+          as: :json
+      end
     end
 
     assert_response :success
@@ -273,6 +259,98 @@ class MediatorMessagesControllerTest < ActionDispatch::IntegrationTest
   test "admin has no blanket private posting access" do
     log_in_as(users(:admin1))
     assert_private_post_rejected
+  end
+
+
+  # Security Fix 3B: viewing a document does not authorize attaching it.
+  test "Security Fix 3B rejects foreign attachment without side effects" do
+    log_in_as(@tenant)
+    file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "Security attachment",
+      FileTypes: "html", FileURLPath: "security-attachment.html")
+    file.update!(CreatorID: users(:landlord1).UserID)
+    assert_nil FileDraft.find_viewable_by(@tenant, file.FileID)
+    assert_no_difference(["Message.count", "FileAttachment.count"]) do
+      assert_no_broadcasts("side_messages_#{@side_conversation.ConversationID}") do
+        post mediator_messages_path, params: { conversation_id: @side_conversation.ConversationID, Contents: "Rejected attachment",
+          file_id: file.FileID }, as: :json
+      end
+    end
+    assert_response :unprocessable_entity
+    assert_nil FileDraft.find_viewable_by(@tenant, file.FileID)
+  end
+
+  test "Security Fix 3B rejects foreign viewable attachment without side effects" do
+    log_in_as(@tenant)
+    file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "Security attachment",
+      FileTypes: "html", FileURLPath: "security-attachment.html")
+    file.update!(CreatorID: users(:landlord1).UserID)
+    message = Message.create!(ConversationID: @mediation.ConversationID,
+      SenderID: @tenant.UserID, Contents: "Already visible", MessageDate: 1.minute.ago)
+    FileAttachment.create!(MessageID: message.MessageID, FileID: file.FileID)
+    assert_equal file, FileDraft.find_viewable_by(@tenant, file.FileID)
+    assert_no_difference(["Message.count", "FileAttachment.count"]) do
+      assert_no_broadcasts("side_messages_#{@side_conversation.ConversationID}") do
+        post mediator_messages_path, params: { conversation_id: @side_conversation.ConversationID, Contents: "Rejected attachment",
+          file_id: file.FileID }, as: :json
+      end
+    end
+    assert_response :unprocessable_entity
+  end
+
+  test "Security Fix 3B rejects deleted attachment without side effects" do
+    log_in_as(@tenant)
+    file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "Security attachment",
+      FileTypes: "html", FileURLPath: "security-attachment.html")
+    file.update!(UserDeletedAt: Time.current)
+    assert_no_difference(["Message.count", "FileAttachment.count"]) do
+      assert_no_broadcasts("side_messages_#{@side_conversation.ConversationID}") do
+        post mediator_messages_path, params: { conversation_id: @side_conversation.ConversationID, Contents: "Rejected attachment",
+          file_id: file.FileID }, as: :json
+      end
+    end
+    assert_response :unprocessable_entity
+  end
+
+  test "Security Fix 3B rejects missing attachment without side effects" do
+    log_in_as(@tenant)
+    file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "Security attachment",
+      FileTypes: "html", FileURLPath: "security-attachment.html")
+    assert_no_difference(["Message.count", "FileAttachment.count"]) do
+      assert_no_broadcasts("side_messages_#{@side_conversation.ConversationID}") do
+        post mediator_messages_path, params: { conversation_id: @side_conversation.ConversationID, Contents: "Rejected attachment",
+          file_id: "does-not-exist" }, as: :json
+      end
+    end
+    assert_response :unprocessable_entity
+  end
+
+  test "Security Fix 3B rejects foreign agreement attachment without side effects" do
+    log_in_as(@tenant)
+    file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "Security attachment",
+      FileTypes: "html", FileURLPath: "security-attachment.html")
+    file.update!(CreatorID: users(:landlord1).UserID)
+    file.update!(AgreementTemplate: "a", AgreementVersion: 1)
+    assert_no_difference(["Message.count", "FileAttachment.count"]) do
+      assert_no_broadcasts("side_messages_#{@side_conversation.ConversationID}") do
+        post mediator_messages_path, params: { conversation_id: @side_conversation.ConversationID, Contents: "Rejected attachment",
+          file_id: file.FileID }, as: :json
+      end
+    end
+    assert_response :unprocessable_entity
+  end
+
+  test "Security Fix 3B rejects owned agreement attachment without side effects" do
+    log_in_as(@tenant)
+    file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "Security attachment",
+      FileTypes: "html", FileURLPath: "security-attachment.html")
+    file.update!(AgreementTemplate: "a", AgreementVersion: 1)
+    assert_no_difference(["Message.count", "FileAttachment.count"]) do
+      assert_no_broadcasts("side_messages_#{@side_conversation.ConversationID}") do
+        post mediator_messages_path, params: { conversation_id: @side_conversation.ConversationID, Contents: "Rejected attachment",
+          file_id: file.FileID }, as: :json
+      end
+    end
+    assert_response :unprocessable_entity
   end
 
   private
