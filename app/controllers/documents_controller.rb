@@ -178,39 +178,14 @@ class DocumentsController < ApplicationController
 
   # delete files
   def destroy
-    file = FileDraft.find_by(FileID: params[:id])
-    return render plain: "File not found", status: :not_found unless file
-
-    # Check if user is creator OR part of the conversation
-    can_delete = file.CreatorID == @user[:UserID]
-
-    unless can_delete
-
-      attachments = FileAttachment.where(FileID: file.FileID)
-      if attachments.exists?
-        message_ids = attachments.pluck(:MessageID)
-        conversation_ids = Message.where(MessageID: message_ids).pluck(:ConversationID)
-        can_delete = PrimaryMessageGroup.where(ConversationID: conversation_ids)
-                                        .where("LandlordID = ? OR TenantID = ?", @user[:UserID], @user[:UserID])
-                                        .exists?
-      end
-    end
-
-    return render plain: "Unauthorized", status: :forbidden unless can_delete
-
-    # Delete the physical file
-    delete_physical_file(file)
-
-    # Delete file attachments (removes from chat)
-    FileAttachment.where(FileID: file.FileID).destroy_all
-
-    if FileDraft.column_names.include?("UserDeletedAt")
-      file.update!(UserDeletedAt: Time.current)
-    else
-      file.destroy!
-    end
-
+    DocumentDeletion.new.call(id: params[:id], user: @user)
     redirect_to documents_path, notice: "Document deleted."
+  rescue DocumentDeletion::NotFound
+    render plain: "File not found", status: :not_found
+  rescue DocumentDeletion::Unauthorized
+    render plain: "Unauthorized", status: :forbidden
+  rescue DocumentDeletion::Failure
+    render plain: "Unable to delete document. Please try again.", status: :service_unavailable
   end
 
   def index
@@ -1467,15 +1442,6 @@ class DocumentsController < ApplicationController
     }.fetch(template.to_s, "Agreement")
 
     [ *party_names, document_type ].compact.join(" - ")
-  end
-
-  def delete_physical_file(file)
-    rel = Pathname.new(file.FileURLPath.to_s).cleanpath
-    base = Rails.root.join("public")
-    path = base.join(rel)
-    if path.to_s.start_with?(base.to_s) && File.exist?(path)
-      File.delete(path) rescue nil
-    end
   end
 
   def find_file_for_user(id)

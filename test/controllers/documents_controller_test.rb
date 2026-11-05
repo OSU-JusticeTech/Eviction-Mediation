@@ -721,6 +721,23 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "destroy denies former creator without conversation permission" do
+    file = file_drafts(:two)
+    former_creator = User.find(file.CreatorID)
+    log_in_as(former_creator)
+    FileDraft.where(FileID: file.FileID).update_all(CreatorID: @outsider.UserID)
+    attributes = FileDraft.find(file.FileID).attributes
+    attachments = FileAttachment.where(FileID: file.FileID).pluck(:MessageID)
+
+    delete document_path(file.FileID)
+
+    assert_response :forbidden
+    # The login redirect's notice can still be present on this request.
+    assert_not_equal "Document deleted.", flash[:notice]
+    assert_equal attributes, file.reload.attributes
+    assert_equal attachments, FileAttachment.where(FileID: file.FileID).pluck(:MessageID)
+  end
+
   test "creator can destroy document" do
     file = file_drafts(:two)
     log_in_as(@tenant)
@@ -729,6 +746,42 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to documents_path
     assert_equal "Document deleted.", flash[:notice]
+  end
+
+  test "failed deletion emits no success flash email or broadcast" do
+    file = file_drafts(:two)
+    log_in_as(@tenant)
+    attributes = file.attributes
+    attachments = FileAttachment.where(FileID: file.FileID).order(:MessageID).map(&:attributes)
+    deletion = DocumentDeletion.new
+    DocumentDeletion.stub(:new, deletion) do
+      deletion.stub(:call, ->(**) { raise DocumentDeletion::Failure }) do
+        ActionCable.server.stub(:broadcast, ->(*) { flunk "failed deletion broadcast success" }) do
+          assert_no_enqueued_emails { delete document_path(file.FileID) }
+        end
+      end
+    end
+    assert_response :service_unavailable
+    # The login redirect's notice can still be present on this request.
+    assert_not_equal "Document deleted.", flash[:notice]
+    assert_nil file.reload.UserDeletedAt
+    assert FileAttachment.exists?(FileID: file.FileID)
+    assert_equal attributes, file.attributes
+    assert_equal attachments, FileAttachment.where(FileID: file.FileID).order(:MessageID).map(&:attributes)
+  end
+
+  test "conversation party retains deletion permission without being creator" do
+    file = file_drafts(:one)
+    file.update!(CreatorID: @outsider.UserID)
+    message = Message.find(FileAttachment.find_by!(FileID: file.FileID).MessageID)
+    message.update!(ConversationID: @mediation.ConversationID)
+    log_in_as(@tenant)
+    delete document_path(file.FileID)
+    assert_redirected_to documents_path
+    assert file.reload.UserDeletedAt
+    assert Message.exists?(MessageID: message.MessageID)
+    assert PrimaryMessageGroup.exists?(ConversationID: @mediation.ConversationID)
+    assert_empty FileAttachment.where(FileID: file.FileID)
   end
 
   test "apply signature requires signature name" do
