@@ -778,34 +778,7 @@ class DocumentsController < ApplicationController
     file = find_file_for_user(params[:id])
     return render plain: "File not found (record)", status: :not_found unless file
 
-    base_path = Rails.root.join("public")
-    rel_path  = Pathname.new(file.FileURLPath).cleanpath
-    path      = base_path.join(rel_path)
-
-    size = File.exist?(path) ? File.size(path) : -1
-    Rails.logger.info "[DL] path=#{path} exists=#{File.exist?(path)} size=#{size}"
-
-
-    unless path.to_s.start_with?(base_path.to_s) && File.exist?(path)
-      return render plain: "File not found (#{path})", status: :not_found
-    end
-    if size <= 0
-      return render plain: "Generated file is empty (#{path})", status: :unprocessable_entity
-    end
-
-    mime_type = begin
-      Marcel::MimeType.for(path.to_path, extension: File.extname(path))
-    rescue StandardError
-      nil
-    end
-
-
-    disposition = "attachment"
-
-    send_file path,
-              filename: "#{file.FileName}#{File.extname(path)}",
-              type: mime_type || "application/octet-stream",
-              disposition: disposition
+    deliver_document(file, disposition: "attachment")
   end
 
 
@@ -822,34 +795,7 @@ class DocumentsController < ApplicationController
       return render template: agreement_template_file(file.AgreementTemplate), layout: false
     end
 
-    base_path = Rails.root.join("public")
-    rel_path  = Pathname.new(file.FileURLPath).cleanpath
-    path      = base_path.join(rel_path)
-
-    size = File.exist?(path) ? File.size(path) : -1
-    Rails.logger.info "[VIEW] path=#{path} exists=#{File.exist?(path)} size=#{size}"
-
-
-    unless path.to_s.start_with?(base_path.to_s) && File.exist?(path)
-      return render plain: "File not found (#{path})", status: :not_found
-    end
-    if size <= 0
-      return render plain: "Generated file is empty (#{path})", status: :unprocessable_entity
-    end
-
-    mime_type = begin
-      Marcel::MimeType.for(path.to_path, extension: File.extname(path))
-    rescue StandardError
-      nil
-    end
-
-
-    disposition = "inline"
-
-    send_file path,
-              filename: "#{file.FileName}#{File.extname(path)}",
-              type: mime_type || "application/octet-stream",
-              disposition: disposition
+    deliver_document(file, disposition: "inline")
   end
 
   def generate_filled_template
@@ -941,6 +887,36 @@ class DocumentsController < ApplicationController
 
 
   private
+
+  # Call only after the record has passed find_file_for_user authorization.
+  def deliver_document(file, disposition:)
+    response.headers["Cache-Control"] = "private, no-store"
+    path = DocumentStorage.configured.resolve(file.FileURLPath)
+    return render plain: "Generated file is empty", status: :unprocessable_entity if path.size.zero?
+
+    mime_type = begin
+      Marcel::MimeType.for(path.to_path, extension: File.extname(path))
+    rescue StandardError
+      nil
+    end
+
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    # Stored bytes are untrusted, including generated HTML. Keep parent access
+    # for the agreement scroll check, but never allow document scripts to run.
+    # Native PDF viewers must remain usable without sandbox restrictions.
+    unless mime_type == "application/pdf"
+      response.headers["Content-Security-Policy"] = "sandbox allow-same-origin"
+    end
+
+    send_file path,
+              filename: "#{file.FileName}#{File.extname(path)}",
+              type: mime_type || "application/octet-stream",
+              disposition: disposition
+  rescue DocumentStorage::InvalidLocator, DocumentStorage::MissingFile
+    render plain: "File not found", status: :not_found
+  rescue DocumentStorage::Unavailable, DocumentStorageConfiguration::InvalidConfiguration, SystemCallError, IOError
+    render plain: "Document storage is unavailable", status: :service_unavailable
+  end
 
   AGREEMENT_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed monthly_rent
                         best_option vacate_date rent_owed late_fees utilities other_charges

@@ -779,6 +779,120 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/inline/, response.headers["Content-Disposition"])
   end
 
+  %w[download_file download_document view_inline_document].each do |route|
+    test "#{route} sandboxes untrusted stored HTML without changing bytes or disposition" do
+      log_in_as(@tenant)
+      html = '<!doctype html><script>parent.document.body.textContent = document.cookie</script><p>Document</p>'
+      locator = DocumentStorage.configured.store(io: StringIO.new(html), extension: "html")
+      file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "untrusted", FileTypes: "html", FileURLPath: locator)
+
+      get public_send("#{route}_path", file.FileID)
+
+      assert_response :success
+      assert_equal html, response.body
+      assert_equal "text/html", response.media_type
+      assert_equal "sandbox allow-same-origin", response.headers["Content-Security-Policy"]
+      assert_equal "nosniff", response.headers["X-Content-Type-Options"]
+      assert_includes response.headers["Cache-Control"], "no-store"
+      assert_match(route == "view_inline_document" ? /inline/ : /attachment/, response.headers["Content-Disposition"])
+    end
+
+    test "#{route} preserves native PDF delivery without a CSP sandbox" do
+      log_in_as(@tenant)
+      pdf = Prawn::Document.new.render
+      locator = DocumentStorage.configured.store(io: StringIO.new(pdf), extension: "pdf")
+      file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "preview", FileTypes: "pdf", FileURLPath: locator)
+
+      get public_send("#{route}_path", file.FileID)
+
+      assert_response :success
+      assert_equal pdf.b, response.body.b
+      assert_equal "application/pdf", response.media_type
+      assert_no_match(/\bsandbox\b/, response.headers["Content-Security-Policy"].to_s)
+      assert_equal "nosniff", response.headers["X-Content-Type-Options"]
+      assert_match(route == "view_inline_document" ? /inline/ : /attachment/, response.headers["Content-Disposition"])
+    end
+
+    test "#{route} delivers private bytes with authenticated noncacheable delivery" do
+      log_in_as(@tenant)
+      locator = DocumentStorage.configured.store(io: StringIO.new("private delivery bytes"), extension: "txt")
+      file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "private", FileTypes: "txt", FileURLPath: locator)
+
+      get public_send("#{route}_path", file.FileID)
+
+      assert_response :success
+      assert_equal "private delivery bytes", response.body
+      assert_includes response.headers["Cache-Control"], "no-store"
+      assert_match(route == "view_inline_document" ? /inline/ : /attachment/, response.headers["Content-Disposition"])
+    end
+
+    test "#{route} authorizes before resolving storage" do
+      file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "private", FileTypes: "txt", FileURLPath: "privateDocuments/missing.txt")
+      get public_send("#{route}_path", file.FileID)
+      assert_redirected_to login_path
+
+      log_in_as(@outsider)
+      DocumentStorage.stub(:configured, -> { flunk "Unauthorized request resolved storage" }) do
+        get public_send("#{route}_path", file.FileID)
+        assert_response :not_found
+      end
+      log_in_as(@tenant)
+      file.update!(UserDeletedAt: Time.current)
+      get public_send("#{route}_path", file.FileID)
+      assert_response :not_found
+    end
+
+    test "#{route} handles invalid missing empty and unavailable storage without exposing paths" do
+      log_in_as(@tenant)
+      file = FileDraft.create!(CreatorID: @tenant.UserID, FileName: "private", FileTypes: "txt", FileURLPath: "../secret.txt")
+      ["../secret.txt", "privateDocuments/missing.txt"].each do |locator|
+        file.update!(FileURLPath: locator)
+        get public_send("#{route}_path", file.FileID)
+        assert_response :not_found
+        assert_not_includes response.body, Rails.root.to_s
+      end
+      file.update!(FileURLPath: DocumentStorage.configured.store(io: StringIO.new(""), extension: "txt"))
+      get public_send("#{route}_path", file.FileID)
+      assert_response :unprocessable_entity
+      assert_not_includes response.body, @document_storage_root
+
+      DocumentStorage.stub(:configured, -> { raise DocumentStorage::Unavailable, @document_storage_root }) do
+        get public_send("#{route}_path", file.FileID)
+        assert_response :service_unavailable
+        assert_not_includes response.body, @document_storage_root
+      end
+    end
+
+    test "#{route} preserves historical private conversation access to legacy bytes" do
+      build_security_case
+      file = build_document_role_overlap("Side")
+      legacy = create_stored_file_draft(creator_id: @tenant.UserID, ext: ".txt", content: "historical bytes")
+      file.update!(FileURLPath: legacy.FileURLPath)
+      @side.update!(deleted_at: Time.current)
+      MessageString.find(@side.ConversationID).update!(deleted_at: Time.current)
+      @case.update!(deleted_at: Time.current, MediatorID: @other_mediator.UserID, TenantSideConversationID: nil)
+      [@tenant, @mediator].each do |user|
+        log_in_as(user)
+        get public_send("#{route}_path", file.FileID)
+        assert_response :success
+        assert_equal "historical bytes", response.body
+      end
+      log_in_as(@other_mediator)
+      get public_send("#{route}_path", file.FileID)
+      assert_response :not_found
+    end
+
+    test "#{route} respects disabled legacy reads" do
+      log_in_as(@tenant)
+      file = create_stored_file_draft(creator_id: @tenant.UserID, ext: ".txt", content: "legacy bytes")
+      Rails.application.config.x.document_storage = DocumentStorageConfiguration.new(
+        root: @document_storage_root, public_root: Rails.root.join("public"), legacy_reads_enabled: false
+      )
+      get public_send("#{route}_path", file.FileID)
+      assert_response :not_found
+    end
+  end
+
   test "apply signature succeeds for tenant participant" do
     log_in_as(@tenant)
     file = create_linked_signable_file(conversation_id: @mediation.ConversationID)
@@ -974,6 +1088,34 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     get view_file_path(file.FileID)
     assert_select "form[action='#{apply_signature_document_path(file.FileID)}']", count: 0
     assert_select "a[href='#{review_document_path(file.FileID)}']", count: 0
+  end
+
+  test "stored agreement HTML is sandboxed while editable preview renders escaped saved terms" do
+    file = create_agreement_draft
+    stored_html = '<!doctype html><script>parent.document.body.remove()</script><p>Stored bytes</p>'
+    File.write(DocumentStorage.configured.resolve(file.FileURLPath), stored_html)
+    terms = file.agreement_terms.merge("additional_terms" => '<script>alert("saved term")</script>')
+    file.update!(AgreementTerms: JSON.generate(terms))
+    log_in_as(@landlord)
+
+    get view_inline_document_path(file.FileID)
+    assert_response :success
+    assert_equal stored_html, response.body
+    assert_equal "sandbox allow-same-origin", response.headers["Content-Security-Policy"]
+    assert_equal "nosniff", response.headers["X-Content-Type-Options"]
+
+    get view_file_path(file.FileID, edit: 1)
+    assert_response :success
+    assert_select "[data-agreement-editor]"
+    assert_select "iframe[src='#{view_inline_document_path(file.FileID, editable_preview: 1)}']"
+
+    get view_inline_document_path(file.FileID, editable_preview: 1)
+    assert_response :success
+    assert_no_match(/\bsandbox\b/, response.headers["Content-Security-Policy"].to_s)
+    assert_select "[data-agreement-field='vacate_date']"
+    assert_includes response.body, ERB::Util.html_escape(terms["additional_terms"])
+    assert_not_includes response.body, stored_html
+    assert_select "script", count: 0
   end
 
   test "accepted suggestions update the document immediately while remaining suggestions stay pending" do
