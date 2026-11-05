@@ -1289,8 +1289,8 @@ class DocumentsController < ApplicationController
     [ conversation.tenant, conversation.landlord ].compact.uniq(&:UserID).each do |recipient|
       next if recipient.UserID == @user.UserID
 
-      MediationMailer.agreement_notification(recipient, conversation.ConversationID, event, file.FileID,
-                                            @user, changes, signing_status).deliver_later
+      MediationNotifications.agreement_notification(recipient, conversation.ConversationID, event, file.FileID,
+                                                    @user, changes, signing_status)
     end
   end
 

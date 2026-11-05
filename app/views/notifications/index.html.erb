@@ -1,0 +1,56 @@
+<% content_for :title, "Notifications | Eviction Mediation" %>
+<% content_for :head do %><meta name="turbo-cache-control" content="no-cache"><% end %>
+<div class="notifications-container">
+  <header class="notifications-heading">
+    <div>
+      <h1><i class="fas fa-bell" aria-hidden="true"></i> Notifications</h1>
+      <p>Stay up to date on your negotiations, agreements, and mediation sessions.</p>
+    </div>
+    <% if @unread_count.positive? %>
+      <%= button_to "Mark all as read", mark_all_read_notifications_path, method: :patch, class: "notification-button" %>
+    <% end %>
+  </header>
+
+  <nav class="notification-filters" aria-label="Filter notifications">
+    <%= link_to "All", notifications_path, class: "notification-filter #{'is-active' unless @unread_only}", aria: { current: ("page" unless @unread_only) } %>
+    <%= link_to "Unread (#{@unread_count})", notifications_path(filter: "unread"), class: "notification-filter #{'is-active' if @unread_only}", aria: { current: ("page" if @unread_only) } %>
+  </nav>
+
+  <% if @notifications.empty? %>
+    <div class="notifications-empty account-card">
+      <i class="far fa-bell" aria-hidden="true"></i>
+      <h2><%= @unread_only ? "You're all caught up" : "No notifications yet" %></h2>
+      <p><%= @unread_only ? "You have no unread notifications." : "Updates about your cases will appear here." %></p>
+    </div>
+  <% else %>
+    <ol class="notification-list">
+      <% @notifications.each do |notification| %>
+        <li class="notification-card account-card <%= 'notification-card--unread' if notification.unread? %>">
+          <div class="notification-card__content">
+            <% if notification.unread? %><span class="notification-unread-label">Unread</span><% end %>
+            <h2><%= notification.title %></h2>
+            <p class="notification-meta">
+              Case #<%= notification.conversation_id %> &middot;
+              <time datetime="<%= notification.created_at.iso8601 %>" title="<%= notification.created_at.in_time_zone.strftime('%B %-d, %Y at %-I:%M %p %Z') %>"><%= time_ago_in_words(notification.created_at) %> ago</time>
+            </p>
+            <p class="notification-body"><%= notification.body %></p>
+          </div>
+          <div class="notification-card__actions">
+            <%= button_to "View details", open_notification_path(notification), method: :patch, class: "notification-button" %>
+            <% if notification.unread? %>
+              <%= button_to "Mark as read", notification_path(notification, filter: params[:filter], page: @page), method: :patch, class: "notification-button notification-button--secondary" %>
+            <% end %>
+          </div>
+        </li>
+      <% end %>
+    </ol>
+  <% end %>
+
+  <% if @page > 1 || @has_next_page %>
+    <nav class="notification-pagination" aria-label="Notification pages">
+      <% if @page > 1 %><%= link_to "Previous", notifications_path(filter: params[:filter], page: @page - 1), class: "notification-filter" %><% end %>
+      <span>Page <%= @page %></span>
+      <% if @has_next_page %><%= link_to "Next", notifications_path(filter: params[:filter], page: @page + 1), class: "notification-filter" %><% end %>
+    </nav>
+  <% end %>
+</div>

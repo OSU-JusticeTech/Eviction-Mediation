@@ -20,6 +20,7 @@ class MediationSessionNotificationsTest < ActiveSupport::TestCase
 
   test "scheduling emails both parties and mediator and queues both reminders" do
     assert_enqueued_emails(3) { @meeting.save! }
+    assert_session_notifications("scheduled")
     [ 24.hours, 1.hour ].each do |lead|
       assert_enqueued_with(job: MediationSessionReminderJob,
                            args: [ @meeting.id, @meeting.reminder_version, lead.to_i ],
@@ -44,6 +45,8 @@ class MediationSessionNotificationsTest < ActiveSupport::TestCase
         @meeting.save!
       end
     end
+    assert_session_notifications("rescheduled")
+    assert_includes @conversation.tenant.notifications.newest_first.first.body, "Previous time:"
     assert_enqueued_email_with MediationMailer, :session_notification,
       args: [ @mediator, @conversation.ConversationID, "rescheduled", @mediator,
               @meeting.StartTime, @meeting.EndTime, nil, previous ]
@@ -56,6 +59,7 @@ class MediationSessionNotificationsTest < ActiveSupport::TestCase
       args: [ @mediator, @conversation.ConversationID, "updated", @mediator,
               @meeting.StartTime, @meeting.EndTime, "https://zoom.us/example", nil ]
     assert_no_enqueued_emails { @meeting.save! }
+    assert_session_notifications("updated")
   end
 
   test "cancellation notifies once and does not schedule reminders" do
@@ -67,6 +71,8 @@ class MediationSessionNotificationsTest < ActiveSupport::TestCase
               @meeting.StartTime, @meeting.EndTime, nil, nil ]
     assert_enqueued_jobs 0, only: MediationSessionReminderJob
     assert_no_enqueued_emails { @meeting.update!(Status: "canceled") }
+    assert_session_notifications("canceled")
+    assert_not_includes @conversation.tenant.notifications.newest_first.first.body, "Join meeting:"
   end
 
   test "short notice scheduling queues only reminders whose time is still ahead" do
@@ -109,6 +115,7 @@ class MediationSessionNotificationsTest < ActiveSupport::TestCase
     version = @meeting.reminder_version
     travel_to @meeting.StartTime - 24.hours
     assert_enqueued_emails(3) { MediationSessionReminderJob.perform_now(@meeting.id, version, 24.hours.to_i) }
+    assert_session_notifications("reminder_24h")
     assert_no_enqueued_emails { MediationSessionReminderJob.perform_now(@meeting.id, "obsolete", 24.hours.to_i) }
     @meeting.update!(StartTime: @meeting.StartTime + 1.hour, EndTime: @meeting.EndTime + 1.hour)
     assert_no_enqueued_emails { MediationSessionReminderJob.perform_now(@meeting.id, version, 24.hours.to_i) }
@@ -121,6 +128,7 @@ class MediationSessionNotificationsTest < ActiveSupport::TestCase
     @meeting.save!
     travel_to @meeting.StartTime - 1.hour
     assert_enqueued_emails(3) { MediationSessionReminderJob.perform_now(@meeting.id, @meeting.reminder_version, 1.hour.to_i) }
+    assert_session_notifications("reminder_1h")
     @meeting.update!(Status: "completed")
     assert_no_enqueued_emails { MediationSessionReminderJob.perform_now(@meeting.id, @meeting.reminder_version, 1.hour.to_i) }
     @meeting.update!(Status: "scheduled")
@@ -133,5 +141,12 @@ class MediationSessionNotificationsTest < ActiveSupport::TestCase
     version = @meeting.reminder_version
     @meeting.destroy!
     assert_no_enqueued_emails { MediationSessionReminderJob.perform_now(id, version, 1.hour.to_i) }
+  end
+
+  private
+
+  def assert_session_notifications(event)
+    assert_equal [ @conversation.TenantID, @conversation.LandlordID, @mediator.UserID ].sort,
+                 Notification.where(event: "session_#{event}").pluck(:user_id).sort
   end
 end
