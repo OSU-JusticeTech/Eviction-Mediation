@@ -1,5 +1,7 @@
 require "test_helper"
 require "tempfile"
+require "tmpdir"
+require "minitest/mock"
 require_relative "../support/cable_authorization_helpers"
 
 class DocumentsControllerTest < ActionDispatch::IntegrationTest
@@ -63,7 +65,18 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  teardown do
+    Array(@legacy_agreement_fixture_paths).each { |path| File.delete(path) if File.exist?(path) }
+    Rails.application.config.x.document_storage = @previous_document_storage
+    FileUtils.remove_entry(@document_storage_root) if @document_storage_root && File.exist?(@document_storage_root)
+  end
+
   setup do
+    @previous_document_storage = Rails.application.config.x.document_storage
+    @document_storage_root = Dir.mktmpdir("document-creation-", Rails.root.join("tmp"))
+    Rails.application.config.x.document_storage = DocumentStorageConfiguration.new(
+      root: @document_storage_root, public_root: Rails.root.join("public")
+    )
     @tenant = users(:tenant1)
     @landlord = users(:landlord1)
     @mediator = users(:mediator1)
@@ -566,7 +579,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
       :amount1, :date1, :amount2, :date2
     ).merge(conversation_id: @mediation.ConversationID, additional_terms: "Return all keys.")
     file = FileAttachment.order(:MessageID).last.file_draft
-    document = Nokogiri::HTML(File.read(Rails.root.join("public", file.FileURLPath)))
+    document = Nokogiri::HTML(File.read(DocumentStorage.configured.resolve(file.FileURLPath)))
 
     assert_match "The Tenant owes Landlord $900. Tenant agrees to pay Landlord in the following manner:",
                  document.at_css("body > ol > li:nth-child(5)").text.squish
@@ -780,9 +793,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   %w[a b c].each do |template|
     test "agreement template #{template} escapes both signatures and preserves document markup" do
       travel_to Time.zone.local(2026, 11, 5, 12) do
-        log_in_as(@tenant)
-        post generate_from_intake_path(template: template), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
-        file = FileAttachment.order(:MessageID).last.file_draft
+        file = create_agreement_draft(template: template)
         path = Rails.root.join("public", file.FileURLPath)
         original_html = File.read(path)
         original_document = Nokogiri::HTML(original_html)
@@ -1553,7 +1564,186 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to documents_path
   end
 
+  %w[upload html pdf].each do |workflow|
+    test "#{workflow} creation publishes private bytes without public files" do
+      log_in_as(@tenant)
+      legacy_files = Dir.glob(Rails.root.join("public", "userFiles", "*"))
+      assert_difference("FileDraft.count", 1) { perform_creation(workflow) }
+      locator = "privateDocuments/#{File.basename(Dir.glob(File.join(@document_storage_root, "*")).sole)}"
+      file = FileDraft.find_by(FileURLPath: locator)
+      assert file
+      bytes = File.binread(DocumentStorage.configured.resolve(file.FileURLPath))
+      case workflow
+      when "upload" then assert_equal "private upload bytes", bytes
+      when "html" then assert_includes bytes, "Jane Doe"
+      when "pdf" then assert bytes.start_with?("%PDF-")
+      end
+      assert_equal legacy_files, Dir.glob(Rails.root.join("public", "userFiles", "*"))
+      assert_redirected_to documents_path
+    end
+
+    test "#{workflow} creation handles unavailable storage without database records" do
+      log_in_as(@tenant)
+      FileUtils.remove_entry(@document_storage_root)
+      assert_no_difference(["FileDraft.count", "Message.count", "FileAttachment.count"]) do
+        perform_creation(workflow)
+      end
+      assert_response :service_unavailable
+      assert_equal "Unable to create document. Please try again.", response.body
+    end
+
+    test "#{workflow} creation removes published bytes when database persistence fails" do
+      log_in_as(@tenant)
+      FileDraft.stub(:create!, ->(*) { raise ActiveRecord::RecordInvalid.new(FileDraft.new) }) do
+        assert_no_difference(["FileDraft.count", "Message.count", "FileAttachment.count"]) do
+          perform_creation(workflow)
+        end
+      end
+      assert_response :service_unavailable
+      assert_empty Dir.children(@document_storage_root)
+    end
+  end
+
+  test "shared HTML creation saves private document message and attachment together" do
+    log_in_as(@tenant)
+    assert_difference(["FileDraft.count", "Message.count", "FileAttachment.count"], 1) do
+      post generate_from_intake_path(template: "a"), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
+    end
+    assert_redirected_to message_path(@mediation.ConversationID)
+    locator = "privateDocuments/#{File.basename(Dir.glob(File.join(@document_storage_root, "*")).sole)}"
+    file = FileDraft.find_by!(FileURLPath: locator)
+    assert_equal @mediation.ConversationID, file.AgreementConversationID
+    assert_equal @mediation.ConversationID, file.messages.sole.ConversationID
+    assert_includes File.read(DocumentStorage.configured.resolve(locator)), "Jane Doe"
+  end
+
+  test "shared HTML creation rolls back document and message when attachment creation fails" do
+    log_in_as(@tenant)
+    FileAttachment.stub(:create!, ->(*) { raise ActiveRecord::RecordInvalid.new(FileAttachment.new) }) do
+      assert_no_difference(["FileDraft.count", "Message.count", "FileAttachment.count"]) do
+        post generate_from_intake_path(template: "a"), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
+      end
+    end
+    assert_response :service_unavailable
+    assert_empty Dir.children(@document_storage_root)
+  end
+
+  test "PDF generation failure leaves no file or record" do
+    log_in_as(@tenant)
+    Prawn::Document.stub(:generate, ->(*) { raise IOError, "private generator details" }) do
+      assert_no_difference("FileDraft.count") { perform_creation("pdf") }
+    end
+    assert_response :service_unavailable
+    assert_empty Dir.children(@document_storage_root)
+    assert_not_includes response.body, "private generator details"
+  end
+
+  test "creation handles invalid storage configuration without exposing paths" do
+    log_in_as(@tenant)
+    Rails.application.config.x.document_storage = DocumentStorageConfiguration.new(
+      root: Rails.root.join("public", "invalid-private-root"), public_root: Rails.root.join("public")
+    )
+    assert_no_difference("FileDraft.count") { perform_creation("upload") }
+    assert_response :service_unavailable
+    assert_not_includes response.body, Rails.root.to_s
+  end
+
+  test "creation persists the completed locator after staging cleanup failure" do
+    log_in_as(@tenant)
+    with_publication_cleanup_failure do
+      assert_difference("FileDraft.count", 1) { perform_creation("upload") }
+    end
+    assert_redirected_to documents_path
+    locator = "privateDocuments/#{File.basename(Dir.glob(File.join(@document_storage_root, "*.txt")).sole)}"
+    assert FileDraft.exists?(FileURLPath: locator)
+    assert_equal "private upload bytes", File.binread(DocumentStorage.configured.resolve(locator))
+  end
+
+  test "creation removes completed publication after staging cleanup and database failures" do
+    log_in_as(@tenant)
+    with_publication_cleanup_failure do
+      FileDraft.stub(:create!, ->(*) { raise ActiveRecord::RecordInvalid.new(FileDraft.new) }) do
+        assert_no_difference("FileDraft.count") { perform_creation("upload") }
+      end
+    end
+    assert_response :service_unavailable
+    assert_empty Dir.children(@document_storage_root)
+  end
+
+  test "creation preserves the persistence failure when private cleanup also fails" do
+    log_in_as(@tenant)
+    storage = DocumentStorage.configured
+    DocumentStorage.stub(:configured, storage) do
+      storage.stub(:delete_private, ->(*) { raise DocumentStorage::Unavailable, "cleanup details" }) do
+        FileDraft.stub(:create!, ->(*) { raise ActiveRecord::RecordInvalid.new(FileDraft.new) }) do
+          assert_no_difference("FileDraft.count") { perform_creation("upload") }
+        end
+      end
+    end
+    assert_response :service_unavailable
+    assert_equal 1, Dir.children(@document_storage_root).size
+    assert_not_includes response.body, "cleanup details"
+  end
+
+  test "HTML write failure leaves no file or record" do
+    log_in_as(@tenant)
+    original_write = File.method(:write)
+    failing_write = ->(path, *args) do
+      raise IOError, "private write details" if path.to_s.start_with?(@document_storage_root)
+      original_write.call(path, *args)
+    end
+    File.stub(:write, failing_write) do
+      assert_no_difference("FileDraft.count") { perform_creation("html") }
+    end
+    assert_response :service_unavailable
+    assert_empty Dir.children(@document_storage_root)
+  end
+
+  test "upload streaming failure leaves no file or record" do
+    log_in_as(@tenant)
+    original_copy_stream = IO.method(:copy_stream)
+    storage_write_attempted = false
+    failing_copy_stream = ->(source, destination, *args) do
+      if destination.respond_to?(:path) && File.dirname(destination.path) == @document_storage_root
+        storage_write_attempted = true
+        destination.write("partial upload")
+        raise IOError, "private upload details"
+      end
+      original_copy_stream.call(source, destination, *args)
+    end
+    IO.stub(:copy_stream, failing_copy_stream) do
+      assert_no_difference(["FileDraft.count", "Message.count", "FileAttachment.count"]) { perform_creation("upload") }
+    end
+    assert storage_write_attempted
+    assert_response :service_unavailable
+    assert_empty Dir.children(@document_storage_root)
+    assert_not_includes response.body, "private upload details"
+  end
+
   private
+
+  def with_publication_cleanup_failure
+    storage = DocumentStorage.configured
+    original_write = storage.method(:write)
+    completed_write = ->(extension:, &writer) do
+      locator = original_write.call(extension: extension, &writer)
+      raise DocumentStorage::CleanupFailure.new(locator: locator)
+    end
+    DocumentStorage.stub(:configured, storage) do
+      storage.stub(:write, completed_write) { yield }
+    end
+  end
+
+  def perform_creation(workflow)
+    case workflow
+    when "upload"
+      post documents_path, params: { file: build_uploaded_file("private.txt", "text/plain", "private upload bytes") }
+    when "html"
+      post generate_from_intake_path(template: "a"), params: agreement_params
+    when "pdf"
+      post generate_filled_template_path, params: agreement_params.merge(template: "a")
+    end
+  end
 
   def get_template_information(endpoint, conversation_id)
     if endpoint == :template_intake
@@ -1579,10 +1769,20 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
       amount1: "500", date1: "2026-03-30", amount2: "400", date2: "2026-04-30" }
   end
 
-  def create_agreement_draft
+  def create_agreement_draft(template: "a")
     log_in_as(@tenant)
-    post generate_from_intake_path(template: "a"), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
-    FileAttachment.order(:MessageID).last.file_draft
+    post generate_from_intake_path(template: template), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
+    file = FileAttachment.order(:MessageID).last.file_draft
+    # Revision/signature tests exercise the unchanged legacy workflows.
+    # Creation-specific tests assert the private locator without this fixture conversion.
+    private_path = DocumentStorage.configured.resolve(file.FileURLPath)
+    legacy_locator = "userFiles/#{File.basename(private_path)}"
+    FileUtils.mkdir_p(Rails.root.join("public", "userFiles"))
+    legacy_path = Rails.root.join("public", legacy_locator)
+    FileUtils.cp(private_path, legacy_path)
+    (@legacy_agreement_fixture_paths ||= []) << legacy_path
+    file.update!(FileURLPath: legacy_locator)
+    file
   end
 
   def build_uploaded_file(filename, content_type, content)

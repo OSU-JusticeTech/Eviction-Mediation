@@ -98,19 +98,8 @@ class DocumentsController < ApplicationController
     @template_name = agreement_template_name(template)
     template_file = agreement_template_file(template)
 
-    html_content = render_to_string(
-      template: template_file,
-      layout: false
-    )
-
-    # Save as HTML file
     file_id = SecureRandom.uuid
-    ext = ".html"
-    dir = Rails.root.join("public", "userFiles")
-    FileUtils.mkdir_p(dir)
-    dest = dir.join("#{file_id}#{ext}")
-
-    File.write(dest, html_content)
+    writer = ->(path) { File.write(path, render_to_string(template: template_file, layout: false)) }
 
     # Create database record
     pk_name, pk_value = next_filedraft_pk_value
@@ -118,7 +107,6 @@ class DocumentsController < ApplicationController
       FileID: file_id,
       FileName: generated_document_name(template),
       FileTypes: "html",
-      FileURLPath: "userFiles/#{file_id}#{ext}",
       CreatorID: @user[:UserID],
       TenantSignature: false,
       LandlordSignature: false,
@@ -133,8 +121,8 @@ class DocumentsController < ApplicationController
 
     file_draft = nil
     message = nil
-    FileDraft.transaction do
-      file_draft = FileDraft.create!(attrs)
+    DocumentCreation.new.call(extension: "html", writer: writer) do |locator|
+      file_draft = FileDraft.create!(attrs.merge(FileURLPath: locator))
       if conversation
         message = Message.create!(ConversationID: conversation.ConversationID, SenderID: @user.UserID,
                                   Contents: "A new #{@template_name} agreement is ready to review and sign. Either party can suggest changes before signing.",
@@ -184,6 +172,8 @@ class DocumentsController < ApplicationController
     else
       redirect_to documents_path, notice: "Document generated successfully."
     end
+  rescue DocumentCreation::Failure
+    render plain: "Unable to create document. Please try again.", status: :service_unavailable
   end
 
   # delete files
@@ -278,10 +268,6 @@ class DocumentsController < ApplicationController
     end
 
     file_id = SecureRandom.uuid
-    dir = Rails.root.join("public", "userFiles")
-    FileUtils.mkdir_p(dir)
-    dest = dir.join("#{file_id}#{ext}")
-    File.open(dest, "wb") { |f| f.write(uploaded.read) }
     pk_name, pk_value = next_filedraft_pk_value
 
     sanitized_filename = File.basename(uploaded.original_filename)
@@ -289,16 +275,21 @@ class DocumentsController < ApplicationController
       FileID:       file_id,
       FileName:     File.basename(sanitized_filename, ".*"),
       FileTypes:    ext.delete("."),
-      FileURLPath:  "userFiles/#{file_id}#{ext}",
       CreatorID:    @user[:UserID],
       TenantSignature: true,
       LandlordSignature: true
     }
     attrs[pk_name] = pk_value if pk_name && pk_value
 
-    FileDraft.create!(attrs)
+    DocumentCreation.new.call(extension: ext, writer: ->(path) {
+      File.open(path, "wb") { |destination| IO.copy_stream(uploaded.tempfile, destination) }
+    }) do |locator|
+      FileDraft.create!(attrs.merge(FileURLPath: locator))
+    end
 
     redirect_to documents_path, notice: "File uploaded."
+  rescue DocumentCreation::Failure
+    render plain: "Unable to create document. Please try again.", status: :service_unavailable
   end
 
   def show
@@ -890,11 +881,6 @@ class DocumentsController < ApplicationController
     land_sig   = params[:landlord_signature].to_s
 
     file_id = SecureRandom.uuid
-    ext     = ".pdf"
-    dir     = Rails.root.join("public", "userFiles")
-    FileUtils.mkdir_p(dir)
-    dest    = dir.join("#{file_id}#{ext}")
-
     # Generate the PDF based on template type
     require "prawn"
     template = params[:template] || "a"
@@ -902,31 +888,33 @@ class DocumentsController < ApplicationController
     money_owed = params[:money_owed].to_s
     monthly_rent = params[:monthly_rent].to_s
 
-    Prawn::Document.generate(dest.to_s, margin: 54, page_size: "LETTER") do |pdf|
-      case template
-      when "a" # Agree to Vacate
-        generate_vacate_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
-      when "b" # Pay and Stay Agreement
-        generate_pay_stay_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, monthly_rent, schedule, best)
-      when "c" # Mediation Agreement
-        generate_mediation_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, monthly_rent, schedule, best)
-      else
-        # Fallback to generic
-        generate_generic_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
-      end
+    writer = ->(path) do
+      Prawn::Document.generate(path.to_s, margin: 54, page_size: "LETTER") do |pdf|
+        case template
+        when "a" # Agree to Vacate
+          generate_vacate_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
+        when "b" # Pay and Stay Agreement
+          generate_pay_stay_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, monthly_rent, schedule, best)
+        when "c" # Mediation Agreement
+          generate_mediation_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, monthly_rent, schedule, best)
+        else
+          # Fallback to generic
+          generate_generic_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
+        end
 
-      # Footer
-      pdf.move_down 20
-      pdf.stroke_horizontal_rule
-      pdf.move_down 10
+        # Footer
+        pdf.move_down 20
+        pdf.stroke_horizontal_rule
+        pdf.move_down 10
 
-      pdf.text "Tenant Signature: ____________________________  Date: ____________", size: 10
-      pdf.move_down 15
-      pdf.text "Landlord Signature: ____________________________  Date: ____________", size: 10
-
-      if conv_id.present?
+        pdf.text "Tenant Signature: ____________________________  Date: ____________", size: 10
         pdf.move_down 15
-        pdf.text "Conversation ID: #{conv_id}", size: 8, color: "888888"
+        pdf.text "Landlord Signature: ____________________________  Date: ____________", size: 10
+
+        if conv_id.present?
+          pdf.move_down 15
+          pdf.text "Conversation ID: #{conv_id}", size: 8, color: "888888"
+        end
       end
     end
 
@@ -936,16 +924,19 @@ class DocumentsController < ApplicationController
       FileID: file_id,
       FileName: generated_document_name(template),
       FileTypes: "pdf",
-      FileURLPath: "userFiles/#{file_id}#{ext}",
       CreatorID: @user[:UserID],
       TenantSignature: tenant_sig.present?,
       LandlordSignature: land_sig.present?
     }
     attrs[pk_name] = pk_value if pk_name && pk_value
 
-    FileDraft.create!(attrs)
+    DocumentCreation.new.call(extension: "pdf", writer: writer) do |locator|
+      FileDraft.create!(attrs.merge(FileURLPath: locator))
+    end
 
     redirect_to documents_path, notice: "Document generated."
+  rescue DocumentCreation::Failure
+    render plain: "Unable to create document. Please try again.", status: :service_unavailable
   end
 
 
