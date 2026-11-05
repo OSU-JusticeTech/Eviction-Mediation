@@ -432,6 +432,85 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type='hidden'][name='additional_terms']", count: 1
   end
 
+  [ :template_intake, :intake_template_view ].each do |endpoint|
+    test "#{endpoint} permits both conversation parties" do
+      [ @tenant, @landlord ].each do |party|
+        log_in_as(party)
+        get_template_information(endpoint, @mediation.ConversationID)
+
+        assert_response :success
+        assert_equal @tenant, assigns(:tenant)
+        assert_equal @landlord, assigns(:landlord)
+      end
+    end
+
+    test "#{endpoint} permits the currently assigned mediator" do
+      @mediation.update!(MediatorID: @mediator.UserID, MediatorAssigned: true)
+      log_in_as(@mediator)
+
+      get_template_information(endpoint, @mediation.ConversationID)
+
+      assert_response :success
+      assert_equal @tenant, assigns(:tenant)
+      assert_equal @landlord, assigns(:landlord)
+    end
+
+    test "#{endpoint} rejects unrelated users before loading case information" do
+      log_in_as(@outsider)
+
+      get_template_information(endpoint, @mediation.ConversationID)
+
+      assert_template_information_not_found
+    end
+
+    test "#{endpoint} rejects a former mediator after reassignment" do
+      @mediation.update!(MediatorID: @outsider.UserID, MediatorAssigned: true)
+      log_in_as(@mediator)
+
+      get_template_information(endpoint, @mediation.ConversationID)
+
+      assert_template_information_not_found
+    end
+
+    test "#{endpoint} rejects a matching mediator whose assignment is inactive" do
+      @mediation.update!(MediatorID: @mediator.UserID, MediatorAssigned: false)
+      log_in_as(@mediator)
+
+      get_template_information(endpoint, @mediation.ConversationID)
+
+      assert_template_information_not_found
+    end
+
+    test "#{endpoint} rejects missing conversations without loading case information" do
+      log_in_as(@tenant)
+
+      get_template_information(endpoint, PrimaryMessageGroup.maximum(:ConversationID) + 1)
+
+      assert_template_information_not_found
+    end
+
+    test "#{endpoint} redirects anonymous users before loading case information" do
+      get_template_information(endpoint, @mediation.ConversationID)
+
+      assert_redirected_to login_path
+      assert_nil assigns(:template_conversation)
+      assert_nil assigns(:tenant)
+      assert_nil assigns(:landlord)
+      assert_nil assigns(:intake)
+    end
+  end
+
+  test "template intake preserves standalone generation without a conversation" do
+    log_in_as(@tenant)
+
+    get template_intake_path(template: "a")
+
+    assert_response :success
+    assert_nil assigns(:template_conversation)
+    assert_select "form[action=?]", generate_from_intake_path(template: "a")
+    assert_select "input[name='conversation_id']", count: 0
+  end
+
   test "generated agreement titles use both entered party names for every template" do
     log_in_as(@mediator)
 
@@ -1393,6 +1472,23 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def get_template_information(endpoint, conversation_id)
+    if endpoint == :template_intake
+      get template_intake_path(template: "a"), params: { conversation_id: conversation_id }
+    else
+      get intake_template_view_path(conversation_id: conversation_id)
+    end
+  end
+
+  def assert_template_information_not_found
+    assert_response :not_found
+    assert_empty response.body
+    assert_nil assigns(:tenant)
+    assert_nil assigns(:landlord)
+    assert_nil assigns(:intake)
+    assert_nil assigns(:pmg)
+  end
 
   def agreement_params
     { landlord_name: "Jane Doe", tenant_name: "John Doe", address: "123 Main Street",

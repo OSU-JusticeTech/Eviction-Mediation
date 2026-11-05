@@ -9,6 +9,7 @@ require "prawn/table"
 class DocumentsController < ApplicationController
   before_action :require_login
   before_action :set_user
+  before_action :authorize_template_conversation, only: [ :template_intake, :intake_template_view ]
   before_action :block_admin_document_creation, only: [
     :new, :create, :template_intake, :generate_from_intake,
     :template_preview, :intake_template_view, :generate_filled_template,
@@ -41,7 +42,7 @@ class DocumentsController < ApplicationController
 
     @conversation_id = params[:conversation_id]
     if @conversation_id.present?
-      @conversation = PrimaryMessageGroup.find_by(ConversationID: @conversation_id)
+      @conversation = @template_conversation
       if @conversation
         @landlord = @conversation.landlord
         @tenant = @conversation.tenant
@@ -1604,12 +1605,20 @@ class DocumentsController < ApplicationController
     (FileDraft.maximum("ID") || 0) + 1
   end
 
+  def authorize_template_conversation
+    conversation_id = params[:conversation_id].presence || params[:id].presence
+    return unless conversation_id
+
+    @template_conversation = PrimaryMessageGroup.find_by(ConversationID: conversation_id)
+    head :not_found unless agreement_suggester?(@template_conversation)
+  end
+
   def set_conversation_context
     conv_id = params[:conversation_id].presence || params[:id]
     return unless conv_id
 
     @conversation = ::MessageString.find_by(ConversationID: conv_id) rescue nil
-    @pmg          = ::PrimaryMessageGroup.find_by(ConversationID: conv_id) rescue nil
+    @pmg          = @template_conversation
 
     @landlord = ::User.find_by(UserID: @pmg&.LandlordID)
     @tenant   = ::User.find_by(UserID: @pmg&.TenantID)
