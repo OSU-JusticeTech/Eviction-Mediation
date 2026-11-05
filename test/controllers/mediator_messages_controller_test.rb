@@ -1,6 +1,8 @@
 require "test_helper"
 
 class MediatorMessagesControllerTest < ActionDispatch::IntegrationTest
+  include ActionCable::TestHelper
+
   FakeErrorContainer = Struct.new(:messages) do
     def full_messages
       messages
@@ -15,7 +17,12 @@ class MediatorMessagesControllerTest < ActionDispatch::IntegrationTest
 
   setup do
     @tenant = users(:tenant1)
-    @side_conversation = side_message_groups(:two)
+    @mediation = primary_message_groups(:one)
+    @mediation.update!(MediatorID: users(:mediator2).UserID, MediatorAssigned: true, deleted_at: nil)
+    string = MessageString.create!(Role: "Side")
+    @side_conversation = SideMessageGroup.create!(ConversationID: string.ConversationID,
+      UserID: @tenant.UserID, MediatorID: users(:mediator2).UserID)
+    @mediation.update!(TenantSideConversationID: string.ConversationID)
   end
 
   test "redirects to login when not authenticated" do
@@ -219,7 +226,67 @@ class MediatorMessagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "retired and closed conversations cannot create messages or broadcasts" do
+    log_in_as(@tenant)
+    @mediation.update!(TenantSideConversationID: nil)
+    assert_private_post_rejected
+    @mediation.update!(TenantSideConversationID: @side_conversation.ConversationID,
+      MediatorID: users(:mediator1).UserID)
+    assert_private_post_rejected
+    @mediation.update!(MediatorID: @side_conversation.MediatorID, deleted_at: Time.current)
+    assert_private_post_rejected
+    assert_nil @side_conversation.reload.deleted_at
+  end
+
+  test "deleted message string and disabled assignment prevent posting" do
+    log_in_as(@tenant)
+    string = MessageString.find(@side_conversation.ConversationID)
+    string.update!(deleted_at: Time.current)
+    assert_private_post_rejected
+    string.update!(deleted_at: nil)
+    @mediation.update!(MediatorAssigned: false)
+    assert_private_post_rejected
+  end
+
+  test "former mediator cannot post to a retired private conversation" do
+    log_in_as(users(:mediator2))
+    @mediation.update!(MediatorID: users(:mediator1).UserID, TenantSideConversationID: nil)
+    assert_private_post_rejected
+  end
+
+  test "landlord can post only to their currently linked private conversation" do
+    landlord = users(:landlord1)
+    string = MessageString.create!(Role: "Side")
+    side = SideMessageGroup.create!(ConversationID: string.ConversationID,
+      UserID: landlord.UserID, MediatorID: @mediation.MediatorID)
+    @mediation.update!(LandlordSideConversationID: side.ConversationID)
+    log_in_as(landlord)
+    assert_difference("Message.count", 1) do
+      post mediator_messages_path, params: {
+        conversation_id: side.ConversationID, Contents: "Landlord private message"
+      }, as: :json
+    end
+    assert_response :success
+    assert_equal @mediation.MediatorID, Message.order(:MessageID).last.recipientID
+  end
+
+  test "admin has no blanket private posting access" do
+    log_in_as(users(:admin1))
+    assert_private_post_rejected
+  end
+
   private
+
+  def assert_private_post_rejected
+    assert_no_difference("Message.count") do
+      assert_no_broadcasts("side_messages_#{@side_conversation.ConversationID}") do
+        post mediator_messages_path, params: {
+          conversation_id: @side_conversation.ConversationID, Contents: "Unavailable"
+        }, as: :json
+      end
+    end
+    assert_response :not_found
+  end
 
   def with_stubbed_message_new(fake_message)
     original_new = Message.method(:new)

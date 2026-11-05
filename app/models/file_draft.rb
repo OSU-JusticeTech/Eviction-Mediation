@@ -7,6 +7,54 @@ class FileDraft < ApplicationRecord
 
   after_update_commit :notify_agreement_update
 
+  def self.find_viewable_by(user, id)
+    return unless user
+
+    scope = FileDraft.where(FileID: id)
+    scope = scope.where(UserDeletedAt: nil) if FileDraft.column_names.include?("UserDeletedAt")
+
+    file = scope.first
+    return unless file
+    return file if file.CreatorID == user[:UserID]
+
+    attachments = FileAttachment.where(FileID: file.FileID)
+    return unless attachments.exists?
+
+    message_ids = attachments.select(:MessageID)
+    messages = Message.where(MessageID: message_ids)
+
+    # Check if user is a direct participant (sender or recipient)
+    message_table = Message.arel_table
+    participant_condition = message_table[:SenderID].eq(user[:UserID])
+                             .or(message_table[:recipientID].eq(user[:UserID]))
+
+    return file if messages.where(participant_condition).exists?
+
+    # Check if user is a mediator or other party in the conversation
+    conversation_ids = messages.pluck(:ConversationID).uniq
+    # Role is authoritative even if inconsistent historical group rows overlap.
+    # Include retired conversations so historical documents remain viewable.
+    MessageString.where(ConversationID: conversation_ids).each do |conversation|
+      case conversation.Role
+      when "Primary"
+        pmg = PrimaryMessageGroup.find_by(ConversationID: conversation.ConversationID)
+        next unless pmg
+
+        return file if pmg.LandlordID == user[:UserID]
+        return file if pmg.TenantID == user[:UserID]
+        return file if pmg.MediatorID == user[:UserID]
+      when "Side"
+        smg = SideMessageGroup.find_by(ConversationID: conversation.ConversationID)
+        next unless smg
+
+        return file if smg.UserID == user[:UserID]
+        return file if smg.MediatorID == user[:UserID]
+      end
+    end
+
+    nil
+  end
+
   def agreement_terms
     return {} unless has_attribute?(:AgreementTerms)
     JSON.parse(self[:AgreementTerms].presence || "{}")

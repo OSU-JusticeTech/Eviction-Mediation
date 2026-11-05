@@ -1,8 +1,45 @@
 require "test_helper"
 require "tempfile"
+require_relative "../support/cable_authorization_helpers"
 
 class DocumentsControllerTest < ActionDispatch::IntegrationTest
   include ActionMailer::TestHelper
+
+  include CableAuthorizationHelpers
+
+  %w[Primary Side].each do |role|
+    test "HTTP denies #{role} document access through an overlapping wrong-type group" do
+      build_security_case
+      file = build_document_role_overlap(role)
+      [@outsider, @other_mediator].each do |user|
+        log_in_as(user)
+        get document_path(file.FileID)
+        assert_response :not_found
+        get download_file_path(file.FileID)
+        assert_response :not_found
+        get view_inline_document_path(file.FileID)
+        assert_response :not_found
+      end
+    end
+  end
+
+  test "HTTP viewing and shared lookup agree for primary document viewers" do
+    build_security_case
+    file = build_security_document
+    [@landlord, @tenant, @mediator, @outsider, @admin].each do |user|
+      log_in_as(user)
+      get document_path(file.FileID)
+      if FileDraft.find_viewable_by(user, file.FileID)
+        assert_response :success
+      else
+        assert_response :not_found
+      end
+    end
+    log_in_as(@landlord)
+    file.update!(UserDeletedAt: Time.current)
+    get document_path(file.FileID)
+    assert_response :not_found
+  end
 
   test "agreement review sends one actor-aware email to the other party per action" do
     file = create_agreement_draft

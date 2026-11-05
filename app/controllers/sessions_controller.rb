@@ -36,7 +36,9 @@ class SessionsController < ApplicationController
 
     def destroy
       MediatorTimeEntry.current_for(session[:user_id])&.close! if session[:user_id]
+      user = current_user
       session[:user_id] = nil
+      ActionCable.server.remote_connections.where(current_user: user).disconnect(reconnect: false) if user
       redirect_to root_path, notice: "Logged out successfully!"
     end
 end

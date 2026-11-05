@@ -109,20 +109,12 @@ class MediatorMessagesController < ApplicationController
 
     raise ActiveRecord::RecordNotFound, "Conversation id missing" if @conversation_id.zero?
 
-    @message_string = MessageString.find_by!(ConversationID: @conversation_id)
-    @side_group = SideMessageGroup.find_by!(ConversationID: @conversation_id, deleted_at: nil)
+    @side_group = SideMessageGroup.find_live_for(@user, @conversation_id)
+    raise ActiveRecord::RecordNotFound, "Private conversation unavailable" unless @side_group
 
-    if @user.Role == "Mediator"
-      unless @side_group.MediatorID == @user.UserID
-        raise ActiveRecord::RecordNotFound, "Mediator not assigned to this conversation"
-      end
-      @recipient_id = @side_group.UserID
-    else
-      unless @side_group.UserID == @user.UserID
-        raise ActiveRecord::RecordNotFound, "User not part of this side conversation"
-      end
-      @recipient_id = @side_group.MediatorID
-    end
+    @message_string = MessageString.find_by!(ConversationID: @conversation_id, Role: "Side", deleted_at: nil)
+
+    @recipient_id = @user.UserID == @side_group.UserID ? @side_group.MediatorID : @side_group.UserID
 
     if params[:recipient_id].present?
       provided_recipient = params[:recipient_id].to_i
