@@ -26,6 +26,23 @@ class MediatorScheduledMeetingsController < ApplicationController
     meeting[:MediatorID] = @mediator_id
     meeting[:Status] = "scheduled"
 
+    # Create the Zoom meeting only for a valid slot, and before saving so the
+    # "scheduled" notification email already includes the link.
+    if meeting.valid? && meeting[:ZoomLink].blank?
+      begin
+        meeting[:ZoomLink] = ZoomService.new.create_meeting(
+          topic: "Mediation session - Case ##{meeting[:ConversationID]}",
+          start_time: meeting[:StartTime],
+          duration_minutes: ((meeting[:EndTime] - meeting[:StartTime]) / 60).round
+        )
+      rescue ZoomService::Error => e
+        Rails.logger.error("Zoom create failed: #{e.message}")
+        render json: { errors: [ "Could not create Zoom meeting. Please try again." ] },
+               status: :bad_gateway
+        return
+      end
+    end
+
     if meeting.save
       render json: meeting, status: :created
     else
@@ -73,6 +90,13 @@ class MediatorScheduledMeetingsController < ApplicationController
     end
 
     if meeting.update(Status: "canceled")
+      # Never block the cancel on Zoom; the cancellation email still goes out.
+      begin
+        ZoomService.new.delete_meeting(meeting[:ZoomLink]) if meeting[:ZoomLink].present?
+      rescue ZoomService::Error => e
+        Rails.logger.error("Zoom delete failed for meeting #{meeting.id}: #{e.message}")
+      end
+
       render json: meeting
     else
       render json: { errors: meeting.errors.full_messages },

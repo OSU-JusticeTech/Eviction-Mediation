@@ -98,6 +98,15 @@
               </div>
             <% end %>
 
+            <%# Minimal Zoom link for the next scheduled session; restyle as needed %>
+            <% if @upcoming_meeting&.ZoomLink.present? %>
+              <div class="upcoming-meeting" data-upcoming-meeting>
+                <h4>Upcoming Mediation Session</h4>
+                <p><%= @upcoming_meeting.StartTime.in_time_zone.strftime("%b %-d, %Y at %-l:%M %p %Z") %></p>
+                <%= link_to "Join Zoom meeting", @upcoming_meeting.ZoomLink, target: "_blank", rel: "noopener" %>
+              </div>
+            <% end %>
+
             <table class="info-table">
               <tr>
                 <th>Address</th>

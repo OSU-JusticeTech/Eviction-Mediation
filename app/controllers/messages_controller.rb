@@ -84,6 +84,12 @@ class MessagesController < ApplicationController
 
     @mediator = @mediation.mediator if @mediation&.MediatorAssigned
 
+    @upcoming_meeting = MediatorScheduledMeeting
+      .where(ConversationID: @mediation.ConversationID, Status: "scheduled")
+      .where("EndTime > ?", Time.current)
+      .order(:StartTime)
+      .first
+
     @messages = Message
       .where(ConversationID: @message_string.ConversationID)
       .includes(file_attachments: :file_draft)
