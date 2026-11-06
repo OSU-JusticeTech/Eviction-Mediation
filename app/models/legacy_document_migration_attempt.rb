@@ -162,7 +162,7 @@ class LegacyDocumentMigrationAttempt < ApplicationRecord
     with_claim_lock do
       if reconciliation
         raise ClaimRejected, "Explicit reconciliation required" unless @worker_owned && %w[blocked superseded gone rolled_back].include?(next_state)
-      else
+      elsif !(@expired_reconciliation && %w[published_verified committed verified].include?(next_state))
         authorize_mutation!(worker_token, generation, expected_state)
       end
       unless TRANSITIONS.fetch(state, []).include?(next_state)
@@ -184,6 +184,33 @@ class LegacyDocumentMigrationAttempt < ApplicationRecord
   end
 
   private
+
+  # Private service scope, never a claim, renewal, or credential grant. The
+  # caller owns run -> attempt -> FileDraft locks and the top-level transaction.
+  def begin_expired_reconciliation!
+    unless self.class.connection.transaction_open? && run.status == "running" &&
+        WORKER_STATES.include?(state) && lease_token.present? && lease_generation.positive? &&
+        lease_expires_at && lease_expires_at <= database_utc_now
+      raise ClaimRejected, "Expired claim required"
+    end
+    expected_generation = lease_generation + 1
+    fence_reconciled_worker!
+    raise ClaimRejected, "Fence not recorded" unless reload.lease_generation == expected_generation
+
+    @expired_reconciliation = true
+  end
+
+  def end_expired_reconciliation!
+    @expired_reconciliation = false
+  end
+
+  # Used only by the operator reconciliation service after fresh inspection.
+  # A generation change fences credentials retained by the stopped worker.
+  def fence_reconciled_worker!
+    raise ClaimRejected, "Generation exhausted" if lease_generation >= 2**63 - 1
+
+    claim_update!(lease_generation: lease_generation + 1)
+  end
 
   def with_claim_lock(&block)
     run.with_lock(SQL_SERVER_LOCK) do
