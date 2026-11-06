@@ -72,22 +72,23 @@
           Zoom Meeting
         </h3>
 
-        <% if @meeting.ZoomLink.present? %>
-          <p>Your Zoom meeting link is available.</p>
-
-          <%= link_to "Join Zoom Meeting",
-                      @meeting.ZoomLink,
-                      class: "btn-primary",
-                      target: "_blank",
-                      rel: "noopener noreferrer" %>
+        <% if @meeting.ZoomLink.present? && @meeting.ZoomLink != 'null' %>
+          <p style="margin-bottom: 12px; color: #334155;">Your Zoom meeting link is available.</p>
         <% else %>
-          <p style="color: #64748b;">
+          <p style="color: #64748b; margin-bottom: 16px;">
             No Zoom meeting link has been generated yet.
-            Zoom integration is planned for the next sprint.
           </p>
         <% end %>
 
-        <div style="margin-top: 24px;">
+        <div style="display: flex; flex-direction: column; gap: 12px; align-items: flex-start; margin-top: 16px;">
+          <% if @meeting.ZoomLink.present? && @meeting.ZoomLink != 'null' %>
+            <%= link_to "Join Zoom Meeting",
+                        @meeting.ZoomLink,
+                        class: "btn-primary",
+                        target: "_blank",
+                        rel: "noopener noreferrer" %>
+          <% end %>
+
           <%= link_to "Open Mediation Case",
                       mediator_case_path(@meeting.ConversationID),
                       class: "btn-primary" %>

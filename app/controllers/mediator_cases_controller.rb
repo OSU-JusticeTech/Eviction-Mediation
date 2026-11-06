@@ -27,8 +27,14 @@ class MediatorCasesController < ApplicationController
     if @user.Role == "Mediator"
       @time_logged = @mediation.time_entries.finished.where(MediatorID: @user.UserID).sum(:DurationSeconds)
     end
-  end
 
+    @upcoming_meeting = MediatorScheduledMeeting
+      .where(ConversationID: @mediation.ConversationID, Status: "scheduled")
+      .where("EndTime > ?", Time.current)
+      .order(:StartTime)
+      .first
+      
+  end
 
   private
 

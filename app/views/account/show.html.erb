@@ -472,50 +472,27 @@ document.addEventListener("turbo:load", () => {
 
       meetingsContainer.innerHTML = meetings.map(m => {
         const status = (m.Status || "scheduled").toLowerCase();
-        let badgeBg = "#e0f2fe";
-        let badgeColor = "#0369a1";
+        
+        // 1. Create the conditional Zoom button
+        const zoomButton = (m.ZoomLink && status === 'scheduled') 
+          ? `<a href="${m.ZoomLink}" target="_blank" style="background: #2563eb; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 0.85rem; margin-right: 8px; display: inline-block;">
+               <i class="fa-solid fa-video"></i> Join Zoom
+             </a>` 
+          : '';
 
-        if (status === "canceled") {
-          badgeBg = "#fee2e2";
-          badgeColor = "#b91c1c";
-        } else if (status === "completed") {
-          badgeBg = "#f1f5f9";
-          badgeColor = "#475569";
-        }
-
-        const startTime = new Date(m.StartTime);
-        const endTime = new Date(m.EndTime);
-        const durationMin = Math.round((endTime - startTime) / 60000);
-
+        // 2. Return the layout matching your new list UI
         return `
-          <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
-            <div>
-              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <span style="font-weight: 600; color: #0b2b4b; font-size: 1rem;">
-                  Case #${m.ConversationID || m.id}
-                </span>
-                <span style="font-size: 0.75rem; background: ${badgeBg}; color: ${badgeColor}; padding: 2px 8px; border-radius: 9999px; font-weight: 600; text-transform: uppercase;">
-                  ${status}
-                </span>
-              </div>
-              <div style="font-size: 0.85rem; color: #475569; display: flex; flex-direction: column; gap: 2px;">
-                <span>
-                  <i class="fa-regular fa-calendar"></i> ${formatDateTime(m.StartTime)} 
-                  ${durationMin > 0 ? `&bull; ${durationMin} mins` : ''}
-                </span>
-                ${m.ZoomLink ? `<span><i class="fa-solid fa-link"></i> <a href="${m.ZoomLink}" target="_blank" style="color: #0284c7;">Join Meeting</a></span>` : ''}
-              </div>
-            </div>
-            
-            <div style="display: flex; gap: 8px; align-items: center;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #e2e8f0;">
+            <span style="color: #334155; font-size: 0.95rem;">
+              Case #${m.ConversationID || m.id} — ${formatDateTime(m.StartTime)} (${status})
+            </span>
+            <div style="display: flex; align-items: center;">
+              ${zoomButton}
               ${status === 'scheduled' ? `
-                <button type="button" onclick="cancelMeeting(${m.id})" style="background: none; border: 1px solid #fca5a5; color: #ef4444; border-radius: 6px; padding: 6px 12px; font-size: 0.85rem; font-weight: 500; cursor: pointer;">
-                  Cancel
+                <button type="button" onclick="cancelMeeting(${m.id})" style="border: 1px solid #fca5a5; color: #ef4444; background: transparent; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 0.85rem;">
+                  Cancel Meeting
                 </button>
               ` : ''}
-              <button type="button" class="btn-secondary" disabled style="opacity: 0.6; cursor: not-allowed; font-size: 0.85rem; padding: 6px 12px;">
-                <i class="fa-solid fa-video"></i> Zoom (Sprint 3)
-              </button>
             </div>
           </div>
         `;
@@ -526,22 +503,5 @@ document.addEventListener("turbo:load", () => {
       meetingsContainer.innerHTML = '<p style="color: #ef4444; font-size: 0.9rem;">Could not load scheduled meetings.</p>';
     }
   }
-
-  window.cancelMeeting = async function(id) {
-    try {
-      const res = await fetch(`/mediator_scheduled_meetings/${id}/cancel`, {
-        method: "PATCH",
-        headers: {
-          "X-CSRF-Token": csrfToken,
-          "Accept": "application/json"
-        }
-      });
-      if (res.ok) {
-        loadMeetings();
-      }
-    } catch (err) {
-      console.error("Failed to cancel meeting:", err);
-    }
-  };
 });
 </script>

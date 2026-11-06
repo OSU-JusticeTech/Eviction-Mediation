@@ -12,34 +12,69 @@
       <%# Moved to conversation details panel %>
     <% end %>
     <div class="chat-page-wrapper">
-      <div class="conversation-toolbar">
-        <button type="button" class="conversation-cta conversation-cta--info" data-conversation-info-toggle>
-          <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-circle-info"></i></span>
-          <span class="conversation-cta__label">Conversation details</span>
-          <span class="conversation-cta__chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
-        </button>
-
-        <% if @user.Role == "Tenant" || @user.Role == "Landlord" %>
-          <%= link_to resources_path(tab: "faqs", from_conversation: @mediation.ConversationID), class: "conversation-cta conversation-cta--info" do %>
-            <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-circle-question"></i></span>
-            <span class="conversation-cta__label">FAQ</span>
+      <div class="conversation-toolbar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: nowrap; gap: 1rem; width: 100%;">
+        
+        <%# Left Side Buttons Group %>
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: nowrap;">
+          <button type="button" class="conversation-cta conversation-cta--info" data-conversation-info-toggle>
+            <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-circle-info"></i></span>
+            <span class="conversation-cta__label">Conversation details</span>
             <span class="conversation-cta__chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
-          <% end %>
-        <% end %>
+          </button>
 
-        <% if @user.Role == "Mediator" || is_admin %>
-          <%= link_to mediator_case_path(@mediation.id), class: "conversation-cta conversation-cta--info" do %>
-            <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-folder-open"></i></span>
-            <span class="conversation-cta__label">Case overview</span>
-            <span class="conversation-cta__chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+          <% if @user.Role == "Tenant" || @user.Role == "Landlord" %>
+            <%= link_to resources_path(tab: "faqs", from_conversation: @mediation.ConversationID), class: "conversation-cta conversation-cta--info" do %>
+              <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-circle-question"></i></span>
+              <span class="conversation-cta__label">FAQ</span>
+              <span class="conversation-cta__chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+            <% end %>
           <% end %>
-        <% end %>
 
-        <%# Admins have read-only access: no mediator-request / end-mediation actions %>
-        <% unless is_admin %>
-          <%= render 'actions' %>
-        <% end %>
+          <% if @user.Role == "Mediator" || is_admin %>
+            <%= link_to mediator_case_path(@mediation.id), class: "conversation-cta conversation-cta--info" do %>
+              <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-folder-open"></i></span>
+              <span class="conversation-cta__label">Case overview</span>
+              <span class="conversation-cta__chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+            <% end %>
+            
+            <%# --- SCHEDULE BUTTON --- %>
+            <button type="button" class="conversation-cta conversation-cta--info" onclick="document.getElementById('scheduleMeetingModal').showModal()">
+              <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-calendar-plus"></i></span>
+              <span class="conversation-cta__label">Schedule Meeting</span>
+            </button>
+          <% end %>
+        </div>
+
+        <%# Right Side Actions Group %>
+        <div style="display: flex; align-items: center; flex-shrink: 0;">
+          <% unless is_admin %>
+            <%= render 'actions' %>
+          <% end %>
+        </div>
+
       </div>
+
+      <%# Zoom Banner %>
+      <% active_meeting = @upcoming_meeting || MediatorScheduledMeeting.where(ConversationID: @mediation.ConversationID, Status: "scheduled").where("EndTime > ?", Time.current).first %>
+      
+      <% if active_meeting&.ZoomLink.present? %>
+        <div class="upcoming-meeting" style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 16px; border-radius: 8px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+          <div>
+            <h4 style="margin: 0 0 4px 0; color: #1e3a8a; font-size: 1.05rem; font-weight: 600;">
+              <i class="fa-solid fa-video"></i> Upcoming Mediation Session
+            </h4>
+            <p style="margin: 0; color: #2563eb; font-size: 0.9rem; font-weight: 500;">
+              <%= active_meeting.StartTime.in_time_zone.strftime("%b %-d, %Y at %-l:%M %p %Z") %>
+            </p>
+          </div>
+          
+          <%= link_to "<i class='fa-solid fa-arrow-up-right-from-square'></i> Join Zoom Meeting".html_safe, 
+                      active_meeting.ZoomLink, 
+                      target: "_blank", 
+                      rel: "noopener", 
+                      style: "background: #2563eb; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: background 0.2s;" %>
+        </div>
+      <% end %>
 
       <div class="conversation-info-panel" data-conversation-info-panel hidden role="dialog" aria-modal="true">
         <div class="conversation-info-card">
@@ -169,6 +204,9 @@
         </div>
       </div>
     </div>
+
+    
+
     <% if screenings_flagged %>
       <% composer_disabled_reason = "Messaging is paused while an administrator reviews the flagged screening responses." %>
       <p class="alert alert-warning">One of the party's screening questions has been flagged and is under review by an administrator. Please wait before continuing mediation.</p>
@@ -210,5 +248,110 @@
     <% end %>
   <% else %>
     <%= render "good_faith_prompt", mediation: @mediation, user: @user %>
+  <% end %>
+
+  <%# --- IN-CHAT SCHEDULING MODAL --- %>
+  <% if @user.Role == "Mediator" || is_admin %>
+    <dialog id="scheduleMeetingModal" style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); max-width: 450px; width: 100%;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0; color: #0b2b4b; font-size: 1.2rem;">Schedule Zoom Session</h3>
+        <button type="button" onclick="this.closest('dialog').close()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">&times;</button>
+      </div>
+      
+      <div class="schedule-meeting-form" style="display: flex; flex-direction: column; gap: 12px;">
+        <input type="hidden" id="chat-meeting-case" value="<%= @mediation.ConversationID %>">
+        
+        <div>
+          <label for="chat-meeting-date" style="display: block; margin-bottom: 4px; font-size: 0.85rem; font-weight: 600; color: #334155;">Meeting Date</label>
+          <input type="date" id="chat-meeting-date" class="form-input" style="width: 100%; min-height: 40px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+        </div>
+        
+        <div>
+          <label for="chat-meeting-start" style="display: block; margin-bottom: 4px; font-size: 0.85rem; font-weight: 600; color: #334155;">Start Time</label>
+          <input type="time" id="chat-meeting-start" class="form-input" style="width: 100%; min-height: 40px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+        </div>
+        
+        <div>
+          <label for="chat-meeting-duration" style="display: block; margin-bottom: 4px; font-size: 0.85rem; font-weight: 600; color: #334155;">Duration</label>
+          <select id="chat-meeting-duration" class="form-input" style="width: 100%; min-height: 40px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+            <option value="30" selected>30 minutes</option>
+            <option value="45">45 minutes</option>
+            <option value="60">60 minutes</option>
+            <option value="90">90 minutes</option>
+          </select>
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px;">
+          <button type="button" onclick="this.closest('dialog').close()" style="padding: 9px 16px; border: 1px solid #cbd5e1; background: white; border-radius: 6px; cursor: pointer; font-weight: 600;">Cancel</button>
+          <button type="button" id="btn-chat-create-meeting" class="btn-primary" style="padding: 9px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; min-height: 40px;">
+            <i class="fa-solid fa-calendar-plus"></i> Create Meeting
+          </button>
+        </div>
+      </div>
+      <p id="chat-meeting-form-message" role="status" style="margin-top: 8px; font-size: 0.85rem;"></p>
+    </dialog>
+
+    <script>
+      document.addEventListener("turbo:load", () => {
+        const createBtn = document.getElementById("btn-chat-create-meeting");
+        if (!createBtn) return;
+
+        createBtn.addEventListener("click", async () => {
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+          const msgEl = document.getElementById("chat-meeting-form-message");
+          
+          const conversationId = document.getElementById("chat-meeting-case").value;
+          const dateVal = document.getElementById("chat-meeting-date").value;
+          const timeVal = document.getElementById("chat-meeting-start").value;
+          const durationVal = parseInt(document.getElementById("chat-meeting-duration").value, 10);
+
+          if (!dateVal || !timeVal) {
+            if (msgEl) { msgEl.style.color = "#ef4444"; msgEl.textContent = "Please select both a date and start time."; }
+            return;
+          }
+
+          const startDateTime = new Date(`${dateVal}T${timeVal}`);
+          const endDateTime = new Date(startDateTime.getTime() + durationVal * 60000);
+
+          createBtn.disabled = true;
+          createBtn.textContent = "Creating...";
+
+          try {
+            const res = await fetch("/mediator_scheduled_meetings", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": csrfToken,
+                "Accept": "application/json"
+              },
+              body: JSON.stringify({
+                meeting: {
+                  ConversationID: conversationId,
+                  StartTime: startDateTime.toISOString(),
+                  EndTime: endDateTime.toISOString()
+                }
+              })
+            });
+
+            if (res.ok) {
+              window.location.reload();
+            } else {
+              const errData = await res.json().catch(() => ({}));
+              if (msgEl) {
+                msgEl.style.color = "#ef4444";
+                msgEl.textContent = errData.errors ? errData.errors.join(", ") : "Failed to schedule meeting.";
+              }
+              createBtn.disabled = false;
+              createBtn.innerHTML = '<i class="fa-solid fa-calendar-plus"></i> Create Meeting';
+            }
+          } catch (err) {
+            console.error("Error creating meeting:", err);
+            if (msgEl) { msgEl.style.color = "#ef4444"; msgEl.textContent = "A network error occurred."; }
+            createBtn.disabled = false;
+            createBtn.innerHTML = '<i class="fa-solid fa-calendar-plus"></i> Create Meeting';
+          }
+        });
+      });
+    </script>
   <% end %>
 </div>
