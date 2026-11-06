@@ -232,6 +232,27 @@ class MessagesController < ApplicationController
 
       begin
         Message.transaction do
+          file_draft = nil
+          if params[:file_id].present?
+            file_draft = FileDraft.where(CreatorID: @user.UserID, UserDeletedAt: nil)
+                                  .lock.find_by(FileID: params[:file_id])
+            raise AgreementAttachmentError, "The selected document could not be found." unless file_draft
+
+            if file_draft.has_attribute?(:AgreementTemplate) && file_draft[:AgreementTemplate].present?
+              unless file_draft.has_attribute?(:AgreementConversationID) && file_draft.has_attribute?(:AgreementVersion)
+                raise AgreementAttachmentError, "Agreement review is unavailable until the database migration is applied."
+              end
+              unless file_draft.agreement_conversation_id.blank? || file_draft.agreement_conversation_id == primary_group.ConversationID
+                raise AgreementAttachmentError, "This agreement cannot be shared in this conversation."
+              end
+              if file_draft.agreement_conversation_id.blank?
+                file_draft[:AgreementConversationID] = primary_group.ConversationID
+                file_draft.AgreementVersion ||= 1
+                file_draft.save!
+              end
+            end
+          end
+
           @message = Message.create!(
             ConversationID: conversation.ConversationID,
             SenderID: @user.UserID,
@@ -239,31 +260,7 @@ class MessagesController < ApplicationController
             MessageDate: Time.current,
             Contents: params[:Contents].to_s
           )
-
-          if params[:file_id].present?
-            file_draft = FileDraft.find_by(FileID: params[:file_id])
-            if file_draft
-              file_draft.with_lock do
-                if file_draft.has_attribute?(:AgreementTemplate) && file_draft[:AgreementTemplate].present?
-                  unless file_draft.has_attribute?(:AgreementConversationID) && file_draft.has_attribute?(:AgreementVersion)
-                    raise AgreementAttachmentError, "Agreement review is unavailable until the database migration is applied."
-                  end
-                  unless file_draft.CreatorID == @user.UserID &&
-                         (file_draft.agreement_conversation_id.blank? || file_draft.agreement_conversation_id == primary_group.ConversationID)
-                    raise AgreementAttachmentError, "This agreement cannot be shared in this conversation."
-                  end
-                  if file_draft.agreement_conversation_id.blank?
-                    file_draft[:AgreementConversationID] = primary_group.ConversationID
-                    file_draft.AgreementVersion ||= 1
-                    file_draft.save!
-                  end
-                end
-                FileAttachment.create!(MessageID: @message.MessageID, FileID: file_draft.FileID)
-              end
-            else
-              raise AgreementAttachmentError, "The selected document could not be found."
-            end
-          end
+          FileAttachment.create!(MessageID: @message.MessageID, FileID: file_draft.FileID) if file_draft
         end
       rescue AgreementAttachmentError => e
         respond_to do |format|

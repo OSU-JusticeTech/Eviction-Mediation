@@ -1,4 +1,5 @@
 class MediatorMessagesController < ApplicationController
+  AttachmentError = Class.new(StandardError)
   before_action :require_login
   before_action :set_user
   before_action :set_side_conversation
@@ -29,20 +30,31 @@ class MediatorMessagesController < ApplicationController
       MessageDate: Time.current
     )
 
-    if @message.save
-      if params[:file_id].present?
-        file_draft = FileDraft.find_by(FileID: params[:file_id])
-
-        if file_draft
-          FileAttachment.create!(
-            MessageID: @message.MessageID,
-            FileID: file_draft.FileID
-          )
-        else
-          Rails.logger.error "FileDraft not found with ID: #{params[:file_id]}"
+    begin
+      message_saved = Message.transaction do
+        file_draft = nil
+        if params[:file_id].present?
+          file_draft = FileDraft.where(CreatorID: @user.UserID, UserDeletedAt: nil)
+                                .lock.find_by(FileID: params[:file_id])
+          raise AttachmentError, "The selected document could not be found." unless file_draft
+          if file_draft.has_attribute?(:AgreementTemplate) && file_draft[:AgreementTemplate].present?
+            raise AttachmentError, "Agreements must be shared in the primary conversation."
+          end
         end
-      end
 
+        saved = @message.save
+        FileAttachment.create!(MessageID: @message.MessageID, FileID: file_draft.FileID) if saved && file_draft
+        saved
+      end
+    rescue AttachmentError => e
+      respond_to do |format|
+        format.json { render json: { error: e.message }, status: :unprocessable_entity }
+        format.html { head :unprocessable_entity }
+      end
+      return
+    end
+
+    if message_saved
       attachments_payload = @message
         .file_attachments
         .includes(:file_draft)
@@ -109,20 +121,12 @@ class MediatorMessagesController < ApplicationController
 
     raise ActiveRecord::RecordNotFound, "Conversation id missing" if @conversation_id.zero?
 
-    @message_string = MessageString.find_by!(ConversationID: @conversation_id)
-    @side_group = SideMessageGroup.find_by!(ConversationID: @conversation_id, deleted_at: nil)
+    @side_group = SideMessageGroup.find_live_for(@user, @conversation_id)
+    raise ActiveRecord::RecordNotFound, "Private conversation unavailable" unless @side_group
 
-    if @user.Role == "Mediator"
-      unless @side_group.MediatorID == @user.UserID
-        raise ActiveRecord::RecordNotFound, "Mediator not assigned to this conversation"
-      end
-      @recipient_id = @side_group.UserID
-    else
-      unless @side_group.UserID == @user.UserID
-        raise ActiveRecord::RecordNotFound, "User not part of this side conversation"
-      end
-      @recipient_id = @side_group.MediatorID
-    end
+    @message_string = MessageString.find_by!(ConversationID: @conversation_id, Role: "Side", deleted_at: nil)
+
+    @recipient_id = @user.UserID == @side_group.UserID ? @side_group.MediatorID : @side_group.UserID
 
     if params[:recipient_id].present?
       provided_recipient = params[:recipient_id].to_i

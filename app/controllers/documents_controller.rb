@@ -9,6 +9,7 @@ require "prawn/table"
 class DocumentsController < ApplicationController
   before_action :require_login
   before_action :set_user
+  before_action :authorize_template_conversation, only: [ :template_intake, :intake_template_view ]
   before_action :block_admin_document_creation, only: [
     :new, :create, :template_intake, :generate_from_intake,
     :template_preview, :intake_template_view, :generate_filled_template,
@@ -41,7 +42,7 @@ class DocumentsController < ApplicationController
 
     @conversation_id = params[:conversation_id]
     if @conversation_id.present?
-      @conversation = PrimaryMessageGroup.find_by(ConversationID: @conversation_id)
+      @conversation = @template_conversation
       if @conversation
         @landlord = @conversation.landlord
         @tenant = @conversation.tenant
@@ -59,8 +60,8 @@ class DocumentsController < ApplicationController
 
   def template_preview
     @template = params[:template]
-    
-    
+
+
     @landlord = ""
     @tenant = ""
     @address = ""
@@ -70,8 +71,8 @@ class DocumentsController < ApplicationController
     @monthly_rent = ""
     @best = ""
     @vacate_date = ""
-    
-    
+
+
     @schedule = []
 
     template_file = case @template
@@ -97,19 +98,8 @@ class DocumentsController < ApplicationController
     @template_name = agreement_template_name(template)
     template_file = agreement_template_file(template)
 
-    html_content = render_to_string(
-      template: template_file,
-      layout: false
-    )
-
-    # Save as HTML file
     file_id = SecureRandom.uuid
-    ext = ".html"
-    dir = Rails.root.join("public", "userFiles")
-    FileUtils.mkdir_p(dir)
-    dest = dir.join("#{file_id}#{ext}")
-
-    File.write(dest, html_content)
+    writer = ->(path) { File.write(path, render_to_string(template: template_file, layout: false)) }
 
     # Create database record
     pk_name, pk_value = next_filedraft_pk_value
@@ -117,7 +107,6 @@ class DocumentsController < ApplicationController
       FileID: file_id,
       FileName: generated_document_name(template),
       FileTypes: "html",
-      FileURLPath: "userFiles/#{file_id}#{ext}",
       CreatorID: @user[:UserID],
       TenantSignature: false,
       LandlordSignature: false,
@@ -132,8 +121,8 @@ class DocumentsController < ApplicationController
 
     file_draft = nil
     message = nil
-    FileDraft.transaction do
-      file_draft = FileDraft.create!(attrs)
+    DocumentCreation.new.call(extension: "html", writer: writer) do |locator|
+      file_draft = FileDraft.create!(attrs.merge(FileURLPath: locator))
       if conversation
         message = Message.create!(ConversationID: conversation.ConversationID, SenderID: @user.UserID,
                                   Contents: "A new #{@template_name} agreement is ready to review and sign. Either party can suggest changes before signing.",
@@ -183,43 +172,20 @@ class DocumentsController < ApplicationController
     else
       redirect_to documents_path, notice: "Document generated successfully."
     end
+  rescue DocumentCreation::Failure
+    render plain: "Unable to create document. Please try again.", status: :service_unavailable
   end
 
   # delete files
   def destroy
-    file = FileDraft.find_by(FileID: params[:id])
-    return render plain: "File not found", status: :not_found unless file
-
-    # Check if user is creator OR part of the conversation
-    can_delete = file.CreatorID == @user[:UserID]
-
-    unless can_delete
-
-      attachments = FileAttachment.where(FileID: file.FileID)
-      if attachments.exists?
-        message_ids = attachments.pluck(:MessageID)
-        conversation_ids = Message.where(MessageID: message_ids).pluck(:ConversationID)
-        can_delete = PrimaryMessageGroup.where(ConversationID: conversation_ids)
-                                        .where("LandlordID = ? OR TenantID = ?", @user[:UserID], @user[:UserID])
-                                        .exists?
-      end
-    end
-
-    return render plain: "Unauthorized", status: :forbidden unless can_delete
-
-    # Delete the physical file
-    delete_physical_file(file)
-
-    # Delete file attachments (removes from chat)
-    FileAttachment.where(FileID: file.FileID).destroy_all
-
-    if FileDraft.column_names.include?("UserDeletedAt")
-      file.update!(UserDeletedAt: Time.current)
-    else
-      file.destroy!
-    end
-
+    DocumentDeletion.new.call(id: params[:id], user: @user)
     redirect_to documents_path, notice: "Document deleted."
+  rescue DocumentDeletion::NotFound
+    render plain: "File not found", status: :not_found
+  rescue DocumentDeletion::Unauthorized
+    render plain: "Unauthorized", status: :forbidden
+  rescue DocumentDeletion::Failure
+    render plain: "Unable to delete document. Please try again.", status: :service_unavailable
   end
 
   def index
@@ -277,10 +243,6 @@ class DocumentsController < ApplicationController
     end
 
     file_id = SecureRandom.uuid
-    dir = Rails.root.join("public", "userFiles")
-    FileUtils.mkdir_p(dir)
-    dest = dir.join("#{file_id}#{ext}")
-    File.open(dest, "wb") { |f| f.write(uploaded.read) }
     pk_name, pk_value = next_filedraft_pk_value
 
     sanitized_filename = File.basename(uploaded.original_filename)
@@ -288,16 +250,21 @@ class DocumentsController < ApplicationController
       FileID:       file_id,
       FileName:     File.basename(sanitized_filename, ".*"),
       FileTypes:    ext.delete("."),
-      FileURLPath:  "userFiles/#{file_id}#{ext}",
       CreatorID:    @user[:UserID],
       TenantSignature: true,
       LandlordSignature: true
     }
     attrs[pk_name] = pk_value if pk_name && pk_value
 
-    FileDraft.create!(attrs)
+    DocumentCreation.new.call(extension: ext, writer: ->(path) {
+      File.open(path, "wb") { |destination| IO.copy_stream(uploaded.tempfile, destination) }
+    }) do |locator|
+      FileDraft.create!(attrs.merge(FileURLPath: locator))
+    end
 
     redirect_to documents_path, notice: "File uploaded."
+  rescue DocumentCreation::Failure
+    render plain: "Unable to create document. Please try again.", status: :service_unavailable
   end
 
   def show
@@ -478,11 +445,18 @@ class DocumentsController < ApplicationController
     result = nil
     completed_round = nil
     accepted_changes = []
+    # Keep access, reviewer eligibility, and proposal checks locked through publication.
     file.with_lock do
+      conversation = agreement_conversation(file)
+      conversation.lock! if conversation
+      unless find_file_for_user(file.FileID) && conversation && agreement_party?(conversation)
+        result = :unavailable
+        next
+      end
       proposal = file.agreement_proposal
       changes = proposal["changes"] || {}
       item = file.agreement_suggestion_items.find { |suggestion| suggestion[:key] == params[:field].to_s }
-      if !file.agreement_editable? || !file.agreement_suggestions_pending? ||
+      if mediator_agreement_proposal?(proposal) || !file.agreement_editable? || !file.agreement_suggestions_pending? ||
          proposal["base_version"].to_i != file.AgreementVersion || item.nil? ||
          active_agreement_reviewer_id(file, proposal, conversation) != @user.UserID ||
          item[:offered_by_id].to_i == @user.UserID ||
@@ -511,19 +485,23 @@ class DocumentsController < ApplicationController
             item[:fields].each { |field| changes[field]["decision"] = decision }
             assign_agreement_template_variables(file.AgreementTemplate, accepted_terms)
             html = render_to_string(template: agreement_template_file(file.AgreementTemplate), formats: [:html], layout: false)
-            file.AgreementTerms = JSON.generate(accepted_terms)
-            file.AgreementVersion += 1
-            file.TenantSignature = false
-            file.LandlordSignature = false
-            file.TenantSignedAt = nil
-            file.LandlordSignedAt = nil
-            file.TenantSignatureName = nil
-            file.LandlordSignatureName = nil
-            proposal["base_version"] = file.AgreementVersion
-            proposal["round_accepted"] = true
-            file.AgreementProposal = JSON.generate(proposal)
-            replace_agreement_html(file, html)
-            completed_round = finish_agreement_review_round(file, proposal, conversation)
+            DocumentRevision.new.call(
+              file: file, extension: "html",
+              writer: ->(_original, path, _locked) { File.write(path, html) }
+            ) do
+              file.AgreementTerms = JSON.generate(accepted_terms)
+              file.AgreementVersion += 1
+              file.TenantSignature = false
+              file.LandlordSignature = false
+              file.TenantSignedAt = nil
+              file.LandlordSignedAt = nil
+              file.TenantSignatureName = nil
+              file.LandlordSignatureName = nil
+              proposal["base_version"] = file.AgreementVersion
+              proposal["round_accepted"] = true
+              file.AgreementProposal = JSON.generate(proposal)
+              completed_round = finish_agreement_review_round(file, proposal, conversation)
+            end
             result = :updated
           else
             result = :invalid_payment
@@ -580,6 +558,8 @@ class DocumentsController < ApplicationController
         redirect_to view_file_path(file.FileID), alert: "This suggestion is no longer available. Refresh the agreement."
       end
     end
+  rescue DocumentRevision::Failure
+    render_agreement_revision_failure
   end
 
   def counteroffer_suggestion
@@ -654,47 +634,50 @@ class DocumentsController < ApplicationController
     @file = find_file_for_user(params[:id])
     return render plain: "File not found", status: :not_found unless @file
 
-    unless @file.agreement_signable?
-      return redirect_to view_file_path(@file.FileID), alert: "This agreement must be shared in a conversation before signing."
-    end
-
-    # Load conversation to verify authorization
-    file_attachment = FileAttachment.find_by(FileID: @file.FileID)
-    unless file_attachment || @file.agreement_conversation_id.present?
-      flash[:alert] = "This document is not linked to a conversation and cannot be signed."
-      return redirect_to view_file_path(@file.FileID)
-    end
-
-    message = Message.find_by(MessageID: file_attachment.MessageID) if file_attachment && @file.agreement_conversation_id.blank?
-    unless message || @file.agreement_conversation_id.present?
-      flash[:alert] = "Unable to locate conversation for this document."
-      return redirect_to view_file_path(@file.FileID)
-    end
-
-    conversation = @file.agreement_conversation_id.present? ? agreement_conversation(@file) : PrimaryMessageGroup.find_by(ConversationID: message.ConversationID)
-    unless conversation
-      flash[:alert] = "Unable to locate conversation for this document."
-      return redirect_to view_file_path(@file.FileID)
-    end
-
-    # Verify user is either landlord or tenant
-    is_landlord = @user.UserID == conversation.LandlordID
-    is_tenant = @user.UserID == conversation.TenantID
-
-    unless is_landlord || is_tenant
-      flash[:alert] = "You are not authorized to sign this document."
-      return redirect_to view_file_path(@file.FileID)
-    end
-
-    signature_name = params[:signature_name]&.strip
-
-    if signature_name.blank?
-      flash[:alert] = "Please provide your name to sign the document."
-      return redirect_to view_file_path(@file.FileID)
-    end
-
     signature_result = nil
+    conversation = is_landlord = signature_name = nil
     @file.with_lock do
+      unless find_file_for_user(@file.FileID)
+        return render plain: "File not found", status: :not_found
+      end
+      unless @file.agreement_signable?
+        return redirect_to view_file_path(@file.FileID), alert: "This agreement must be shared in a conversation before signing."
+      end
+
+      # Load conversation to verify authorization
+      file_attachment = FileAttachment.find_by(FileID: @file.FileID)
+      unless file_attachment || @file.agreement_conversation_id.present?
+        flash[:alert] = "This document is not linked to a conversation and cannot be signed."
+        return redirect_to view_file_path(@file.FileID)
+      end
+
+      message = Message.find_by(MessageID: file_attachment.MessageID) if file_attachment && @file.agreement_conversation_id.blank?
+      unless message || @file.agreement_conversation_id.present?
+        flash[:alert] = "Unable to locate conversation for this document."
+        return redirect_to view_file_path(@file.FileID)
+      end
+
+      conversation = @file.agreement_conversation_id.present? ? agreement_conversation(@file) : PrimaryMessageGroup.find_by(ConversationID: message.ConversationID)
+      unless conversation
+        flash[:alert] = "Unable to locate conversation for this document."
+        return redirect_to view_file_path(@file.FileID)
+      end
+
+      # Verify user is either landlord or tenant
+      is_landlord = @user.UserID == conversation.LandlordID
+      is_tenant = @user.UserID == conversation.TenantID
+
+      unless (is_landlord || is_tenant) && !@user.mediator? && @user.Role != "Admin"
+        flash[:alert] = "You are not authorized to sign this document."
+        return redirect_to view_file_path(@file.FileID)
+      end
+
+      signature_name = params[:signature_name]&.strip
+
+      if signature_name.blank?
+        flash[:alert] = "Please provide your name to sign the document."
+        return redirect_to view_file_path(@file.FileID)
+      end
       if @file.agreement_suggestions_pending?
         signature_result = :suggestions_pending
       elsif @file.agreement_document? && params[:agreement_version].to_i != @file.AgreementVersion
@@ -702,17 +685,20 @@ class DocumentsController < ApplicationController
       elsif (is_landlord && @file.LandlordSignature) || (is_tenant && @file.TenantSignature)
         signature_result = :already_signed
       else
-        if is_landlord
-          @file.LandlordSignature = true
-          @file.LandlordSignedAt = Time.current
-          @file.LandlordSignatureName = signature_name
-        else
-          @file.TenantSignature = true
-          @file.TenantSignedAt = Time.current
-          @file.TenantSignatureName = signature_name
+        signed_at = Time.current
+        role = is_landlord ? "Landlord" : "Tenant"
+        DocumentRevision.new.call(
+          file: @file, extension: "html",
+          writer: ->(original, path, locked) {
+            html = AgreementSignature.new.call(original, file: locked, role: role,
+                                              name: signature_name, signed_at: signed_at)
+            path.binwrite(html)
+          }
+        ) do |locked|
+          locked.public_send("#{role}Signature=", true)
+          locked.public_send("#{role}SignedAt=", signed_at)
+          locked.public_send("#{role}SignatureName=", signature_name)
         end
-        @file.save!
-        update_document_with_signature(@file, is_landlord, signature_name)
         signature_result = :signed
       end
     end
@@ -779,6 +765,8 @@ class DocumentsController < ApplicationController
     end
 
     redirect_to view_file_path(@file.FileID)
+  rescue DocumentRevision::Failure
+    redirect_to view_file_path(@file.FileID), alert: "Failed to save signature. Please try again."
   end
 
   # download of the stored file
@@ -786,34 +774,7 @@ class DocumentsController < ApplicationController
     file = find_file_for_user(params[:id])
     return render plain: "File not found (record)", status: :not_found unless file
 
-    base_path = Rails.root.join("public")
-    rel_path  = Pathname.new(file.FileURLPath).cleanpath
-    path      = base_path.join(rel_path)
-
-    size = File.exist?(path) ? File.size(path) : -1
-    Rails.logger.info "[DL] path=#{path} exists=#{File.exist?(path)} size=#{size}"
-
-
-    unless path.to_s.start_with?(base_path.to_s) && File.exist?(path)
-      return render plain: "File not found (#{path})", status: :not_found
-    end
-    if size <= 0
-      return render plain: "Generated file is empty (#{path})", status: :unprocessable_entity
-    end
-
-    mime_type = begin
-      Marcel::MimeType.for(path.to_path, extension: File.extname(path))
-    rescue StandardError
-      nil
-    end
-
-
-    disposition = "attachment"
-
-    send_file path,
-              filename: "#{file.FileName}#{File.extname(path)}",
-              type: mime_type || "application/octet-stream",
-              disposition: disposition
+    deliver_document(file, disposition: "attachment")
   end
 
 
@@ -830,34 +791,7 @@ class DocumentsController < ApplicationController
       return render template: agreement_template_file(file.AgreementTemplate), layout: false
     end
 
-    base_path = Rails.root.join("public")
-    rel_path  = Pathname.new(file.FileURLPath).cleanpath
-    path      = base_path.join(rel_path)
-
-    size = File.exist?(path) ? File.size(path) : -1
-    Rails.logger.info "[VIEW] path=#{path} exists=#{File.exist?(path)} size=#{size}"
-
-
-    unless path.to_s.start_with?(base_path.to_s) && File.exist?(path)
-      return render plain: "File not found (#{path})", status: :not_found
-    end
-    if size <= 0
-      return render plain: "Generated file is empty (#{path})", status: :unprocessable_entity
-    end
-
-    mime_type = begin
-      Marcel::MimeType.for(path.to_path, extension: File.extname(path))
-    rescue StandardError
-      nil
-    end
-
-
-    disposition = "inline"
-
-    send_file path,
-              filename: "#{file.FileName}#{File.extname(path)}",
-              type: mime_type || "application/octet-stream",
-              disposition: disposition
+    deliver_document(file, disposition: "inline")
   end
 
   def generate_filled_template
@@ -889,11 +823,6 @@ class DocumentsController < ApplicationController
     land_sig   = params[:landlord_signature].to_s
 
     file_id = SecureRandom.uuid
-    ext     = ".pdf"
-    dir     = Rails.root.join("public", "userFiles")
-    FileUtils.mkdir_p(dir)
-    dest    = dir.join("#{file_id}#{ext}")
-
     # Generate the PDF based on template type
     require "prawn"
     template = params[:template] || "a"
@@ -901,31 +830,33 @@ class DocumentsController < ApplicationController
     money_owed = params[:money_owed].to_s
     monthly_rent = params[:monthly_rent].to_s
 
-    Prawn::Document.generate(dest.to_s, margin: 54, page_size: "LETTER") do |pdf|
-      case template
-      when "a" # Agree to Vacate
-        generate_vacate_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
-      when "b" # Pay and Stay Agreement
-        generate_pay_stay_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, monthly_rent, schedule, best)
-      when "c" # Mediation Agreement
-        generate_mediation_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, monthly_rent, schedule, best)
-      else
-        # Fallback to generic
-        generate_generic_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
-      end
+    writer = ->(path) do
+      Prawn::Document.generate(path.to_s, margin: 54, page_size: "LETTER") do |pdf|
+        case template
+        when "a" # Agree to Vacate
+          generate_vacate_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
+        when "b" # Pay and Stay Agreement
+          generate_pay_stay_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, monthly_rent, schedule, best)
+        when "c" # Mediation Agreement
+          generate_mediation_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, monthly_rent, schedule, best)
+        else
+          # Fallback to generic
+          generate_generic_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
+        end
 
-      # Footer
-      pdf.move_down 20
-      pdf.stroke_horizontal_rule
-      pdf.move_down 10
+        # Footer
+        pdf.move_down 20
+        pdf.stroke_horizontal_rule
+        pdf.move_down 10
 
-      pdf.text "Tenant Signature: ____________________________  Date: ____________", size: 10
-      pdf.move_down 15
-      pdf.text "Landlord Signature: ____________________________  Date: ____________", size: 10
-
-      if conv_id.present?
+        pdf.text "Tenant Signature: ____________________________  Date: ____________", size: 10
         pdf.move_down 15
-        pdf.text "Conversation ID: #{conv_id}", size: 8, color: "888888"
+        pdf.text "Landlord Signature: ____________________________  Date: ____________", size: 10
+
+        if conv_id.present?
+          pdf.move_down 15
+          pdf.text "Conversation ID: #{conv_id}", size: 8, color: "888888"
+        end
       end
     end
 
@@ -935,20 +866,62 @@ class DocumentsController < ApplicationController
       FileID: file_id,
       FileName: generated_document_name(template),
       FileTypes: "pdf",
-      FileURLPath: "userFiles/#{file_id}#{ext}",
       CreatorID: @user[:UserID],
       TenantSignature: tenant_sig.present?,
       LandlordSignature: land_sig.present?
     }
     attrs[pk_name] = pk_value if pk_name && pk_value
 
-    FileDraft.create!(attrs)
+    DocumentCreation.new.call(extension: "pdf", writer: writer) do |locator|
+      FileDraft.create!(attrs.merge(FileURLPath: locator))
+    end
 
     redirect_to documents_path, notice: "Document generated."
+  rescue DocumentCreation::Failure
+    render plain: "Unable to create document. Please try again.", status: :service_unavailable
   end
 
 
   private
+
+  def render_agreement_revision_failure
+    message = "Unable to revise agreement. Please try again."
+    if request.format.json?
+      render json: { error: message }, status: :service_unavailable
+    else
+      render plain: message, status: :service_unavailable
+    end
+  end
+
+  # Call only after the record has passed find_file_for_user authorization.
+  def deliver_document(file, disposition:)
+    response.headers["Cache-Control"] = "private, no-store"
+    path = DocumentStorage.configured.resolve(file.FileURLPath)
+    return render plain: "Generated file is empty", status: :unprocessable_entity if path.size.zero?
+
+    mime_type = begin
+      Marcel::MimeType.for(path.to_path, extension: File.extname(path))
+    rescue StandardError
+      nil
+    end
+
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    # Stored bytes are untrusted, including generated HTML. Keep parent access
+    # for the agreement scroll check, but never allow document scripts to run.
+    # Native PDF viewers must remain usable without sandbox restrictions.
+    unless mime_type == "application/pdf"
+      response.headers["Content-Security-Policy"] = "sandbox allow-same-origin"
+    end
+
+    send_file path,
+              filename: "#{file.FileName}#{File.extname(path)}",
+              type: mime_type || "application/octet-stream",
+              disposition: disposition
+  rescue DocumentStorage::InvalidLocator, DocumentStorage::MissingFile
+    render plain: "File not found", status: :not_found
+  rescue DocumentStorage::Unavailable, DocumentStorageConfiguration::InvalidConfiguration, SystemCallError, IOError
+    render plain: "Document storage is unavailable", status: :service_unavailable
+  end
 
   AGREEMENT_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed monthly_rent
                         best_option vacate_date rent_owed late_fees utilities other_charges
@@ -963,7 +936,14 @@ class DocumentsController < ApplicationController
     result = :unavailable
     accepted_changes = []
 
+    # Keep access, reviewer eligibility, and proposal checks locked through publication.
     file.with_lock do
+      conversation = agreement_conversation(file)
+      conversation.lock! if conversation
+      unless find_file_for_user(file.FileID) && conversation && agreement_party?(conversation)
+        result = :unavailable
+        next
+      end
       proposal = file.agreement_proposal
       role = agreement_review_party(conversation)
 
@@ -1038,20 +1018,23 @@ class DocumentsController < ApplicationController
                 layout: false
               )
 
-              file.AgreementTerms = JSON.generate(accepted_terms)
-              file.AgreementVersion += 1
+              DocumentRevision.new.call(
+                file: file, extension: "html",
+                writer: ->(_original, path, _locked) { File.write(path, html) }
+              ) do
+                file.AgreementTerms = JSON.generate(accepted_terms)
+                file.AgreementVersion += 1
 
-              file.TenantSignature = false
-              file.LandlordSignature = false
-              file.TenantSignedAt = nil
-              file.LandlordSignedAt = nil
-              file.TenantSignatureName = nil
-              file.LandlordSignatureName = nil
+                file.TenantSignature = false
+                file.LandlordSignature = false
+                file.TenantSignedAt = nil
+                file.LandlordSignedAt = nil
+                file.TenantSignatureName = nil
+                file.LandlordSignatureName = nil
 
-              proposal["base_version"] = file.AgreementVersion
-              file.AgreementProposal = JSON.generate(proposal)
-
-              replace_agreement_html(file, html)
+                proposal["base_version"] = file.AgreementVersion
+                file.AgreementProposal = JSON.generate(proposal)
+              end
               result = :updated
             else
               fields.each do |field|
@@ -1120,6 +1103,8 @@ class DocumentsController < ApplicationController
                   (result == :unavailable || result == :invalid_payment ?
                     { alert: message } : { notice: message })
     end
+  rescue DocumentRevision::Failure
+    render_agreement_revision_failure
   end
 
   def counteroffer_mediator_suggestion(file, conversation)
@@ -1323,17 +1308,6 @@ class DocumentsController < ApplicationController
     "#{@user.Role} #{name}"
   end
 
-  def replace_agreement_html(file, html)
-    path = Rails.root.join("public", file.FileURLPath)
-    Tempfile.create(["agreement-", ".html"], path.dirname) do |temp|
-      temp.write(html)
-      temp.flush
-      temp.chmod(File.stat(path).mode & 0o777)
-      file.save!
-      File.rename(temp.path, path)
-    end
-  end
-
   def agreement_template_file(template)
     { "a" => "documents/templates/agree_to_vacate",
       "b" => "documents/templates/pay_and_stay",
@@ -1479,112 +1453,8 @@ class DocumentsController < ApplicationController
     [ *party_names, document_type ].compact.join(" - ")
   end
 
-  def delete_physical_file(file)
-    rel = Pathname.new(file.FileURLPath.to_s).cleanpath
-    base = Rails.root.join("public")
-    path = base.join(rel)
-    if path.to_s.start_with?(base.to_s) && File.exist?(path)
-      File.delete(path) rescue nil
-    end
-  end
-
   def find_file_for_user(id)
-    scope = FileDraft.where(FileID: id)
-    scope = scope.where(UserDeletedAt: nil) if FileDraft.column_names.include?("UserDeletedAt")
-
-    file = scope.first
-    return unless file
-    return file if file.CreatorID == @user[:UserID]
-
-    attachments = FileAttachment.where(FileID: file.FileID)
-    return unless attachments.exists?
-
-    message_ids = attachments.select(:MessageID)
-    messages = Message.where(MessageID: message_ids)
-
-    # Check if user is a direct participant (sender or recipient)
-    message_table = Message.arel_table
-    participant_condition = message_table[:SenderID].eq(@user[:UserID])
-                             .or(message_table[:recipientID].eq(@user[:UserID]))
-
-    return file if messages.where(participant_condition).exists?
-
-    # Check if user is a mediator or other party in the conversation
-    conversation_ids = messages.pluck(:ConversationID).uniq
-    conversation_ids.each do |conv_id|
-      # Check PrimaryMessageGroup (landlord, tenant, mediator)
-      pmg = PrimaryMessageGroup.find_by(ConversationID: conv_id)
-      if pmg
-        return file if pmg.LandlordID == @user[:UserID]
-        return file if pmg.TenantID == @user[:UserID]
-        return file if pmg.MediatorID == @user[:UserID]
-      end
-
-      # Check SideMessageGroup (mediator side conversations)
-      smg = SideMessageGroup.find_by(ConversationID: conv_id)
-      if smg
-        return file if smg.UserID == @user[:UserID]
-        return file if smg.MediatorID == @user[:UserID]
-      end
-    end
-
-    nil
-  end
-
-  def update_document_with_signature(file, is_landlord, signature_name)
-    file_path = Rails.root.join("public", file.FileURLPath)
-    return unless File.exist?(file_path)
-
-    html_content = File.read(file_path)
-    signed_date = Time.current.strftime("%B %d, %Y")
-
-    if is_landlord
-      # Try new Pay and Stay format first
-      if html_content =~ /<strong>Landlord:<\/strong>\s*<span class="signature-line">/
-        html_content.gsub!(
-          /(<strong>Landlord:<\/strong>\s*<span class="signature-line">)___________(<\/span>)/m,
-          "\\1/s/ #{signature_name}\\2"
-        )
-        html_content.gsub!(
-          /(<strong>Landlord:<\/strong>\s*<span class="signature-line">.*?<\/span>\s*<span style="margin-left: 50px;"><strong>Date:<\/strong> <span class="date-line">)___________(<\/span>)/m,
-          "\\1#{signed_date}\\2"
-        )
-      else
-        # Fall back to old format
-        html_content.gsub!(
-          /<span class="sig-underline"><\/span>\s*<div class="sig-label">\s*<span>Landlord<\/span>/m,
-          "<span class=\"sig-underline\">/s/ #{signature_name}</span>\n      <div class=\"sig-label\">\n        <span>Landlord</span>"
-        )
-        html_content.gsub!(
-          /(<span>Landlord<\/span>\s*<span style="float: right;">)Date(<\/span>)/m,
-          "\\1#{signed_date}\\2"
-        )
-      end
-    else
-      # Try new Pay and Stay format first
-      if html_content =~ /<strong>Tenant:<\/strong>\s*<span class="signature-line">/
-        html_content.gsub!(
-          /(<strong>Tenant:<\/strong>\s*<span class="signature-line">)___________(<\/span>)/m,
-          "\\1/s/ #{signature_name}\\2"
-        )
-        html_content.gsub!(
-          /(<strong>Tenant:<\/strong>\s*<span class="signature-line">.*?<\/span>\s*<span style="margin-left: 50px;"><strong>Date:<\/strong> <span class="date-line">)___________(<\/span>)/m,
-          "\\1#{signed_date}\\2"
-        )
-      else
-        # Fall back to old format
-        html_content.gsub!(
-          /<span class="sig-underline"><\/span>\s*<div class="sig-label">\s*<span>Tenant<\/span>/m,
-          "<span class=\"sig-underline\">/s/ #{signature_name}</span>\n      <div class=\"sig-label\">\n        <span>Tenant</span>"
-        )
-        html_content.gsub!(
-          /(<span>Tenant<\/span>\s*<span style="float: right;">)Date(<\/span>)/m,
-          "\\1#{signed_date}\\2"
-        )
-      end
-    end
-
-    File.write(file_path, html_content)
+    FileDraft.find_viewable_by(@user, id)
   end
 
   def next_filedraft_pk_value
@@ -1604,12 +1474,20 @@ class DocumentsController < ApplicationController
     (FileDraft.maximum("ID") || 0) + 1
   end
 
+  def authorize_template_conversation
+    conversation_id = params[:conversation_id].presence || params[:id].presence
+    return unless conversation_id
+
+    @template_conversation = PrimaryMessageGroup.find_by(ConversationID: conversation_id)
+    head :not_found unless agreement_suggester?(@template_conversation)
+  end
+
   def set_conversation_context
     conv_id = params[:conversation_id].presence || params[:id]
     return unless conv_id
 
     @conversation = ::MessageString.find_by(ConversationID: conv_id) rescue nil
-    @pmg          = ::PrimaryMessageGroup.find_by(ConversationID: conv_id) rescue nil
+    @pmg          = @template_conversation
 
     @landlord = ::User.find_by(UserID: @pmg&.LandlordID)
     @tenant   = ::User.find_by(UserID: @pmg&.TenantID)

@@ -1,6 +1,7 @@
 require_relative "boot"
 
 require "rails/all"
+require_relative "../lib/legacy_document_access_blocker"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -10,6 +11,8 @@ module App
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 8.0
+    # Must run before ActionDispatch::Static, including when static serving is enabled.
+    config.middleware.insert_before 0, LegacyDocumentAccessBlocker
     config.assets.compile = true
     config.assets.paths << Rails.root.join("app/assets/javascripts")
 
