@@ -159,6 +159,61 @@ class DocumentStorage
     raise
   end
 
+  # Migration inspection only: pins a read-only legacy descriptor for the block.
+  # Identity checks do not freeze bytes; callers must establish source stability.
+  def open_legacy(locator)
+    unless locator.is_a?(String) && locator.start_with?(LEGACY_PREFIX)
+      raise InvalidLocator, "Only legacy document locators are supported"
+    end
+    root, name = location(locator)
+    caller_failure = Object.new
+    caller_error = catch(caller_failure) do
+      return protect_io do
+        checked_root!(root)
+        path = root.join(name)
+        before = begin
+          path.lstat
+        rescue Errno::ENOENT
+          raise MissingFile, "Document not found"
+        end
+        validate_legacy_stat!(before)
+        unless File.const_defined?(:NOFOLLOW) && File.const_defined?(:NONBLOCK)
+          raise Unavailable, "Safe document opening is unsupported"
+        end
+        File.open(path, File::RDONLY | File::NOFOLLOW | File::NONBLOCK) do |file|
+          file.binmode
+          opened = file.stat
+          validate_legacy_stat!(opened)
+          unless [before.dev, before.ino] == [opened.dev, opened.ino]
+            raise InvalidLocator, "Document changed while opening"
+          end
+          checked_root!(root)
+          current = path.lstat
+          validate_legacy_stat!(current)
+          unless [current.dev, current.ino] == [opened.dev, opened.ino]
+            raise InvalidLocator, "Document changed while opening"
+          end
+          result = begin
+            yield file
+          rescue SystemCallError, IOError => error
+            # Leave protect_io before raising caller failures so they are never
+            # translated into storage errors. File.open still closes the descriptor.
+            throw caller_failure, error
+          end
+          checked_root!(root)
+          current = path.lstat
+          validate_legacy_stat!(current)
+          validate_legacy_stat!(file.stat)
+          unless [current.dev, current.ino] == [opened.dev, opened.ino]
+            raise InvalidLocator, "Document changed during inspection"
+          end
+          result
+        end
+      end
+    end
+    raise caller_error
+  end
+
   def store(io:, extension:)
     write(extension: extension) do |path|
       File.open(path, "wb") { |destination| IO.copy_stream(io, destination) }
@@ -218,6 +273,12 @@ class DocumentStorage
   def validate_private_stat!(stat)
     unless stat.file? && stat.nlink == 1 && (stat.mode & 0o7777) == 0o600
       raise InvalidLocator, "Unsafe private document"
+    end
+  end
+
+  def validate_legacy_stat!(stat)
+    unless stat.file? && stat.nlink == 1
+      raise InvalidLocator, "Unsafe legacy document"
     end
   end
 

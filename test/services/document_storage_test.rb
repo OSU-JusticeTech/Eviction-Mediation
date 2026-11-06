@@ -567,6 +567,175 @@ class DocumentStorageTest < Minitest::Test
     assert_equal [destination], @root.children
   end
 
+  def test_legacy_descriptor_is_binary_read_only_closed_and_preserves_source
+    path = @legacy.join("Test Document1.pdf")
+    bytes = "historical\x00\xff".b
+    path.binwrite(bytes)
+    File.chmod(0o640, path)
+    before = path.stat
+    descriptor = nil
+    result = @storage.open_legacy("userFiles/Test Document1.pdf") do |file|
+      descriptor = file
+      assert_kind_of File, file
+      assert file.binmode?
+      assert_equal bytes, file.read
+      assert_raises(IOError) { file.write("changed") }
+      :inspected
+    end
+    assert_equal :inspected, result
+    assert descriptor.closed?
+    assert_equal bytes, path.binread
+    after = path.stat
+    assert_equal [before.dev, before.ino, before.mode, before.size, before.mtime, before.ctime],
+      [after.dev, after.ino, after.mode, after.size, after.mtime, after.ctime]
+    assert_empty @root.children
+  end
+
+  def test_legacy_open_rejects_missing_disabled_and_invalid_locators
+    assert_raises(DocumentStorage::MissingFile) do
+      @storage.open_legacy("userFiles/absent.pdf") { flunk "missing source yielded" }
+    end
+    @legacy.join("old.pdf").write("old")
+    disabled = DocumentStorage.new(configuration: configuration(legacy_reads_enabled: false))
+    assert_raises(DocumentStorage::MissingFile) do
+      disabled.open_legacy("userFiles/old.pdf") { flunk "disabled source yielded" }
+    end
+    [nil, "", "/etc/passwd", "privateDocuments/old.pdf", "other/old.pdf",
+     "userFiles/../old.pdf", "userFiles/nested/old.pdf", "userFiles/a\\b.pdf",
+     "userFiles/%2e%2e.pdf", "userFiles/a\0.pdf", "userFiles/.hidden",
+     "userFiles/" + "a" * 256, "userFiles/é.pdf", "userFiles/\xff.pdf".b.force_encoding("UTF-8")].each do |locator|
+      assert_raises(DocumentStorage::InvalidLocator) do
+        @storage.open_legacy(locator) { flunk "invalid locator yielded" }
+      end
+    end
+  end
+
+  def test_legacy_open_rejects_links_and_nonregular_sources
+    target = @sandbox.join("outside.pdf")
+    target.write("outside")
+    File.symlink(target, @legacy.join("link.pdf"))
+    File.symlink(@sandbox.join("absent"), @legacy.join("dangling.pdf"))
+    File.link(target, @legacy.join("hard.pdf"))
+    @legacy.join("directory").mkdir
+    %w[link.pdf dangling.pdf hard.pdf directory].each do |name|
+      assert_raises(DocumentStorage::InvalidLocator) do
+        @storage.open_legacy("userFiles/#{name}") { flunk "unsafe source yielded" }
+      end
+    end
+    assert_equal "outside", target.read
+  end
+
+  def test_legacy_open_rejects_symlinked_root_and_ancestor
+    [@legacy, @public].each_with_index do |directory, index|
+      moved = @sandbox.join("moved-#{index}")
+      directory.rename(moved)
+      File.symlink(moved, directory)
+      begin
+        assert_raises(DocumentStorage::InvalidLocator) do
+          @storage.open_legacy("userFiles/old.pdf") { flunk "unsafe root yielded" }
+        end
+      ensure
+        directory.unlink
+        moved.rename(directory)
+      end
+    end
+  end
+
+  def test_legacy_open_rejects_replacement_or_symlink_swap_before_open
+    path = @legacy.join("old.pdf")
+    original_open = File.method(:open)
+    [:replacement, :symlink].each do |kind|
+      path.write("original")
+      replacement = @sandbox.join("replacement-#{kind}")
+      replacement.write("replacement")
+      File.stub(:open, ->(opened_path, *args, &block) {
+        if Pathname(opened_path) == path
+          path.rename(@sandbox.join("retained-#{kind}"))
+          kind == :symlink ? File.symlink(replacement, path) : replacement.rename(path)
+        end
+        original_open.call(opened_path, *args, &block)
+      }) do
+        assert_raises(DocumentStorage::Error) do
+          @storage.open_legacy("userFiles/old.pdf") { flunk "replacement yielded" }
+        end
+      end
+      path.unlink
+    end
+  end
+
+  def test_legacy_open_rejects_changes_during_inspection_and_closes_descriptor
+    path = @legacy.join("old.pdf")
+    [:replacement, :symlink, :removed, :hard_link, :root_symlink].each do |kind|
+      path.write("original")
+      descriptor = nil
+      assert_raises(DocumentStorage::Error) do
+        @storage.open_legacy("userFiles/old.pdf") do |file|
+          descriptor = file
+          case kind
+          when :replacement
+            replacement = @sandbox.join("replacement")
+            replacement.write("replacement")
+            replacement.rename(path)
+          when :symlink
+            path.unlink
+            File.symlink(@sandbox.join("absent"), path)
+          when :removed
+            path.unlink
+          when :hard_link
+            File.link(path, @sandbox.join("extra-link"))
+          when :root_symlink
+            @legacy.rename(@sandbox.join("moved-legacy"))
+            File.symlink(@sandbox.join("moved-legacy"), @legacy)
+          end
+        end
+      end
+      assert descriptor.closed?
+      if kind == :root_symlink
+        @legacy.unlink
+        @sandbox.join("moved-legacy").rename(@legacy)
+      end
+      path.unlink if path.exist? || path.symlink?
+    end
+  end
+
+  {
+    system_call_error: Errno::EIO,
+    io_error: IOError,
+    application_exception: RuntimeError
+  }.each do |kind, error_class|
+    define_method("test_legacy_open_preserves_caller_#{kind}_and_closes_descriptor") do
+      failure = error_class.new("caller failure")
+      failure.set_backtrace(["caller.rb:42:in `inspect_document'"])
+      original_backtrace = failure.backtrace.dup
+      original_message = failure.message
+      path = @legacy.join("old.pdf")
+      path.write("original")
+      descriptor = nil
+      error = assert_raises(error_class) do
+        @storage.open_legacy("userFiles/old.pdf") do |file|
+          descriptor = file
+          path.unlink
+          raise failure
+        end
+      end
+      assert_same failure, error
+      assert_equal original_message, error.message
+      assert_equal original_backtrace, error.backtrace
+      assert_nil error.cause
+      assert descriptor.closed?
+    end
+  end
+
+  def test_legacy_open_fails_closed_without_nofollow
+    @legacy.join("old.pdf").write("original")
+    original_defined = File.method(:const_defined?)
+    File.stub(:const_defined?, ->(name, *args) { name == :NOFOLLOW ? false : original_defined.call(name, *args) }) do
+      assert_raises(DocumentStorage::Unavailable) do
+        @storage.open_legacy("userFiles/old.pdf") { flunk "unsupported opening yielded" }
+      end
+    end
+  end
+
   private
 
   def configuration(root: @root, legacy_reads_enabled: true)

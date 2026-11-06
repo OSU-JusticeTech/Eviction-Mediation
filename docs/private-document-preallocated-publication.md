@@ -1,5 +1,55 @@
 # Stage 5C-2A: preallocated private publication
 
+## Stage 5C-2A-2: safe legacy opening
+
+`DocumentStorage#open_legacy(locator) { |file| ... }` is a separate inspection
+API for future migration verification. It accepts only exact validated
+`userFiles/` locators using the existing containment rules and respects disabled
+legacy reads. It performs no migration, copying, hashing, publication, deletion,
+journal mutation or FileDraft update. Existing storage APIs are unchanged.
+
+Before opening, it checks the legacy root and ancestors for symlinks and uses
+`lstat` to require a regular file with exactly one hard link. It opens read-only
+in binary mode with `NOFOLLOW` and `NONBLOCK`, failing closed if either flag is
+unavailable. `NONBLOCK` avoids waiting on a FIFO substituted during opening.
+It compares device/inode from the initial lstat, descriptor fstat and another
+pathname lstat, rechecking root safety before yielding the opened File object.
+Legacy permissions need not be 0600; this API does not chmod existing sources.
+
+After normal block completion, it rechecks root safety, pathname type/link count,
+descriptor type/link count and pathname device/inode against the opened identity.
+Detected replacement, deletion and symlink swaps fail. The descriptor closes on
+success or exception, and the block's return value is preserved. Caller exceptions,
+including I/O exceptions, propagate unchanged; post-block checks are skipped when
+the block raises. Initial absence or disabled legacy reads raises `MissingFile`;
+unsafe locators/entries or identity mismatches raise `InvalidLocator`; filesystem
+failures, including disappearance after initial inspection, raise `Unavailable`.
+
+Directories must remain trusted and operator-owned. Pathname checks and final
+component `NOFOLLOW` do not eliminate hostile concurrent ancestor replacement,
+or swaps that occur and revert between checks. This is not descriptor-relative
+directory traversal. The API does not freeze bytes, compare timestamps/sizes,
+capture durable source evidence, or establish integrity. Future migration work
+still requires an immutable source or enforced writer freeze, stability/hash
+verification, durable worker exclusion and journal coordination. Reads may update
+atime. The trusted caller receives a File object and must treat it as inspection
+only; a successful inspection is no authorization to migrate or delete anything.
+
+Synthetic tests cover valid binary read-only inspection, source preservation,
+missing/disabled/malformed/private locators, symlinks and ancestors, nonregular
+files, hard links, replacements before and during opening, deletion during
+inspection, root swapping, unsupported safe opening and caller exceptions.
+These added tests have not been executed; only Ruby syntax checks and
+`git diff --check` were run. No real document directories were scanned.
+Run the standalone filesystem suite in Docker when validation is authorized:
+
+```sh
+docker compose -f docker-compose.yml run --rm web bundle exec ruby test/services/document_storage_test.rb
+```
+
+Stop for review. Worker claiming/fencing remains a prerequisite for Stage 5C-2B;
+Stage 5C-3 database locator cutover remains separate.
+
 This storage-only extension enables future migration ownership evidence before
 publication. No migration copy service, runner, journal mutation, database
 cutover, lifecycle change, or infrastructure configuration is included.
