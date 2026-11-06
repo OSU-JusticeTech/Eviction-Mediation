@@ -45,8 +45,12 @@ class MediatorScheduledMeetingsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "creates scheduled meeting" do
-    assert_difference "MediatorScheduledMeeting.count", 1 do
-      post mediator_scheduled_meetings_path, params: meeting_params
+    zoom = FakeZoom.new(join_url: "https://us02web.zoom.us/j/123456789")
+    
+    ZoomService.stub(:new, zoom) do
+      assert_difference "MediatorScheduledMeeting.count", 1 do
+        post mediator_scheduled_meetings_path, params: meeting_params
+      end
     end
 
     assert_response :created
@@ -223,11 +227,15 @@ class MediatorScheduledMeetingsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
-  test "cannot impersonate another mediator" do
+test "cannot impersonate another mediator" do
     params = meeting_params
     params[:meeting][:MediatorID] = 8
 
-    post mediator_scheduled_meetings_path, params: params
+    zoom = FakeZoom.new(join_url: "https://us02web.zoom.us/j/123456789")
+    
+    ZoomService.stub(:new, zoom) do
+      post mediator_scheduled_meetings_path, params: params
+    end
 
     assert_response :created
     assert_equal 4, response.parsed_body["MediatorID"]

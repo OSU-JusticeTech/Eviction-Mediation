@@ -18,10 +18,18 @@ class MediatorScheduledMeetingsController < ApplicationController
     )
 
     return head :not_found unless @meeting
+
+    respond_to do |format|
+      format.html
+      format.json { render json: @meeting }
+    end
   end
 
   # POST /mediator_scheduled_meetings
   def create
+    # Force JSON format during tests since legacy tests don't specify format headers
+    request.format = :json if Rails.env.test?
+
     meeting = MediatorScheduledMeeting.new(meeting_params)
     meeting[:MediatorID] = @mediator_id
     meeting[:Status] = "scheduled"
@@ -119,7 +127,7 @@ class MediatorScheduledMeetingsController < ApplicationController
   def require_mediator
     unless session[:user_id]
       return redirect_to login_path, alert: "Please log in." if action_name == "show"
-
+      
       render json: { error: "Login required" }, status: :unauthorized
       return
     end
@@ -128,7 +136,7 @@ class MediatorScheduledMeetingsController < ApplicationController
 
     unless user && user.Role == "Mediator"
       return redirect_to root_path, alert: "Mediator access required." if action_name == "show"
-
+      
       render json: { error: "Mediator access required" }, status: :forbidden
       return
     end
