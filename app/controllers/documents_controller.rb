@@ -559,7 +559,7 @@ class DocumentsController < ApplicationController
       end
     end
   rescue DocumentRevision::Failure
-    render plain: "Unable to revise agreement. Please try again.", status: :service_unavailable
+    render_agreement_revision_failure
   end
 
   def counteroffer_suggestion
@@ -884,6 +884,15 @@ class DocumentsController < ApplicationController
 
   private
 
+  def render_agreement_revision_failure
+    message = "Unable to revise agreement. Please try again."
+    if request.format.json?
+      render json: { error: message }, status: :service_unavailable
+    else
+      render plain: message, status: :service_unavailable
+    end
+  end
+
   # Call only after the record has passed find_file_for_user authorization.
   def deliver_document(file, disposition:)
     response.headers["Cache-Control"] = "private, no-store"
@@ -1095,7 +1104,7 @@ class DocumentsController < ApplicationController
                     { alert: message } : { notice: message })
     end
   rescue DocumentRevision::Failure
-    render plain: "Unable to revise agreement. Please try again.", status: :service_unavailable
+    render_agreement_revision_failure
   end
 
   def counteroffer_mediator_suggestion(file, conversation)

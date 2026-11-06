@@ -2151,6 +2151,8 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
             end
           end
           assert_response :service_unavailable
+          assert_equal "application/json", response.media_type
+          assert_equal({ "error" => "Unable to revise agreement. Please try again." }, response.parsed_body)
         }
         case failure
         when :publication
