@@ -104,6 +104,38 @@ class LegacyDocumentMigrationAttempt < ApplicationRecord
     end
   end
 
+  # Strict worker-only checkpoint; unlike historical journal APIs this never
+  # permits generation-zero ownership. Blocks must contain short database work.
+  def with_worker_claim!(worker_token:, generation:, expected_state:)
+    raise ClaimRejected, "Worker checkpoint requires a top-level transaction" if self.class.connection.transaction_open?
+
+    with_claim_lock do
+      raise ClaimRejected, "Worker credentials required" unless lease_generation.positive? && worker_token.is_a?(String) && !worker_token.empty?
+
+      guard_claim!(worker_token, generation, expected_state)
+      yield self
+    end
+  end
+
+  # Durable ownership before publication, never permission to resume publication.
+  def record_copy_target!(locator:, worker_token:, generation:, expected_state:)
+    with_worker_claim!(worker_token: worker_token, generation: generation, expected_state: expected_state) do
+      unless state == "copying" && target_locator.nil? && SOURCE_EVIDENCE_FIELDS.all? { |field| !self[field].nil? }
+        raise ClaimRejected, "Copy target requires fresh source evidence"
+      end
+      owned_update! { update!(target_locator: locator) }
+    end
+  end
+
+  def record_copy_digest!(size:, sha256:, worker_token:, generation:, expected_state:)
+    with_worker_claim!(worker_token: worker_token, generation: generation, expected_state: expected_state) do
+      unless state == "copying" && target_locator.present? && expected_size.nil? && expected_sha256.nil? && source_size == size
+        raise ClaimRejected, "Copy digest requires an unrecorded matching source size"
+      end
+      owned_update! { update!(expected_size: size, expected_sha256: sha256) }
+    end
+  end
+
   # Persist in a separate committed transaction before private publication.
   # This API does not inspect files or attest source safety.
   def record_source_evidence!(evidence:, worker_token: nil, generation: nil, expected_state: nil)
