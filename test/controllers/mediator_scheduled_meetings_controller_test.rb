@@ -56,14 +56,16 @@ class MediatorScheduledMeetingsControllerTest < ActionDispatch::IntegrationTest
   class FakeZoom
     attr_reader :deleted
 
-    def initialize(join_url: nil, error: false)
+    def initialize(join_url: nil, error: false, on_create: nil)
       @join_url = join_url
       @error = error
+      @on_create = on_create
       @deleted = []
     end
 
     def create_meeting(**)
       raise ZoomService::Error, "boom" if @error
+      @on_create&.call
       @join_url
     end
 
@@ -83,6 +85,18 @@ class MediatorScheduledMeetingsControllerTest < ActionDispatch::IntegrationTest
     assert_response :created
     assert_equal "https://us02web.zoom.us/j/123456789", response.parsed_body["ZoomLink"]
     assert_equal "https://us02web.zoom.us/j/123456789", MediatorScheduledMeeting.last.ZoomLink
+  end
+
+  test "create deletes Zoom meeting when save fails" do
+    # A conflicting meeting is saved while Zoom is being called, so save fails validation.
+    zoom = FakeZoom.new(join_url: "https://us02web.zoom.us/j/123456789", on_create: -> { create_meeting })
+
+    ZoomService.stub(:new, zoom) do
+      post mediator_scheduled_meetings_path, params: meeting_params
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "https://us02web.zoom.us/j/123456789" ], zoom.deleted
   end
 
   test "create returns bad gateway and saves nothing when Zoom fails" do

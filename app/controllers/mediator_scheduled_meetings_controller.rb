@@ -46,6 +46,13 @@ class MediatorScheduledMeetingsController < ApplicationController
     if meeting.save
       render json: meeting, status: :created
     else
+      # Validations re-run on save; don't leave behind a Zoom meeting we just created.
+      begin
+        ZoomService.new.delete_meeting(meeting[:ZoomLink]) if meeting[:ZoomLink].present? && meeting_params[:ZoomLink].blank?
+      rescue ZoomService::Error => e
+        Rails.logger.error("Zoom cleanup failed: #{e.message}")
+      end
+
       render json: { errors: meeting.errors.full_messages },
              status: :unprocessable_entity
     end
