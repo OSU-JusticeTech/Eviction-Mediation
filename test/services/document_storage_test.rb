@@ -315,6 +315,258 @@ class DocumentStorageTest < Minitest::Test
     assert_match(/\A\.document-/, @root.children.first.basename.to_s)
   end
 
+  def test_allocation_normalizes_extension_and_creates_nothing
+    first = @storage.allocate_private_locator(extension: ".PDF")
+    second = @storage.allocate_private_locator(extension: "pdf")
+    assert_match(/\AprivateDocuments\/[0-9a-f-]{36}\.pdf\z/, first)
+    refute_equal first, second
+    assert_empty @root.children
+    assert_empty @legacy.children
+    assert_raises(DocumentStorage::InvalidLocator) do
+      @storage.allocate_private_locator(extension: "../pdf")
+    end
+  end
+
+  def test_exact_publication_is_atomic_and_private
+    locator = @storage.allocate_private_locator(extension: "pdf")
+    destination = @root.join(locator.delete_prefix("privateDocuments/"))
+    link = File.method(:link)
+    linked = false
+    File.stub(:link, ->(staged, target) {
+      assert_equal destination, target
+      refute target.exist?
+      assert_equal "complete bytes", staged.binread
+      assert_equal 0o600, staged.stat.mode & 0o777
+      link.call(staged, target)
+      assert_equal "complete bytes", target.binread
+      linked = true
+    }) do
+      result = @storage.publish_private(locator: locator) do |path|
+        path.binwrite("partial")
+        refute destination.exist?
+        path.binwrite("complete bytes")
+      end
+      assert_equal locator, result
+    end
+    assert linked
+    assert_equal [destination], @root.children
+  end
+
+  def test_explicit_collision_preserves_existing_target
+    locator = @storage.allocate_private_locator(extension: "txt")
+    @storage.publish_private(locator: locator) { |path| path.write("original") }
+    assert_raises(DocumentStorage::Unavailable) do
+      @storage.publish_private(locator: locator) { |path| path.write("replacement") }
+    end
+    assert_equal "original", @storage.resolve(locator).read
+    assert_equal 1, @root.children.size
+  end
+
+  def test_explicit_unsafe_locators_never_reach_writer_or_inspection
+    [nil, "/tmp/arbitrary.pdf", "userFiles/a.pdf", "privateDocuments/../a.pdf",
+     "privateDocuments/nested/a.pdf", "privateDocuments/a\\b.pdf",
+     "privateDocuments/%2e.pdf", "privateDocuments/" + "a" * 256].each do |locator|
+      assert_raises(DocumentStorage::InvalidLocator) do
+        @storage.publish_private(locator: locator) { flunk "unsafe writer invoked" }
+      end
+      assert_raises(DocumentStorage::InvalidLocator) do
+        @storage.open_private(locator) { flunk "unsafe file opened" }
+      end
+    end
+    assert_empty @root.children
+  end
+
+  def test_explicit_publication_and_inspection_reject_symlinks_including_dangling
+    target = @sandbox.join("outside.txt")
+    target.write("outside")
+    [target, @sandbox.join("missing.txt")].each_with_index do |outside, index|
+      locator = "privateDocuments/link#{index}.txt"
+      File.symlink(outside, @root.join("link#{index}.txt"))
+      assert_raises(DocumentStorage::InvalidLocator) do
+        @storage.publish_private(locator: locator) { flunk "symlink writer invoked" }
+      end
+      assert_raises(DocumentStorage::InvalidLocator) do
+        @storage.open_private(locator) { flunk "symlink followed" }
+      end
+    end
+    assert_equal "outside", target.read
+  end
+
+  def test_explicit_apis_reject_symlinked_ancestors
+    alias_parent = @sandbox.join("alias-storage")
+    File.symlink(@root.parent, alias_parent)
+    storage = DocumentStorage.new(configuration: configuration(root: alias_parent.join("documents")))
+    locator = storage.allocate_private_locator(extension: "txt")
+    assert_raises(DocumentStorage::InvalidLocator) do
+      storage.publish_private(locator: locator) { flunk "unsafe root" }
+    end
+    assert_raises(DocumentStorage::InvalidLocator) { storage.open_private(locator) { flunk "unsafe root" } }
+    assert_empty @root.children
+  end
+
+  def test_explicit_write_and_link_failures_clean_staging
+    locator = @storage.allocate_private_locator(extension: "txt")
+    assert_raises(DocumentStorage::Unavailable) do
+      @storage.publish_private(locator: locator) { |path| path.write("partial"); raise IOError, "write failed" }
+    end
+    assert_empty @root.children
+    File.stub(:link, ->(*) { raise Errno::ENOSPC }) do
+      assert_raises(DocumentStorage::Unavailable) do
+        @storage.publish_private(locator: locator) { |path| path.write("complete") }
+      end
+    end
+    assert_empty @root.children
+    # Allocation itself is not consumed by an unsuccessful publication.
+    @storage.publish_private(locator: locator) { |path| path.write("retry") }
+    assert_equal "retry", @storage.resolve(locator).read
+  end
+
+  def test_later_caller_failure_does_not_remove_published_target
+    locator = @storage.allocate_private_locator(extension: "txt")
+    assert_raises(RuntimeError) do
+      @storage.publish_private(locator: locator) { |path| path.write("retained") }
+      raise "simulated journal failure"
+    end
+    assert_equal "retained", @storage.resolve(locator).read
+  end
+
+  def test_safe_inspection_yields_binary_read_only_descriptor_and_closes_it
+    locator = @storage.store(io: StringIO.new("bytes\x00\xff".b), extension: "txt")
+    descriptor = nil
+    result = @storage.open_private(locator) do |file|
+      descriptor = file
+      assert file.binmode?
+      assert_equal "bytes\x00\xff".b, file.read
+      assert_raises(IOError) { file.write("replacement") }
+      :inspected
+    end
+    assert_equal :inspected, result
+    assert descriptor.closed?
+    assert_raises(RuntimeError) do
+      @storage.open_private(locator) { |file| descriptor = file; raise "inspection failed" }
+    end
+    assert descriptor.closed?
+    assert_raises(DocumentStorage::MissingFile) do
+      @storage.open_private("privateDocuments/absent.txt") { flunk "missing file opened" }
+    end
+  end
+
+  def test_inspection_rejects_directories_and_multiple_hard_links
+    @root.join("directory").mkdir
+    assert_raises(DocumentStorage::InvalidLocator) do
+      @storage.open_private("privateDocuments/directory") { flunk "directory opened" }
+    end
+    locator = @storage.store(io: StringIO.new("bytes"), extension: "txt")
+    File.link(@storage.resolve(locator), @sandbox.join("another-link"))
+    assert_raises(DocumentStorage::InvalidLocator) { @storage.open_private(locator) { flunk "hard link opened" } }
+  end
+
+  def test_inspection_rejects_replacement_between_lstat_and_open
+    locator = @storage.store(io: StringIO.new("original"), extension: "txt")
+    destination = @storage.resolve(locator)
+    replacement = @sandbox.join("replacement.txt")
+    replacement.write("replacement")
+    open_file = File.method(:open)
+    File.stub(:open, ->(path, *args, &block) {
+      File.rename(replacement, destination) if Pathname(path) == destination
+      open_file.call(path, *args, &block)
+    }) do
+      assert_raises(DocumentStorage::InvalidLocator) do
+        @storage.open_private(locator) { flunk "replacement yielded" }
+      end
+    end
+  end
+
+  def test_inspection_rejects_destination_replacement_during_block
+    locator = @storage.store(io: StringIO.new("original"), extension: "txt")
+    destination = @storage.resolve(locator)
+    replacement = @sandbox.join("replacement.txt")
+    replacement.write("replacement")
+    replacement.chmod(0o600)
+    descriptor = nil
+    assert_raises(DocumentStorage::InvalidLocator) do
+      @storage.open_private(locator) do |file|
+        descriptor = file
+        File.rename(replacement, destination)
+        assert_equal "original", file.read
+      end
+    end
+    assert descriptor.closed?
+    assert_equal "replacement", destination.read
+  end
+
+  def test_inspection_revalidates_root_after_block
+    locator = @storage.store(io: StringIO.new("original"), extension: "txt")
+    moved_root = @root.parent.join("moved-documents")
+    assert_raises(DocumentStorage::InvalidLocator) do
+      @storage.open_private(locator) do
+        File.rename(@root, moved_root)
+        File.symlink(moved_root, @root)
+      end
+    end
+  end
+
+  def test_inspection_rejects_permissions_outside_private_publication_contract
+    locator = @storage.store(io: StringIO.new("bytes"), extension: "txt")
+    destination = @storage.resolve(locator)
+    [0o644, 0o620, 0o601, 0o700, 0o4600].each do |mode|
+      destination.chmod(mode)
+      assert_raises(DocumentStorage::InvalidLocator) do
+        @storage.open_private(locator) { flunk "unsafe permissions accepted" }
+      end
+    end
+    destination.chmod(0o600)
+    assert_raises(DocumentStorage::InvalidLocator) do
+      @storage.open_private(locator) { destination.chmod(0o644) }
+    end
+  end
+
+  def test_caller_exception_remains_primary_when_destination_disappears
+    locator = @storage.store(io: StringIO.new("bytes"), extension: "txt")
+    [RuntimeError.new("inspection failed"), IOError.new("caller I/O failed"),
+     Errno::EACCES.new("caller operation failed")].each do |failure|
+      destination = @storage.resolve(locator)
+      descriptor = nil
+      error = assert_raises(failure.class) do
+        @storage.open_private(locator) do |file|
+          descriptor = file
+          destination.unlink
+          raise failure
+        end
+      end
+      assert_same failure, error
+      assert descriptor.closed?
+      @storage.publish_private(locator: locator) { |path| path.write("bytes") }
+    end
+  end
+
+  def test_inspection_accepts_existing_write_files_without_modification
+    locator = @storage.write(extension: "pdf") { |path| path.binwrite("existing bytes") }
+    destination = @storage.resolve(locator)
+    before = destination.stat
+    assert_equal "existing bytes", @storage.open_private(locator) { |file| file.read }
+    after = destination.stat
+    assert_equal [before.dev, before.ino, before.mode, before.size, before.mtime],
+      [after.dev, after.ino, after.mode, after.size, after.mtime]
+    assert_equal 0o600, after.mode & 0o7777
+  end
+
+  def test_explicit_publication_rejects_a_destination_symlink_created_by_writer
+    locator = @storage.allocate_private_locator(extension: "txt")
+    target = @sandbox.join("outside.txt")
+    target.write("outside")
+    destination = @root.join(locator.delete_prefix("privateDocuments/"))
+    assert_raises(DocumentStorage::InvalidLocator) do
+      @storage.publish_private(locator: locator) do |path|
+        path.write("complete")
+        File.symlink(target, destination)
+      end
+    end
+    assert_equal "outside", target.read
+    assert destination.symlink?
+    assert_equal [destination], @root.children
+  end
+
   private
 
   def configuration(root: @root, legacy_reads_enabled: true)
