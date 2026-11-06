@@ -37,7 +37,8 @@ allowlisted `error_code`. No document contents or exception messages belong in
 this journal. Source identity should reference an approved immutable snapshot or
 restricted source manifest; the schema does not discover or attest one.
 
-Verified publication states require target, size and hash evidence. These are
+Verified publication states require target, size, hash and complete structured
+source-file evidence (Stage 5C-1B below). These are
 caller assertions in this stage: no hashing or verification is performed.
 `completed_at` denotes attempt closure, not the time copying started or ended.
 Both tables have `lock_version` for optimistic locking. Transition APIs also lock
@@ -95,7 +96,108 @@ restricted to reviewed maintenance. Database checks enforce valid current states
 and row invariants, not historical transition edges, evidence immutability, or
 cross-row run completion rules; no SQL triggers are added. Run admission and
 completion consistency rely on the model APIs and their shared parent row lock.
-No schema changes are required for this hardening pass.
+The original Stage 5C-1 hardening required no schema changes. Stage 5C-1B adds
+the separate migration described below.
+
+## Stage 5C-1B: structured source-file evidence
+
+The additive migration `20261105020000` leaves the original journal migration,
+existing columns, reservation index and state-transition rules intact. Eight
+nullable columns capture one observed filesystem identity bundle:
+
+| Fields | SQL Server type and range |
+| --- | --- |
+| `source_device`, `source_inode` | `decimal(20,0)`, 0 through 18446744073709551615 |
+| `source_size` | `bigint`, 0 through 9223372036854775807 |
+| `source_link_count` | `bigint`, 1 through 9223372036854775807 |
+| `source_mtime_seconds`, `source_ctime_seconds` | Signed `bigint` epoch seconds |
+| `source_mtime_nanoseconds`, `source_ctime_nanoseconds` | `integer`, 0 through 999999999 |
+
+Each timestamp is exactly `seconds + nanoseconds / 1_000_000_000` relative to the
+Unix epoch. Future observation code must use `Time#to_i` and `Time#nsec`, never
+`to_f`. Signed seconds support times before the epoch; for example (-1, 500000000)
+means half a second before it. No SQL datetime rounding or floating-point
+conversion is involved. Decimal device/inode columns accommodate unsigned 64-bit
+identifiers beyond SQL Server's signed bigint range. Model validation checks
+original input before integer/decimal casting, rejecting fractional values,
+floats, malformed strings and out-of-range values. The journal records observations;
+it does not establish regular-file status or approve multiple hard links. Future
+copying must reject unsafe files independently.
+
+`source_identity` retains its existing meaning as an immutable approved snapshot
+or manifest reference, supplied at attempt creation. It is separate from these
+new observed filesystem values.
+
+For a persisted attempt already in `copying`, call
+`record_source_evidence!(evidence: {...})` with exactly all eight symbol keys.
+The API locks/reloads the row, rejects previously recorded evidence, and saves the
+complete bundle with validations and optimistic locking. Initial recording in
+`planned`, during creation, during a state transition, or after leaving `copying`
+is rejected. Ordinary validated updates are governed by the same copying-state,
+completeness, range and immutability checks. Reassigning identical values through
+ordinary updates does not replace evidence; a second recording API call is rejected.
+Any replacement or clearing after recording fails, including after blocking or
+closure. Source fields are deliberately excluded from `transition_to!` evidence.
+
+Required future publication ordering:
+
+1. Enter `copying` while retaining the active reservation (`reservation_key = 0`).
+2. Safely open/inspect the source and record all observed source evidence.
+3. Persist the preallocated target locator, expected size and expected SHA-256.
+   Their existing write-once validation remains in force. Fully commit all of
+   this evidence before calling storage publication. An enclosing uncommitted
+   transaction or savepoint is insufficient; the recording API alone cannot
+   promise that the caller's outer transaction has committed.
+4. Publish without overwriting, independently verify destination bytes and
+   source stability, and only then transition to `published_verified`.
+   `published_verified`, `committed` and `verified` require complete source
+   evidence as well as the existing publication evidence.
+
+CHECK constraints enforce all-null or all-non-null bundles, numeric ranges,
+absence of evidence in `planned`, and complete evidence in the three successful
+states. Explicit `IS NULL`/`IS NOT NULL` predicates avoid SQL CHECK's acceptance
+of UNKNOWN for partial bundles. Signed bigint columns enforce seconds bounds.
+Historical immutability and initial recording only in `copying` remain model
+protections: SQL CHECKs cannot compare old and new rows. Raw SQL, `update_columns`
+and bulk writes can bypass these historical protections and must remain restricted.
+No triggers, lease acquisition, fencing, worker exclusion, filesystem inspection,
+hashing, copying, or FileDraft updates are added.
+
+Existing planned/copying/blocked/closed unsuccessful attempts retain NULL source
+columns and may be explicitly reconciled/closed without fabricating evidence.
+Before any DDL, the migration refuses installation if existing rows are in
+`published_verified`, `committed` or `verified`: those rows have no source evidence
+under the old schema and cannot satisfy the new invariant. It neither changes
+their states nor synthesizes/backfills evidence. Such an installation requires a
+separately reviewed reconciliation plan; this stage supplies no bypass. Quiesce
+journal writers while installing the migration. Constraint installation also
+fails closed if a conflicting write races the precheck. Reversing the migration
+removes the new constraints and columns, losing the recorded source evidence;
+rollback requires a separately reviewed retention/backup decision.
+
+Crashes retain the last committed evidence and the active reservation. Evidence
+must never be cleared to retry an interrupted attempt. Ownership, source/target
+integrity and worker quiescence require explicit operator reconciliation. This
+stage provides neither automatic retry nor a recovery/takeover API. Size/hash
+agreement with this stat bundle and actual source immutability remain future
+copy-service responsibilities; a journal entry alone does not verify bytes.
+
+Synthetic tests cover exact nanosecond/unsigned identifier round trips, complete
+and partial bundles, invalid inputs, publication guards, immutable evidence,
+stale writes, reservation retention and old attempts without evidence. They have
+not been executed in this stage. Only Ruby syntax and `git diff --check` were run.
+Apply migrations and validate adapter-generated constraints in an isolated
+disposable SQL Server test database before accepting the change:
+
+```sh
+docker compose -f docker-compose.yml run --rm -e RAILS_ENV=test web bin/rails db:prepare
+docker compose -f docker-compose.yml run --rm -e RAILS_ENV=test web bin/rails test test/models/legacy_document_migration_journal_test.rb
+```
+
+The schema dump is unchanged; loading the older dump without migrations does not
+install this contract. Real independent-connection concurrency, worker fencing,
+copy/hash verification, publication durability and Stage 5C-3 guarded locator
+cutover/post-commit verification remain future work. No persistent mount is assumed.
 
 ## Global uniqueness and leases
 

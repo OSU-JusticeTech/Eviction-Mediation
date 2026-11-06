@@ -1,3 +1,5 @@
+require "bigdecimal"
+
 class LegacyDocumentMigrationAttempt < ApplicationRecord
   TRANSITIONS = {
     "planned" => %w[copying blocked superseded gone],
@@ -15,6 +17,15 @@ class LegacyDocumentMigrationAttempt < ApplicationRecord
   IDENTITY_FIELDS = %w[run_id file_id expected_legacy_locator source_identity started_at].freeze
 
   PUBLICATION_FIELDS = %w[target_locator expected_size expected_sha256].freeze
+  SOURCE_EVIDENCE_RANGES = {
+    "source_device" => 0..(2**64 - 1), "source_inode" => 0..(2**64 - 1),
+    "source_size" => 0..(2**63 - 1), "source_link_count" => 1..(2**63 - 1),
+    "source_mtime_seconds" => -(2**63)..(2**63 - 1),
+    "source_mtime_nanoseconds" => 0..999_999_999,
+    "source_ctime_seconds" => -(2**63)..(2**63 - 1),
+    "source_ctime_nanoseconds" => 0..999_999_999
+  }.freeze
+  SOURCE_EVIDENCE_FIELDS = SOURCE_EVIDENCE_RANGES.keys.freeze
 
   around_create :serialize_run_admission
 
@@ -28,6 +39,23 @@ class LegacyDocumentMigrationAttempt < ApplicationRecord
   validates :expected_size, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :expected_sha256, format: { with: /\A[0-9a-f]{64}\z/ }, allow_nil: true
   validate :validate_progress
+  validate :validate_source_evidence
+
+  # Persist in a separate committed transaction before private publication.
+  # This API does not inspect files, claim workers, or attest source safety.
+  def record_source_evidence!(evidence:)
+    unless evidence.keys.sort == SOURCE_EVIDENCE_FIELDS.map(&:to_sym).sort
+      raise ArgumentError, "Complete source evidence required"
+    end
+
+    with_lock do
+      if state != "copying" || SOURCE_EVIDENCE_FIELDS.any? { |field| !self[field].nil? }
+        errors.add(:base, "Source evidence requires an unrecorded copying attempt")
+        raise ActiveRecord::RecordInvalid, self
+      end
+      update!(evidence)
+    end
+  end
 
   # Serializes transitions and atomically releases the global reservation when
   # closed. No FileDraft lookup, filesystem or notification calls.
@@ -54,6 +82,38 @@ class LegacyDocumentMigrationAttempt < ApplicationRecord
   end
 
   private
+
+  def validate_source_evidence
+    supplied = SOURCE_EVIDENCE_FIELDS.select { |field| !self[field].nil? }
+    complete = supplied.size == SOURCE_EVIDENCE_FIELDS.size
+    if supplied.any? && !complete
+      errors.add(:base, "Complete source evidence required")
+    end
+    changed = SOURCE_EVIDENCE_FIELDS.any? { |field| will_save_change_to_attribute?(field) }
+    recorded = persisted? && SOURCE_EVIDENCE_FIELDS.any? { |field| !attribute_in_database(field).nil? }
+    if changed
+      if recorded
+        errors.add(:base, "Recorded source evidence is immutable")
+      elsif new_record? || state != "copying" || state_in_database != "copying"
+        errors.add(:base, "Source evidence can only be recorded while copying")
+      end
+    end
+    SOURCE_EVIDENCE_RANGES.each do |field, range|
+      raw = read_attribute_before_type_cast(field)
+      next if raw.nil?
+
+      # Validate before AR casts decimals/integers, which could truncate input.
+      integer = raw.is_a?(Integer) ||
+        (raw.is_a?(BigDecimal) && raw.finite? && raw.frac.zero?) ||
+        (raw.is_a?(String) && raw.match?(/\A[+-]?\d+\z/))
+      unless integer && range.cover?(raw.to_i)
+        errors.add(field, "must be an exact integer in the supported range")
+      end
+    end
+    if %w[published_verified committed verified].include?(state) && !complete
+      errors.add(:base, "Verified publication requires complete source evidence")
+    end
+  end
 
   # The same parent lock used by finish! prevents admission racing completion.
   # Existing attempts may still be reconciled after interruption or failure.

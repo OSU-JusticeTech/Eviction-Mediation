@@ -18,6 +18,146 @@ class LegacyDocumentMigrationJournalTest < ActiveSupport::TestCase
       expected_sha256: "a" * 64 }
   end
 
+  def source_evidence
+    { source_device: 18_446_744_073_709_551_615, source_inode: 9_223_372_036_854_775_808,
+      source_size: 12, source_link_count: 1,
+      source_mtime_seconds: -1, source_mtime_nanoseconds: 123_456_789,
+      source_ctime_seconds: 1_794_000_000, source_ctime_nanoseconds: 987_654_321 }
+  end
+
+  test "records complete exact evidence while copying before publication" do
+    attempt = create_attempt
+    attempt.transition_to!("copying")
+    attempt.record_source_evidence!(evidence: source_evidence)
+    attempt.reload
+    source_evidence.each { |field, value| assert_equal value, attempt[field] }
+    assert_equal "copying", attempt.state
+    assert_equal 0, attempt.reservation_key
+    assert_equal "synthetic-source-a", attempt.source_identity
+    assert_nil attempt.target_locator
+    attempt.update!(publication)
+    attempt.reload.transition_to!("published_verified")
+    assert_equal "published_verified", attempt.reload.state
+    assert_raises(ActiveRecord::RecordNotUnique) { create_attempt }
+  end
+
+  test "source evidence requires every field and an existing copying state" do
+    attempt = create_attempt
+    assert_raises(ActiveRecord::RecordInvalid) do
+      LegacyDocumentMigrationAttempt.create!(run: attempt.run, file_id: 2147482999,
+        expected_legacy_locator: "userFiles/Other.pdf", source_identity: "synthetic-source-a",
+        started_at: Time.current, **source_evidence)
+    end
+    assert_raises(ActiveRecord::RecordInvalid) { attempt.record_source_evidence!(evidence: source_evidence) }
+    attempt.reload
+    assert_raises(ActiveRecord::RecordInvalid) { attempt.update!(source_evidence) }
+    attempt.reload
+    assert_raises(ArgumentError) { attempt.transition_to!("copying", evidence: source_evidence) }
+    assert_raises(ActiveRecord::RecordInvalid) { attempt.update!(source_evidence.merge(state: "copying")) }
+    attempt.reload
+    attempt.transition_to!("copying")
+    source_evidence.each_key do |field|
+      partial = source_evidence.except(field)
+      assert_raises(ArgumentError) { attempt.record_source_evidence!(evidence: partial) }
+      assert_raises(ActiveRecord::RecordInvalid) { attempt.update!(partial) }
+      attempt.reload
+    end
+    attempt.transition_to!("blocked")
+    assert_raises(ActiveRecord::RecordInvalid) { attempt.update!(source_evidence) }
+  end
+
+  test "source evidence cannot be replaced or cleared in any later state" do
+    attempt = create_attempt
+    attempt.transition_to!("copying")
+    attempt.record_source_evidence!(evidence: source_evidence)
+    assert_raises(ActiveRecord::RecordInvalid) { attempt.record_source_evidence!(evidence: source_evidence) }
+    %w[copying published_verified committed verified rolled_back].each do |state|
+      attempt.transition_to!(state, evidence: state == "published_verified" ? publication : {}) unless attempt.state == state
+      source_evidence.each do |field, value|
+        [nil, value + 1].each do |replacement|
+          assert_raises(ActiveRecord::RecordInvalid) { attempt.update!(field => replacement) }
+          attempt.reload
+          assert_equal value, attempt[field]
+        end
+      end
+      assert_raises(ActiveRecord::RecordInvalid) { attempt.update!(source_evidence.transform_values { nil }) }
+      attempt.reload
+    end
+  end
+
+  test "source evidence rejects invalid or lossy input before type casting" do
+    attempt = create_attempt
+    attempt.transition_to!("copying")
+    source_evidence.each_key do |field|
+      ["invalid", "1.5", 1.5, 1.0, 2**65].each do |value|
+        assert_raises(ActiveRecord::RecordInvalid) { attempt.update!(source_evidence.merge(field => value)) }
+        attempt.reload
+      end
+    end
+    { source_device: -1, source_inode: -1, source_size: -1, source_link_count: 0,
+      source_mtime_seconds: -(2**63) - 1, source_ctime_seconds: -(2**63) - 1,
+      source_mtime_nanoseconds: -1, source_ctime_nanoseconds: 1_000_000_000 }.each do |field, value|
+      assert_raises(ActiveRecord::RecordInvalid) { attempt.update!(source_evidence.merge(field => value)) }
+      attempt.reload
+    end
+  end
+
+  test "publication requires source evidence already persisted while copying" do
+    attempt = create_attempt
+    attempt.transition_to!("copying")
+    assert_raises(ActiveRecord::RecordInvalid) { attempt.transition_to!("published_verified", evidence: publication) }
+    assert_equal "copying", attempt.reload.state
+    assert_equal 0, attempt.reservation_key
+    assert_nil attempt.target_locator
+    attempt.record_source_evidence!(evidence: source_evidence)
+    attempt.transition_to!("published_verified", evidence: publication)
+  end
+
+  test "database checks reject partial invalid and absent successful source evidence" do
+    attempt = create_attempt
+    # A complete bundle is also forbidden in planned, even bypassing validations.
+    assert_raises(ActiveRecord::StatementInvalid) { attempt.update_columns(source_evidence) }
+    attempt.reload.transition_to!("copying")
+    source_evidence.each_key do |field|
+      assert_raises(ActiveRecord::StatementInvalid) { attempt.update_columns(source_evidence.except(field)) }
+      attempt.reload
+    end
+    { source_device: -1, source_inode: 2**64, source_size: -1, source_link_count: 0,
+      source_mtime_nanoseconds: -1, source_ctime_nanoseconds: 1_000_000_000 }.each do |field, value|
+      assert_raises(ActiveRecord::StatementInvalid) { attempt.update_columns(source_evidence.merge(field => value)) }
+      attempt.reload
+    end
+    %w[published_verified committed verified].each do |state|
+      closure = state == "verified" ? { reservation_key: attempt.id, completed_at: Time.current } : {}
+      assert_raises(ActiveRecord::StatementInvalid) { attempt.update_columns(publication.merge(state: state).merge(closure)) }
+      attempt.reload
+    end
+  end
+
+  test "legacy attempts without evidence retain closure and reservation behavior" do
+    attempt = create_attempt
+    assert LegacyDocumentMigrationAttempt::SOURCE_EVIDENCE_FIELDS.all? { |field| attempt[field].nil? }
+    attempt.transition_to!("copying")
+    attempt.transition_to!("blocked", evidence: { error_code: "interrupted" })
+    assert_raises(ActiveRecord::RecordNotUnique) { create_attempt }
+    attempt.transition_to!("superseded")
+    assert_equal attempt.id, attempt.reload.reservation_key
+    assert create_attempt.persisted?
+    assert_equal "synthetic-source-a", attempt.source_identity
+  end
+
+  test "recorded source evidence survives blocking and stale writers cannot replace it" do
+    attempt = create_attempt
+    attempt.transition_to!("copying")
+    stale = LegacyDocumentMigrationAttempt.find(attempt.id)
+    attempt.record_source_evidence!(evidence: source_evidence)
+    assert_raises(ActiveRecord::StaleObjectError) { stale.update!(source_evidence.merge(source_size: 99)) }
+    attempt.transition_to!("blocked")
+    assert_raises(ActiveRecord::RecordInvalid) { attempt.update!(source_size: 99) }
+    attempt.reload.transition_to!("superseded")
+    source_evidence.each { |field, value| assert_equal value, attempt.reload[field] }
+  end
+
   test "creates durable run and planned attempt with exact restricted evidence" do
     attempt = create_attempt
     assert_equal "running", attempt.run.status
@@ -31,6 +171,7 @@ class LegacyDocumentMigrationJournalTest < ActiveSupport::TestCase
   test "progresses forward and releases reservation only on closure" do
     attempt = create_attempt
     attempt.transition_to!("copying")
+    attempt.record_source_evidence!(evidence: source_evidence)
     attempt.transition_to!("published_verified", evidence: publication)
     attempt.transition_to!("committed")
     assert_equal 0, attempt.reload.reservation_key
@@ -129,6 +270,7 @@ class LegacyDocumentMigrationJournalTest < ActiveSupport::TestCase
   test "publication evidence remains immutable through later states and closure" do
     attempt = create_attempt
     attempt.transition_to!("copying")
+    attempt.record_source_evidence!(evidence: source_evidence)
     attempt.transition_to!("published_verified", evidence: publication)
     changes = publication.merge(target_locator: "privateDocuments/replacement.pdf",
       expected_size: 99, expected_sha256: "b" * 64,
@@ -158,7 +300,8 @@ class LegacyDocumentMigrationJournalTest < ActiveSupport::TestCase
     assert_raises(ActiveRecord::RecordInvalid) do
       attempt.update!(publication.merge(state: "published_verified"))
     end
-    attempt.reload.transition_to!("published_verified", evidence: publication)
+    attempt.reload.record_source_evidence!(evidence: source_evidence)
+    attempt.transition_to!("published_verified", evidence: publication)
     publication.each_key do |field|
       value = { target_locator: "privateDocuments/other.pdf", expected_size: 13,
         expected_sha256: "b" * 64 }.fetch(field)
@@ -183,6 +326,7 @@ class LegacyDocumentMigrationJournalTest < ActiveSupport::TestCase
       attempt = create_attempt(file_id: 2147482800 + index)
       attempt.transition_to!("copying") unless state == "planned"
       if %w[published_verified committed].include?(state)
+        attempt.record_source_evidence!(evidence: source_evidence)
         attempt.transition_to!("published_verified", evidence: publication)
       end
       attempt.transition_to!("committed") if state == "committed"
@@ -208,6 +352,7 @@ class LegacyDocumentMigrationJournalTest < ActiveSupport::TestCase
     %w[interrupted failed].each_with_index do |status, index|
       attempt = create_attempt(file_id: 2147482600 + index)
       attempt.transition_to!("copying")
+      attempt.record_source_evidence!(evidence: source_evidence)
       attempt.transition_to!("published_verified", evidence: publication)
       attempt.run.finish!(status: status)
       assert_equal status, attempt.run.reload.status
@@ -225,6 +370,7 @@ class LegacyDocumentMigrationJournalTest < ActiveSupport::TestCase
       attempt = create_attempt(file_id: 2147482500 + index)
       if %w[verified rolled_back].include?(state)
         attempt.transition_to!("copying")
+        attempt.record_source_evidence!(evidence: source_evidence)
         attempt.transition_to!("published_verified", evidence: publication)
         attempt.transition_to!("committed")
       end
@@ -246,6 +392,7 @@ class LegacyDocumentMigrationJournalTest < ActiveSupport::TestCase
     jobs_before = ActiveJob::Base.queue_adapter.enqueued_jobs.size
     attempt = create_attempt(file_id: draft.FileID)
     attempt.transition_to!("copying")
+    attempt.record_source_evidence!(evidence: source_evidence)
     attempt.transition_to!("published_verified", evidence: publication)
     attempt.transition_to!("committed")
     attempt.transition_to!("verified")
