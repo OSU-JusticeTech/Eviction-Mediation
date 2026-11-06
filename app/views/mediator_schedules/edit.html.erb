@@ -262,11 +262,11 @@ document.addEventListener("turbo:load", () => {
       meetingsContainer.innerHTML = meetings.map(m => {
         const status = (m.Status || "scheduled").toLowerCase();
         
-        // Always render the Zoom action button if the meeting is scheduled
-        const zoomButton = status === 'scheduled' ? `
-          <button type="button" onclick="editZoomLink(${m.id}, '${m.ZoomLink || ''}')" style="background: ${m.ZoomLink && m.ZoomLink !== 'null' ? '#2563eb' : '#64748b'}; color: white; padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.85rem; margin-right: 8px;">
-            <i class="fa-solid fa-video"></i> ${m.ZoomLink && m.ZoomLink !== 'null' ? 'Join Zoom' : 'Add Zoom Link'}
-          </button>
+        // Render "Join Zoom" button only if a valid Zoom link exists from automated generation
+        const zoomButton = (status === 'scheduled' && m.ZoomLink && m.ZoomLink !== 'null' && m.ZoomLink !== '') ? `
+          <a href="${m.ZoomLink}" target="_blank" rel="noopener noreferrer" style="background: #2563eb; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 0.85rem; margin-right: 8px; display: inline-flex; align-items: center; gap: 4px;">
+            <i class="fa-solid fa-video"></i> Join Zoom
+          </a>
         ` : '';
 
         const formatDateTime = (str) => {
@@ -296,36 +296,6 @@ document.addEventListener("turbo:load", () => {
       meetingsContainer.innerHTML = '<p style="color: #ef4444; font-size: 0.9rem;">Could not load scheduled meetings.</p>';
     }
   }
-
-  window.editZoomLink = async function(id, currentLink) {
-    if (currentLink && currentLink !== 'null' && currentLink !== '') {
-      window.open(currentLink, '_blank');
-    } else {
-      const newLink = prompt("Enter or paste the Zoom meeting link:");
-      if (!newLink) return;
-
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-      try {
-        const res = await fetch(`/mediator_scheduled_meetings/${id}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": csrfToken,
-            "Accept": "application/json"
-          },
-          body: JSON.stringify({ meeting: { ZoomLink: newLink } })
-        });
-
-        if (res.ok) {
-          loadMeetings();
-        } else {
-          alert("Failed to update Zoom link.");
-        }
-      } catch (err) {
-        console.error("Error updating Zoom link:", err);
-      }
-    }
-  };
 
   window.cancelMeeting = async function(id) {
     if (!confirm("Cancel this meeting? The Zoom link will be invalidated.")) return;

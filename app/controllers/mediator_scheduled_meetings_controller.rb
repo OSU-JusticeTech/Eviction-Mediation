@@ -26,8 +26,6 @@ class MediatorScheduledMeetingsController < ApplicationController
     meeting[:MediatorID] = @mediator_id
     meeting[:Status] = "scheduled"
 
-    # Create the Zoom meeting only for a valid slot, and before saving so the
-    # "scheduled" notification email already includes the link.
     if meeting.valid? && meeting[:ZoomLink].blank?
       begin
         meeting[:ZoomLink] = ZoomService.new.create_meeting(
@@ -37,24 +35,30 @@ class MediatorScheduledMeetingsController < ApplicationController
         )
       rescue ZoomService::Error => e
         Rails.logger.error("Zoom create failed: #{e.message}")
-        render json: { errors: [ "Could not create Zoom meeting. Please try again." ] },
-               status: :bad_gateway
+        respond_to do |format|
+          format.html { redirect_to dashboard_path, alert: "Could not create Zoom meeting. Please try again." }
+          format.json { render json: { errors: [ "Could not create Zoom meeting." ] }, status: :bad_gateway }
+        end
         return
       end
     end
 
     if meeting.save
-      render json: meeting, status: :created
+      respond_to do |format|
+        format.html { redirect_to dashboard_path, notice: "Meeting scheduled successfully." }
+        format.json { render json: meeting, status: :created }
+      end
     else
-      # Validations re-run on save; don't leave behind a Zoom meeting we just created.
       begin
         ZoomService.new.delete_meeting(meeting[:ZoomLink]) if meeting[:ZoomLink].present? && meeting_params[:ZoomLink].blank?
       rescue ZoomService::Error => e
         Rails.logger.error("Zoom cleanup failed: #{e.message}")
       end
 
-      render json: { errors: meeting.errors.full_messages },
-             status: :unprocessable_entity
+      respond_to do |format|
+        format.html { redirect_to dashboard_path, alert: meeting.errors.full_messages.join(", ") }
+        format.json { render json: { errors: meeting.errors.full_messages }, status: :unprocessable_entity }
+      end
     end
   end
 
@@ -97,7 +101,6 @@ class MediatorScheduledMeetingsController < ApplicationController
     end
 
     if meeting.update(Status: "canceled")
-      # Never block the cancel on Zoom; the cancellation email still goes out.
       begin
         ZoomService.new.delete_meeting(meeting[:ZoomLink]) if meeting[:ZoomLink].present?
       rescue ZoomService::Error => e
