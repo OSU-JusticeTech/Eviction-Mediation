@@ -12,6 +12,7 @@ class DocumentCreation
     locator = nil
     committed = false
     rolled_back = false
+    transaction_started = false
     storage = @storage || DocumentStorage.configured
     begin
       locator = storage.write(extension: extension, &writer)
@@ -21,6 +22,7 @@ class DocumentCreation
       @logger.error("Document creation staging cleanup failed locator=#{locator}")
     end
 
+    transaction_started = true
     result = @records.transaction(requires_new: true) do |transaction|
       transaction.after_commit { committed = true }
       transaction.after_rollback do
@@ -33,7 +35,13 @@ class DocumentCreation
 
     result
   rescue StandardError => error
-    cleanup(storage, locator) if locator && !committed && !rolled_back
+    # An exception from transaction/commit does not prove rollback: the server
+    # may have committed before the connection failed. Only the rollback
+    # callback owns cleanup once database coordination has begun.
+    cleanup(storage, locator) if locator && !transaction_started && !committed && !rolled_back
+    if locator && transaction_started && !committed && !rolled_back
+      @logger.error("Document creation outcome uncertain; publication retained locator=#{locator}")
+    end
     @logger.error("Document creation failed error=#{error.class}")
     raise Failure, "Unable to create document"
   end

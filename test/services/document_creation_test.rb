@@ -70,6 +70,39 @@ class DocumentCreationTest < ActiveSupport::TestCase
     assert_inner_failure(RuntimeError)
   end
 
+  test "lost commit acknowledgement retains published bytes without rollback evidence" do
+    callbacks = Object.new
+    callbacks.define_singleton_method(:after_commit) { |&callback| }
+    callbacks.define_singleton_method(:after_rollback) { |&callback| }
+    records = Object.new
+    records.define_singleton_method(:transaction) do |**_options, &block|
+      block.call(callbacks)
+      # Model a committed transaction whose acknowledgement never reaches Rails.
+      raise ActiveRecord::ConnectionNotEstablished, "commit acknowledgement lost"
+    end
+    locator = nil
+    creation = DocumentCreation.new(storage: @storage, records: records)
+    @storage.stub(:delete_private, ->(*) { flunk "uncertain outcome must retain bytes" }) do
+      assert_raises(DocumentCreation::Failure) do
+        creation.call(extension: "txt", writer: @writer) { |published| locator = published }
+      end
+    end
+    assert_equal "complete document", @storage.resolve(locator).read
+  end
+
+  test "transaction failure before yielding retains publication for reconciliation" do
+    records = Object.new
+    records.define_singleton_method(:transaction) do |**_options, &_block|
+      raise ActiveRecord::ConnectionNotEstablished, "database unavailable"
+    end
+    creation = DocumentCreation.new(storage: @storage, records: records)
+    assert_raises(DocumentCreation::Failure) do
+      creation.call(extension: "txt", writer: @writer) { flunk "transaction must not yield" }
+    end
+    assert_equal 1, Dir.children(@root).size
+    assert_equal "complete document", File.read(File.join(@root, Dir.children(@root).first))
+  end
+
   private
 
   def assert_inner_failure(error_class)
