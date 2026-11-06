@@ -34,6 +34,8 @@ class MediatorScheduledMeetingsController < ApplicationController
     meeting[:MediatorID] = @mediator_id
     meeting[:Status] = "scheduled"
 
+    # Create the Zoom meeting only for a valid slot, and before saving so the
+    # "scheduled" notification email already includes the link.
     if meeting.valid? && meeting[:ZoomLink].blank?
       begin
         meeting[:ZoomLink] = ZoomService.new.create_meeting(
@@ -57,6 +59,7 @@ class MediatorScheduledMeetingsController < ApplicationController
         format.json { render json: meeting, status: :created }
       end
     else
+      # Validations re-run on save; don't leave behind a Zoom meeting we just created.
       begin
         ZoomService.new.delete_meeting(meeting[:ZoomLink]) if meeting[:ZoomLink].present? && meeting_params[:ZoomLink].blank?
       rescue ZoomService::Error => e
@@ -109,6 +112,7 @@ class MediatorScheduledMeetingsController < ApplicationController
     end
 
     if meeting.update(Status: "canceled")
+      # Never block the cancel on Zoom; the cancellation email still goes out.
       begin
         ZoomService.new.delete_meeting(meeting[:ZoomLink]) if meeting[:ZoomLink].present?
       rescue ZoomService::Error => e
