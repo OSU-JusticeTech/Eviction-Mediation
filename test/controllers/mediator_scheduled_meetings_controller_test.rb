@@ -1,4 +1,5 @@
 require "test_helper"
+require "minitest/mock"
 
 class MediatorScheduledMeetingsControllerTest < ActionDispatch::IntegrationTest
   setup do
@@ -50,6 +51,88 @@ class MediatorScheduledMeetingsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     assert_equal "scheduled", response.parsed_body["Status"]
+  end
+
+  class FakeZoom
+    attr_reader :deleted
+
+    def initialize(join_url: nil, error: false, on_create: nil)
+      @join_url = join_url
+      @error = error
+      @on_create = on_create
+      @deleted = []
+    end
+
+    def create_meeting(**)
+      raise ZoomService::Error, "boom" if @error
+      @on_create&.call
+      @join_url
+    end
+
+    def delete_meeting(join_url)
+      raise ZoomService::Error, "boom" if @error
+      @deleted << join_url
+    end
+  end
+
+  test "create stores Zoom join url" do
+    zoom = FakeZoom.new(join_url: "https://us02web.zoom.us/j/123456789")
+
+    ZoomService.stub(:new, zoom) do
+      post mediator_scheduled_meetings_path, params: meeting_params
+    end
+
+    assert_response :created
+    assert_equal "https://us02web.zoom.us/j/123456789", response.parsed_body["ZoomLink"]
+    assert_equal "https://us02web.zoom.us/j/123456789", MediatorScheduledMeeting.last.ZoomLink
+  end
+
+  test "create deletes Zoom meeting when save fails" do
+    # A conflicting meeting is saved while Zoom is being called, so save fails validation.
+    zoom = FakeZoom.new(join_url: "https://us02web.zoom.us/j/123456789", on_create: -> { create_meeting })
+
+    ZoomService.stub(:new, zoom) do
+      post mediator_scheduled_meetings_path, params: meeting_params
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "https://us02web.zoom.us/j/123456789" ], zoom.deleted
+  end
+
+  test "create returns bad gateway and saves nothing when Zoom fails" do
+    ZoomService.stub(:new, FakeZoom.new(error: true)) do
+      assert_no_difference "MediatorScheduledMeeting.count" do
+        post mediator_scheduled_meetings_path, params: meeting_params
+      end
+    end
+
+    assert_response :bad_gateway
+    assert_includes response.parsed_body["errors"].first, "Zoom"
+  end
+
+  test "cancel deletes the Zoom meeting" do
+    meeting = create_meeting
+    meeting.update!(ZoomLink: "https://us02web.zoom.us/j/123456789")
+    zoom = FakeZoom.new
+
+    ZoomService.stub(:new, zoom) do
+      patch cancel_mediator_scheduled_meeting_path(meeting)
+    end
+
+    assert_response :success
+    assert_equal [ "https://us02web.zoom.us/j/123456789" ], zoom.deleted
+  end
+
+  test "cancel succeeds even when Zoom delete fails" do
+    meeting = create_meeting
+    meeting.update!(ZoomLink: "https://us02web.zoom.us/j/123456789")
+
+    ZoomService.stub(:new, FakeZoom.new(error: true)) do
+      patch cancel_mediator_scheduled_meeting_path(meeting)
+    end
+
+    assert_response :success
+    assert_equal "canceled", meeting.reload.Status
   end
 
   test "lists own meetings" do

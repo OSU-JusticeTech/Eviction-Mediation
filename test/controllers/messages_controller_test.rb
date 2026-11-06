@@ -140,6 +140,24 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "show includes Zoom link for upcoming scheduled meeting" do
+    activate_mediation(@mediation)
+    MediatorScheduledMeeting.insert!({
+      MediatorID: users(:mediator1).UserID,
+      ConversationID: @mediation.ConversationID,
+      StartTime: 1.day.from_now,
+      EndTime: 1.day.from_now + 30.minutes,
+      Status: "scheduled",
+      ZoomLink: "https://us02web.zoom.us/j/123456789"
+    })
+    log_in_as(@tenant)
+
+    get message_path(@mediation.ConversationID)
+
+    assert_response :success
+    assert_select "[data-upcoming-meeting] a[href=?]", "https://us02web.zoom.us/j/123456789"
+  end
+
   test "show renders conversation for tenant participant" do
     activate_mediation(@mediation)
     log_in_as(@tenant)
