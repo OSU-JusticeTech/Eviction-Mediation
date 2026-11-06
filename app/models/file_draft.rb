@@ -165,7 +165,7 @@ class FileDraft < ApplicationRecord
     end
     event = completed ? "agreement_completed" : "agreement_signed"
     recipients.each do |recipient|
-      MediationMailer.agreement_notification(recipient, conversation.ConversationID, event, self.FileID, actor).deliver_later
+      MediationNotifications.agreement_notification(recipient, conversation.ConversationID, event, self.FileID, actor)
     end
   end
 end

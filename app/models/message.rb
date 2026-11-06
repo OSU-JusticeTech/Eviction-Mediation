@@ -58,7 +58,7 @@ class Message < ApplicationRecord
           "The agreement is ready for signing. You can also suggest changes before signing."
         end
         recipients.each do |recipient|
-          MediationMailer.agreement_notification(recipient, mediation.ConversationID, "agreement_shared", file.FileID, sender, [], status).deliver_later
+          MediationNotifications.agreement_notification(recipient, mediation.ConversationID, "agreement_shared", file.FileID, sender, [], status)
         end
       end
       return
@@ -66,9 +66,8 @@ class Message < ApplicationRecord
     return if self.is_system?
 
     notification_recipients.each do |recipient|
-      next unless recipient.notify_unread_messages?
-
-      MediationMailer.new_message_notification(recipient, mediation.ConversationID, sender).deliver_later
+      MediationNotifications.new_message_notification(recipient, mediation.ConversationID, sender,
+                                                       source_conversation_id: self.ConversationID)
     end
   end
 end

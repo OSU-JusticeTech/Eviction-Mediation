@@ -94,7 +94,7 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "initial mediator assignment creates side conversations" do
-    assert_difference("SideMessageGroup.count", 2) do
+    assert_difference([ "SideMessageGroup.count", "Notification.where(event: 'mediator_assigned').count" ], 2) do
       patch admin_reassign_mediator_url(@unassigned), params: { new_mediator_id: @new_mediator.UserID }
     end
 
@@ -104,6 +104,8 @@ class Admin::FlaggedMediationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, @unassigned.MediatorAssigned
     assert_not_nil @unassigned.TenantSideConversationID
     assert_not_nil @unassigned.LandlordSideConversationID
+    assert_equal [ @unassigned.TenantID, @unassigned.LandlordID ].sort,
+                 Notification.where(event: "mediator_assigned", conversation_id: @unassigned.id).pluck(:user_id).sort
   end
 
   test "reassignment soft deletes screenings and clears links" do
