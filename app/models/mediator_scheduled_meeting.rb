@@ -59,8 +59,8 @@ class MediatorScheduledMeeting < ApplicationRecord
         [ saved_change_to_StartTime&.first || self[:StartTime], saved_change_to_EndTime&.first || self[:EndTime] ]
       end
       notification_recipients.each do |recipient|
-        MediationMailer.session_notification(recipient, self[:ConversationID], event, actor,
-                                             self[:StartTime], self[:EndTime], self[:ZoomLink], previous_times).deliver_later
+        MediationNotifications.session_notification(recipient, self[:ConversationID], event, actor,
+                                                    self[:StartTime], self[:EndTime], self[:ZoomLink], previous_times)
       end
     end
 

@@ -89,7 +89,7 @@ class LandlordIntakeQuestionsController < ApplicationController
 
     if mediation
       tenant = mediation.tenant
-      TenantMailer.invitation_email(tenant.Email, @user).deliver_later if tenant.notify_new_mediation_request?
+      MediationNotifications.mediation_request_notification(tenant, mediation, @user)
       redirect_to messages_path, notice: "Negotiation request sent to #{tenant.Email}. If they have an account, they can accept your request. Otherwise, they'll be invited to join the site."
     else
       redirect_to new_mediation_path, alert: "No tenant account found with that email."

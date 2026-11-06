@@ -10,6 +10,15 @@ class MediationMailer < ApplicationMailer
     "agreement_completed" => [ "Agreement signatures completed", "%{actor} added the final signature. Both parties have now signed the agreement." ]
   }.freeze
 
+  SESSION_EVENTS = {
+    "scheduled" => [ "Mediation session scheduled", "%{actor} scheduled a mediation session." ],
+    "rescheduled" => [ "Mediation session rescheduled", "%{actor} changed the mediation session time." ],
+    "updated" => [ "Mediation session updated", "%{actor} updated the mediation session details." ],
+    "canceled" => [ "Mediation session canceled", "%{actor} canceled the mediation session. Do not attend at the previously scheduled time." ],
+    "reminder_24h" => [ "Mediation session reminder: 24 hours", "Your mediation session is coming up. Please review the scheduled time below." ],
+    "reminder_1h" => [ "Mediation session reminder: 1 hour", "Your mediation session is coming up soon. Please review the scheduled time below." ]
+  }.freeze
+
   def agreement_notification(recipient, conversation_id, event, file_id, actor, changes = [], signing_status = nil)
     @recipient = recipient
     title, description = AGREEMENT_EVENTS.fetch(event)
@@ -47,22 +56,10 @@ class MediationMailer < ApplicationMailer
 
   def session_notification(recipient, conversation_id, event, actor, start_time, end_time, zoom_link, previous_times = nil)
     @recipient = recipient
-    @title, @description = case event
-    when "scheduled"
-      [ "Mediation session scheduled", "#{notification_actor_name(actor)} scheduled a mediation session." ]
-    when "rescheduled"
-      [ "Mediation session rescheduled", "#{notification_actor_name(actor)} changed the mediation session time." ]
-    when "updated"
-      [ "Mediation session updated", "#{notification_actor_name(actor)} updated the mediation session details." ]
-    when "canceled"
-      [ "Mediation session canceled", "#{notification_actor_name(actor)} canceled the mediation session. Do not attend at the previously scheduled time." ]
-    when "reminder_24h"
-      [ "Mediation session reminder: 24 hours", "Your mediation session is coming up. Please review the scheduled time below." ]
-    when "reminder_1h"
-      [ "Mediation session reminder: 1 hour", "Your mediation session is coming up soon. Please review the scheduled time below." ]
-    else
+    @title, description = SESSION_EVENTS.fetch(event) do
       raise ArgumentError, "Unknown session notification event: #{event}"
     end
+    @description = description % { actor: notification_actor_name(actor) }
     @changes = [ "Starts: #{session_time(start_time)}", "Ends: #{session_time(end_time)}" ]
     if previous_times
       @changes << "Previous time: #{session_time(previous_times.first)} to #{session_time(previous_times.last)}"

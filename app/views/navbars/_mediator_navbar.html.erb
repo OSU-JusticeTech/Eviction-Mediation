@@ -27,6 +27,7 @@
     </ul>
 
     <div class="navbar-right">
+        <%= render "notifications/menu", user: current_user %>
         <% if current_time_entry %>
             <%= render "shared/time_tracker_pill", entry: current_time_entry %>
         <% end %>

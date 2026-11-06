@@ -11,6 +11,15 @@ Rails.application.routes.draw do
   delete "/logout", to: "sessions#destroy"
   resources :sessions
 
+  resources :notifications, only: [ :index, :update ] do
+    collection do
+      get :menu
+      patch :mark_all_read
+      match :presence, via: [ :patch, :delete ]
+    end
+    patch :open, on: :member
+  end
+
   # Two-Factor Authentication
   get "/sms_two_factor", to: "sms_two_factor#show"
   post "/sms_two_factor/verify", to: "sms_two_factor#verify", as: "verify_sms_two_factor"

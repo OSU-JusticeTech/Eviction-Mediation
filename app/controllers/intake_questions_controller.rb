@@ -90,7 +90,7 @@ class IntakeQuestionsController < ApplicationController
 
       if mediation
         landlord = mediation.landlord
-        LandlordMailer.mediation_request_notification(landlord.Email, @user).deliver_later if landlord.notify_new_mediation_request?
+        MediationNotifications.mediation_request_notification(landlord, mediation, @user)
         redirect_to messages_path, notice: "Negotiation requested with #{landlord.CompanyName || landlord.Email}."
       else
         redirect_to new_mediation_path, alert: "No landlord account found with that email."

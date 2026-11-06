@@ -16,6 +16,8 @@ class User < ApplicationRecord
   validate :role_based_field_requirements
 
   has_one :mediator, foreign_key: "UserID", primary_key: "UserID", dependent: :destroy
+  has_many :notifications, foreign_key: :user_id, primary_key: :UserID, dependent: :delete_all
+  has_many :chat_presences, foreign_key: :user_id, primary_key: :UserID, dependent: :delete_all
   accepts_nested_attributes_for :mediator
 
   before_validation :normalize_email

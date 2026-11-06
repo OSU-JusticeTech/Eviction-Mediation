@@ -1,0 +1,33 @@
+<% unread_count = user.notifications.unread.count %>
+<%= turbo_frame_tag "notification_menu", data: { controller: "notifications", notifications_menu_url_value: menu_notifications_path, notifications_presence_url_value: presence_notifications_path, action: "click@window->notifications#closeOutside keydown.esc@window->notifications#close turbo:before-cache@document->notifications#close turbo:before-cache@document->notifications#clearPresence pagehide@window->notifications#clearPresence visibilitychange@document->notifications#resume" } do %>
+  <details class="notification-menu">
+    <summary class="notification-bell" aria-label="Notifications, <%= pluralize(unread_count, 'unread notification') %>">
+      <i class="fas fa-bell" aria-hidden="true"></i>
+      <% if unread_count.positive? %>
+        <span class="notification-badge"><%= unread_count > 99 ? "99+" : unread_count %></span>
+      <% end %>
+    </summary>
+    <section class="notification-dropdown" aria-label="Recent notifications">
+      <div class="notification-dropdown__header">
+        <strong>Notifications</strong>
+        <span><%= unread_count %> unread</span>
+      </div>
+      <ul class="notification-preview-list">
+        <% notifications = user.notifications.newest_first.limit(5).to_a %>
+        <% notifications.each do |notification| %>
+          <li class="notification-preview <%= 'notification-preview--unread' if notification.unread? %>">
+            <%= button_to open_notification_path(notification), method: :patch, class: "notification-preview__link", form: { data: { turbo_frame: "_top" } } do %>
+              <strong><%= notification.title %></strong>
+              <% if notification.unread? %><span class="notification-unread-label">Unread</span><% end %>
+              <span>Case #<%= notification.conversation_id %> &middot; <%= time_ago_in_words(notification.created_at) %> ago</span>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+      <% if notifications.empty? %>
+        <p class="notification-menu-empty">You're all caught up. New notifications will appear here.</p>
+      <% end %>
+      <%= link_to "View all notifications", notifications_path, class: "notification-view-all", data: { turbo_frame: "_top" } %>
+    </section>
+  </details>
+<% end %>
