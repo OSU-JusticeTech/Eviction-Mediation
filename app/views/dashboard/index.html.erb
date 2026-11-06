@@ -58,6 +58,35 @@
 
   <!-- Dashboard Content -->
   <div class="dashboard-content">
+    
+    <%# Zoom Banner for Tenants and Landlords %>
+    <% if @user.tenant? || @user.landlord? %>
+      <% 
+        # Find all conversations involving this user, then check for active upcoming meetings
+        conversation_ids = PrimaryMessageGroup.where(TenantID: @user.UserID).or(PrimaryMessageGroup.where(LandlordID: @user.UserID)).pluck(:ConversationID)
+        active_meeting = MediatorScheduledMeeting.where(ConversationID: conversation_ids, Status: "scheduled").where("EndTime > ?", Time.current).order(:StartTime).first 
+      %>
+
+      <% if active_meeting&.ZoomLink.present? %>
+        <div class="upcoming-meeting" style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 16px; border-radius: 8px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+          <div>
+            <h4 style="margin: 0 0 4px 0; color: #1e3a8a; font-size: 1.05rem; font-weight: 600;">
+              <i class="fa-solid fa-video"></i> Upcoming Mediation Session
+            </h4>
+            <p style="margin: 0; color: #2563eb; font-size: 0.9rem; font-weight: 500;">
+              <%= active_meeting.StartTime.in_time_zone.strftime("%b %-d, %Y at %-l:%M %p %Z") %>
+            </p>
+          </div>
+          
+          <%= link_to "<i class='fa-solid fa-arrow-up-right-from-square'></i> Join Zoom Meeting".html_safe, 
+                      active_meeting.ZoomLink, 
+                      target: "_blank", 
+                      rel: "noopener", 
+                      style: "background: #2563eb; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: background 0.2s; white-space: nowrap;" %>
+        </div>
+      <% end %>
+    <% end %>
+
     <% case @user.Role %>
       <% when "Landlord" %>
         <%= render "landlord_dashboard" %>
