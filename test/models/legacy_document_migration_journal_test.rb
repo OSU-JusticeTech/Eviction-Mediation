@@ -205,12 +205,16 @@ class LegacyDocumentMigrationJournalTest < ActiveSupport::TestCase
   test "interruption and lease expiry preserve reservation until explicit reconciliation" do
     attempt = create_attempt
     attempt.transition_to!("copying")
-    attempt.update!(lease_token: SecureRandom.uuid,
-      lease_expires_at: 1.minute.from_now, lease_generation: 1)
+    # Historical unclaimed journal rows retain their reconciliation behavior.
+    assert_raises(ActiveRecord::RecordInvalid) do
+      attempt.update!(lease_token: SecureRandom.uuid,
+        lease_expires_at: 1.minute.from_now, lease_generation: 1)
+    end
+    attempt.reload
     attempt.run.finish!(status: "interrupted")
     assert_equal "copying", attempt.reload.state
     travel_to 2.minutes.from_now do
-      assert attempt.reload.lease_expires_at < Time.current
+      assert_nil attempt.reload.lease_expires_at
       assert_raises(ActiveRecord::RecordNotUnique) { create_attempt }
     end
     attempt.transition_to!("blocked", evidence: { error_code: "interrupted" })

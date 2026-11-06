@@ -288,3 +288,89 @@ copy/hash/publication durability, guarded locator-only commit, post-commit
 verification, rollback reconciliation, schema-dump review, and restricted operator
 reporting. No command in this stage executes a migration of document bytes.
 Stop for review before progressing beyond the journal.
+
+## Stage 5C-2A-3: durable attempt claims and fencing
+
+This section supersedes the reserved-lease description above. No DDL is needed;
+no original migration, storage service, document bytes or draft locators change.
+
+`claim!(lease_seconds: 300)` claims one existing attempt and returns
+`{ worker_token:, generation: }`. Keep credentials restricted; do not log them.
+The token is a cryptographically random UUID. Acquisition requires a running run,
+a planned/copying/published_verified/committed attempt, no lease, and generation
+zero. It must run outside an enclosing transaction so returned ownership is durable.
+It never retries, steals an expired claim, or resumes a previously released claim.
+A fresh attempt after explicit closure records new work.
+
+Every claim operation locks the run first, then the attempt, using SQL Server
+`WITH (UPDLOCK, ROWLOCK, HOLDLOCK)` through Active Record `with_lock`. Reloading
+under update locks serializes contenders; the loser observes the durable claim
+and raises `LegacyDocumentMigrationAttempt::ClaimRejected`. The parent lock also
+serializes claims/mutations against run interruption/completion. This deliberately
+serializes operations within one run; SQL Server may escalate locks. There is no
+`SKIP LOCKED`, polling, lock-timeout session change, automatic deadlock retry, or
+batch worker. Configure bounded database lock waits in the eventual execution
+workflow and validate actual adapter behavior before enabling workers.
+
+Acquisition and renewal read `SELECT SYSUTCDATETIME()` on the locked transaction's
+connection, deserialize it with the expiry attribute type, and add an integer
+1..3600 seconds. Application wall-clock time is not used to decide claim validity.
+Renewal never shortens expiry. Equality with expiry is expired. The lease is
+checked while holding the lock immediately before saving; a transaction can
+commit after expiry, so this does not promise a commit-time lease deadline.
+
+Pass `worker_token:`, `generation:`, and `expected_state:` to `transition_to!`,
+`record_source_evidence!`, `renew_claim!`, and `release_claim!`. All must match the
+locked row and the lease must be unexpired in a worker state on a running run.
+Ordinary validated updates to claimed attempts are rejected, including evidence,
+error codes and lease fields. Worker transitions preserve token/expiry until
+closure; closure clears them atomically with the existing reservation rules.
+Publication evidence may be supplied through the fenced transition API; there
+is no separate prepublication target reservation API yet. Source evidence remains
+complete, copying-only and write-once. Closed claims cannot renew or resume.
+Generation increments on acquisition and on each explicit reconciliation; it is
+never reset, decremented or reused. Signed bigint exhaustion fails closed.
+
+Compatibility is intentionally limited: never-claimed generation-zero rows retain
+the preexisting journal-only transition/evidence APIs and their validation rules.
+They are not worker authorization. Once claimed, a row can never use that path,
+even after release or reconciliation. Direct SQL, `update_columns`, bulk writes
+and disabled validations still bypass model guards; restricted DB access remains
+required. No triggers or database-enforced historical fencing are supplied.
+
+`release_claim!` requires the same live fence and leaves state, evidence,
+generation and reservation intact. It stops ownership; it does not authorize
+reacquisition. Expiry, run interruption, crashes, lost connections and release
+require operator reconciliation. Expiry does not clear a token or reservation.
+No application clock travel, scheduler or run-status change performs takeover.
+
+After stopping/quiescing the old worker and reconciling the authoritative journal,
+draft and any source/target evidence, explicitly call `reconcile_claim!` with the
+stored token, generation and expected state. This is an operator-only action by
+calling convention, not an authorization system. It accepts an expired claim or
+a released claim (explicit `worker_token: nil`), advances the generation, and
+records `blocked` with `interrupted` by default, clearing ownership but retaining
+the reservation. To explicitly close after reconciliation, call it again with
+the new generation, nil token, current state and `next_state: "superseded"`,
+`"gone"`, or `"rolled_back"` along an existing allowed transition. A direct
+reconciliation closure is also possible when the transition table permits it.
+Evidence is never replaced. No new attempt or retry is created automatically.
+After ambiguous commit, reread the authoritative row before deciding what happened.
+A generation fences database mutations; it cannot stop an old process performing
+filesystem I/O. Worker quiescence remains mandatory before recovery.
+
+Synthetic claim tests use committed rows and two independent pooled connections,
+with cleanup scoped to their own run. Run them serially against a disposable SQL
+Server test database. Syntax and whitespace checks alone do not validate locks,
+SQL Server precision, deadlocks or adapter transaction semantics. Rails/Docker
+commands were not executed in this stage:
+
+```sh
+docker compose -f docker-compose.yml run --rm -e RAILS_ENV=test web bin/rails db:prepare
+docker compose -f docker-compose.yml run --rm -e RAILS_ENV=test web bin/rails test test/models/legacy_document_migration_journal_test.rb test/models/legacy_document_migration_claim_test.rb
+docker compose -f docker-compose.yml run --rm -e RAILS_ENV=test web bin/rails test test/models/file_draft_test.rb test/services/document_creation_test.rb test/services/document_revision_test.rb test/services/document_deletion_test.rb test/services/legacy_document_inventory_test.rb
+docker compose -f docker-compose.yml run --rm -e RAILS_ENV=test web bin/rails test
+```
+
+Stop for review. Copying, locator cutover, publication durability, run-wide execution
+authorization, automated recovery and background execution remain unimplemented.

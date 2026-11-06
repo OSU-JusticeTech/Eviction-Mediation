@@ -1,4 +1,5 @@
 require "bigdecimal"
+require "securerandom"
 
 class LegacyDocumentMigrationAttempt < ApplicationRecord
   TRANSITIONS = {
@@ -27,6 +28,11 @@ class LegacyDocumentMigrationAttempt < ApplicationRecord
   }.freeze
   SOURCE_EVIDENCE_FIELDS = SOURCE_EVIDENCE_RANGES.keys.freeze
 
+  class ClaimRejected < StandardError; end
+  WORKER_STATES = %w[planned copying published_verified committed].freeze
+  CLAIM_FIELDS = %w[lease_token lease_expires_at lease_generation].freeze
+  SQL_SERVER_LOCK = "WITH (UPDLOCK, ROWLOCK, HOLDLOCK)".freeze
+
   around_create :serialize_run_admission
 
   belongs_to :run, class_name: "LegacyDocumentMigrationRun"
@@ -38,32 +44,95 @@ class LegacyDocumentMigrationAttempt < ApplicationRecord
   validates :error_code, inclusion: { in: ERROR_CODES }, allow_nil: true
   validates :expected_size, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :expected_sha256, format: { with: /\A[0-9a-f]{64}\z/ }, allow_nil: true
+  validate :validate_claim_ownership
   validate :validate_progress
   validate :validate_source_evidence
 
+  # Returns credentials only after the top-level transaction commits. Never log them.
+  def claim!(lease_seconds: 300)
+    validate_lease_duration!(lease_seconds)
+    raise ClaimRejected, "Claim requires a top-level transaction" if self.class.connection.transaction_open?
+
+    with_claim_lock do
+      raise ClaimRejected, "Attempt requires reconciliation" unless
+        run.status == "running" && WORKER_STATES.include?(state) && lease_token.nil? && lease_generation.zero?
+      raise ClaimRejected, "Generation exhausted" if lease_generation >= 2**63 - 1
+      now = database_utc_now
+      claim_update!(lease_token: SecureRandom.uuid, lease_generation: lease_generation + 1,
+        lease_expires_at: now + lease_seconds)
+      { worker_token: lease_token, generation: lease_generation }
+    end
+  end
+
+  def renew_claim!(worker_token:, generation:, expected_state:, lease_seconds: 300)
+    validate_lease_duration!(lease_seconds)
+    with_claim_lock do
+      now = guard_claim!(worker_token, generation, expected_state)
+      claim_update!(lease_expires_at: [lease_expires_at, now + lease_seconds].max)
+    end
+  end
+
+  # Release is a stop, not permission to resume or reacquire this attempt.
+  def release_claim!(worker_token:, generation:, expected_state:)
+    with_claim_lock do
+      guard_claim!(worker_token, generation, expected_state)
+      claim_update!(lease_token: nil, lease_expires_at: nil)
+    end
+  end
+
+  # Operator-only, after quiescing the old worker and reconciling external evidence.
+  # Matching durable credentials are required even after expiry; no takeover occurs.
+  def reconcile_claim!(worker_token:, generation:, expected_state:, next_state: "blocked")
+    # Isolate both writes even when a caller rescues inside an outer transaction.
+    self.class.transaction(requires_new: true) do
+      with_claim_lock do
+        unless lease_generation.positive? && lease_token == worker_token &&
+            generation.is_a?(Integer) && lease_generation == generation && state == expected_state &&
+            %w[blocked superseded gone rolled_back].include?(next_state) &&
+            TRANSITIONS.fetch(state, []).include?(next_state)
+          raise ClaimRejected, "Claim does not match"
+        end
+        @worker_owned = true
+        raise ClaimRejected, "Generation exhausted" if lease_generation >= 2**63 - 1
+        claim_update!(lease_generation: lease_generation + 1)
+        transition_to!(next_state, evidence: { error_code: "interrupted" },
+          worker_token: worker_token, generation: generation, expected_state: expected_state,
+          reconciliation: true)
+      ensure
+        @worker_owned = false
+      end
+    end
+  end
+
   # Persist in a separate committed transaction before private publication.
-  # This API does not inspect files, claim workers, or attest source safety.
-  def record_source_evidence!(evidence:)
+  # This API does not inspect files or attest source safety.
+  def record_source_evidence!(evidence:, worker_token: nil, generation: nil, expected_state: nil)
     unless evidence.keys.sort == SOURCE_EVIDENCE_FIELDS.map(&:to_sym).sort
       raise ArgumentError, "Complete source evidence required"
     end
 
-    with_lock do
+    with_claim_lock do
+      authorize_mutation!(worker_token, generation, expected_state)
       if state != "copying" || SOURCE_EVIDENCE_FIELDS.any? { |field| !self[field].nil? }
         errors.add(:base, "Source evidence requires an unrecorded copying attempt")
         raise ActiveRecord::RecordInvalid, self
       end
-      update!(evidence)
+      owned_update! { update!(evidence) }
     end
   end
 
   # Serializes transitions and atomically releases the global reservation when
   # closed. No FileDraft lookup, filesystem or notification calls.
-  def transition_to!(next_state, evidence: {})
+  def transition_to!(next_state, evidence: {}, worker_token: nil, generation: nil, expected_state: nil, reconciliation: false)
     allowed = %i[target_locator expected_size expected_sha256 error_code]
     raise ArgumentError, "Invalid evidence fields" unless (evidence.keys - allowed).empty?
 
-    with_lock do
+    with_claim_lock do
+      if reconciliation
+        raise ClaimRejected, "Explicit reconciliation required" unless @worker_owned && %w[blocked superseded gone rolled_back].include?(next_state)
+      else
+        authorize_mutation!(worker_token, generation, expected_state)
+      end
       unless TRANSITIONS.fetch(state, []).include?(next_state)
         errors.add(:state, "invalid transition")
         raise ActiveRecord::RecordInvalid, self
@@ -71,10 +140,11 @@ class LegacyDocumentMigrationAttempt < ApplicationRecord
       closed = CLOSED_STATES.include?(next_state)
       begin
         @transitioning = true
-        update!(evidence.merge(state: next_state,
+        owned_update! { update!(evidence.merge(state: next_state,
           reservation_key: closed ? id : 0,
           completed_at: closed ? Time.current : nil,
-          lease_token: nil, lease_expires_at: nil))
+          lease_token: (closed || reconciliation) ? nil : lease_token,
+          lease_expires_at: (closed || reconciliation) ? nil : lease_expires_at)) }
       ensure
         @transitioning = false
       end
@@ -82,6 +152,60 @@ class LegacyDocumentMigrationAttempt < ApplicationRecord
   end
 
   private
+
+  def with_claim_lock(&block)
+    run.with_lock(SQL_SERVER_LOCK) do
+      with_lock(SQL_SERVER_LOCK, &block)
+    end
+  end
+
+  def database_utc_now
+    value = self.class.connection.select_value("SELECT SYSUTCDATETIME()")
+    self.class.type_for_attribute("lease_expires_at").deserialize(value)
+  end
+
+  def validate_lease_duration!(seconds)
+    raise ArgumentError, "Lease must be 1..3600 integer seconds" unless seconds.is_a?(Integer) && (1..3600).cover?(seconds)
+  end
+
+  def guard_claim!(token, generation, expected_state)
+    now = database_utc_now
+    unless token.is_a?(String) && token == lease_token && generation.is_a?(Integer) &&
+        generation == lease_generation && expected_state == state && run.status == "running" &&
+        WORKER_STATES.include?(state) &&
+        lease_expires_at && lease_expires_at > now
+      raise ClaimRejected, "Claim is invalid, expired, or in the wrong state"
+    end
+    now
+  end
+
+  def authorize_mutation!(token, generation, expected_state)
+    # Compatibility for historical journal-only callers, never a claimed worker.
+    return if lease_generation.zero? && lease_token.nil? && token.nil? && generation.nil?
+
+    guard_claim!(token, generation, expected_state)
+  end
+
+  def owned_update!
+    previous = @worker_owned
+    @worker_owned = true
+    yield
+  ensure
+    @worker_owned = previous
+  end
+
+  def claim_update!(attributes)
+    owned_update! { update!(attributes) }
+  end
+
+  def validate_claim_ownership
+    changed_claim = CLAIM_FIELDS.any? { |field| will_save_change_to_attribute?(field) }
+    if new_record?
+      errors.add(:base, "Claims require claim!") if lease_token || lease_expires_at || lease_generation != 0
+    elsif !@worker_owned && (changed_claim || lease_generation_in_database > 0)
+      errors.add(:base, "Worker mutations require guarded APIs")
+    end
+  end
 
   def validate_source_evidence
     supplied = SOURCE_EVIDENCE_FIELDS.select { |field| !self[field].nil? }

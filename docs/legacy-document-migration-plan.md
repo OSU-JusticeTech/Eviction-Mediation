@@ -406,3 +406,15 @@ Before production execution:
 
 Stage 5A stops here for review. Implementation, live inventory, checksum reads,
 copying and DB locator updates all require a subsequent authorized stage.
+
+## Stage 5C-2A-3 implementation checkpoint
+
+Attempt claiming/fencing APIs and synthetic independent-connection race coverage
+are implemented for review; see the [claim lifecycle and recovery contract](./legacy-document-migration-journal.md#stage-5c-2a-3-durable-attempt-claims-and-fencing).
+SQL Server update locks serialize claim acquisition and guarded mutations, with
+database UTC expiry checks. Expired/interrupted/released claims require explicit
+operator reconciliation; no takeover or retry is automatic. Historical unclaimed
+journal APIs remain compatible, while claimed rows require fenced mutations.
+Only Ruby syntax and diff whitespace checks were run; SQL Server tests remain a
+review gate. This does not authorize copying, cutover, background execution,
+DocumentStorage changes or deployment.
