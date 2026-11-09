@@ -46,9 +46,10 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
-      - ./storage:/rails/storage  # Active Storage uploads (local disk service)
+      - ./storage:/rails/storage
+      - user_files:/rails/public/userFiles
     ports:
-      - '${WEB_PORT:-3000}:3000'
+      - '127.0.0.1:${WEB_PORT:-3000}:3000'
     depends_on:
       db:
         condition: service_healthy
@@ -86,4 +87,6 @@ volumes:
   sqlserver_data:
     driver: local
   redis_data:
+    driver: local
+  user_files:
     driver: local
