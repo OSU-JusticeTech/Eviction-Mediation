@@ -226,3 +226,93 @@
   min-height: 40px;
 }
 </style>
+
+<script>
+document.addEventListener("turbo:load", () => {
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+  // --- Scheduled Meetings ---
+  loadMeetings();
+
+  async function loadMeetings() {
+    const meetingsContainer = document.getElementById("scheduled-meetings-list");
+    const countDisplay = document.getElementById("meetings-count");
+
+    try {
+      const res = await fetch("/mediator_scheduled_meetings", {
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) throw new Error("Failed to load meetings");
+
+      const meetings = await res.json();
+
+      if (countDisplay) {
+        countDisplay.textContent = `${meetings.length} ${meetings.length === 1 ? 'meeting' : 'meetings'}`;
+      }
+
+      if (!meetings || meetings.length === 0) {
+        meetingsContainer.innerHTML = `
+          <div style="border: 1px dashed #cbd5e1; border-radius: 8px; padding: 24px; text-align: center; background: #f8fafc;">
+            <p style="color: #64748b; font-size: 0.9rem; margin: 0;">No mediation sessions currently scheduled.</p>
+          </div>
+        `;
+        return;
+      }
+
+      meetingsContainer.innerHTML = meetings.map(m => {
+        const status = (m.Status || "scheduled").toLowerCase();
+        
+        // Render "Join Zoom" button only if a valid Zoom link exists from automated generation
+        const zoomButton = (status === 'scheduled' && m.ZoomLink && m.ZoomLink !== 'null' && m.ZoomLink !== '') ? `
+          <a href="${m.ZoomLink}" target="_blank" rel="noopener noreferrer" style="background: #2563eb; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 0.85rem; margin-right: 8px; display: inline-flex; align-items: center; gap: 4px;">
+            <i class="fa-solid fa-video"></i> Join Zoom
+          </a>
+        ` : '';
+
+        const formatDateTime = (str) => {
+          const d = new Date(str);
+          return isNaN(d) ? str : d.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        };
+
+        return `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #e2e8f0;">
+            <span style="color: #334155; font-size: 0.95rem;">
+              Case #${m.ConversationID || m.id} — ${formatDateTime(m.StartTime)} (${status})
+            </span>
+            <div style="display: flex; align-items: center;">
+              ${zoomButton}
+              ${status === 'scheduled' ? `
+                <button type="button" onclick="cancelMeeting(${m.id})" style="border: 1px solid #fca5a5; color: #ef4444; background: transparent; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 0.85rem;">
+                  Cancel Meeting
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+    } catch (err) {
+      console.error("Error loading meetings:", err);
+      meetingsContainer.innerHTML = '<p style="color: #ef4444; font-size: 0.9rem;">Could not load scheduled meetings.</p>';
+    }
+  }
+
+  window.cancelMeeting = async function(id) {
+    if (!confirm("Cancel this meeting? The Zoom link will be invalidated.")) return;
+    try {
+      const res = await fetch(`/mediator_scheduled_meetings/${id}/cancel`, {
+        method: "PATCH",
+        headers: {
+          "X-CSRF-Token": csrfToken,
+          "Accept": "application/json"
+        }
+      });
+      if (res.ok) {
+        loadMeetings();
+      }
+    } catch (err) {
+      console.error("Failed to cancel meeting:", err);
+    }
+  };
+});
+</script>
