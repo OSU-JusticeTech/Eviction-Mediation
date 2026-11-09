@@ -1,6 +1,20 @@
 require "test_helper"
+require "tmpdir"
 
 class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
+  setup do
+    @previous_document_storage = Rails.application.config.x.document_storage
+    @system_document_storage_root = Dir.mktmpdir("system-documents-", Rails.root.join("tmp"))
+    Rails.application.config.x.document_storage = DocumentStorageConfiguration.new(
+      root: @system_document_storage_root, public_root: Rails.root.join("public")
+    )
+  end
+
+  teardown do
+    Rails.application.config.x.document_storage = @previous_document_storage
+    FileUtils.remove_entry(@system_document_storage_root) if @system_document_storage_root && File.exist?(@system_document_storage_root)
+  end
+
   # Enable Capybara to run its own test server in test mode
   # This ensures system tests use the test database with fixtures
   Capybara.run_server = true

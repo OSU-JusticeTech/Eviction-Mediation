@@ -176,6 +176,9 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
     assert_operator page.evaluate_script("document.body.scrollTop"), :>, 0
     assert_selector "#suggestion-date1 .suggestion-actions"
     assert_equal 2, @file.reload.AgreementVersion
+    assert_match %r{\AprivateDocuments/}, @file.FileURLPath
+    assert DocumentStorage.configured.resolve(@file.FileURLPath).file?
+    assert_equal "<html><body><p>Agreement preview</p></body></html>", @saved_path.read
     assert_equal "2026-10-30", @file.agreement_terms["vacate_date"]
     assert @file.agreement_suggestions_pending?
     page.refresh

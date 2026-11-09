@@ -242,7 +242,7 @@
                 <li style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;">
                   <div style="display: flex; align-items: center; gap: 0.5rem;">
                     <i class="fa-solid fa-file-pdf" style="color: #ef4444;"></i>
-                    <%= link_to file.FileName, "/#{file.FileURLPath}", target: "_blank", style: "color: #0f172a; text-decoration: none; font-weight: 500;" %>
+                    <%= link_to file.FileName, view_file_path(file.FileID), target: "_blank", style: "color: #0f172a; text-decoration: none; font-weight: 500;" %>
                   </div>
                   <span class="badge" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; background: #f1f5f9; border-radius: 4px; color: #64748b;">Signed</span>
                 </li>
