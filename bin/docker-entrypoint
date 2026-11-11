@@ -17,4 +17,7 @@ if [[ "$*" == *"./bin/rails server"* ]]; then
   ./bin/rails tailwindcss:build
 fi
 
+# Ensure private document storage exists before starting the application.
+mkdir -p "${DOCUMENT_STORAGE_ROOT:-/rails/storage/documents}"
+
 exec "${@}"
