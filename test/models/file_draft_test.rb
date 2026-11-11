@@ -22,6 +22,25 @@ class FileDraftTest < ActiveSupport::TestCase
   end
 
   #BUSINESS LOGIC TESTS
+  test "human_file_size formats the stored file size" do
+    previous = Rails.application.config.x.document_storage
+    root = Dir.mktmpdir("document-size-", Rails.root.join("tmp"))
+    Rails.application.config.x.document_storage = DocumentStorageConfiguration.new(
+      root: root, public_root: Rails.root.join("public")
+    )
+    locator = DocumentStorage.configured.allocate_private_locator(extension: "pdf")
+    File.write(File.join(root, locator.delete_prefix(DocumentStorage::PRIVATE_PREFIX)), "a" * 2048)
+
+    assert_equal "2 KB", FileDraft.new(FileURLPath: locator).human_file_size
+  ensure
+    Rails.application.config.x.document_storage = previous
+    FileUtils.remove_entry(root) if root && File.exist?(root)
+  end
+
+  test "human_file_size is nil when the file cannot be read" do
+    assert_nil FileDraft.new(FileURLPath: "privateDocuments/missing.pdf").human_file_size
+  end
+
   test "uploaded_at returns CreatedAt if present" do
     fixed_time = Time.zone.parse("2025-01-01 00:00:00")
     draft = FileDraft.new(CreatedAt: fixed_time)

@@ -8,7 +8,7 @@
     <div class="preview-header">
       <h2>Document Preview</h2>
       <a href="<%= download_file_path(@file.FileID) %>" target="_blank" class="btn-download">
-        📄 Open in New Tab
+        📄 Open in New Tab<% if (size = @file.human_file_size) %> (<%= size %>)<% end %>
       </a>
     </div>
     

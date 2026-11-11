@@ -87,7 +87,7 @@ const buildAttachmentHtml = (attachment, currentUserRole) => {
   ] : [
     `<a href="${previewUrl}" class="attachment-link">View</a>`,
     `<span aria-hidden="true" class="attachment-dot">·</span>`,
-    `<a href="${downloadUrl}" class="attachment-link">Download</a>`
+    `<a href="${downloadUrl}" class="attachment-link">Download${attachment.file_size ? ` (${escapeHtml(attachment.file_size)})` : ""}</a>`
   ];
 
   if (!isAgreement && (showTenantCTA || showLandlordCTA)) {

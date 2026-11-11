@@ -29,7 +29,7 @@
                 <% else %>
                   <%= link_to "View", view_file_path(file.FileID, view_mode: 'simple'), class: "attachment-link" %>
                   <span aria-hidden="true" class="attachment-dot">·</span>
-                  <%= link_to "Download", download_file_path(file.FileID), class: "attachment-link" %>
+                  <%= link_to get_download_label(file), download_file_path(file.FileID), class: "attachment-link" %>
                   <% if file.FileTypes == "html" && file.agreement_signable? %>
                     <% if current_user.Role == "Tenant" && file.TenantSignature == false %>
                       <span aria-hidden="true" class="attachment-dot">·</span>
@@ -104,7 +104,7 @@
                   <% else %>
                     <%= link_to "View", view_file_path(file.FileID, view_mode: 'simple'), class: "attachment-link" %>
                     <span aria-hidden="true" class="attachment-dot">·</span>
-                    <%= link_to "Download", download_file_path(file.FileID), class: "attachment-link" %>
+                    <%= link_to get_download_label(file), download_file_path(file.FileID), class: "attachment-link" %>
 
                     <% if file.FileTypes == "html" && file.agreement_signable? %>
                       <% if current_user.Role == "Tenant" && file.TenantSignature == false %>

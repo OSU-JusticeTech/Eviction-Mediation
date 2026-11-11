@@ -35,7 +35,7 @@
       <h1><%= @file.FileName %></h1>
       <div class="document-actions">
         <%= link_to download_file_path(@file.FileID), target: "_blank", class: "btn-document-action" do %>
-          <i class="fa-solid fa-download"></i> Download
+          <i class="fa-solid fa-download"></i> <%= get_download_label(@file) %>
         <% end %>
       </div>
     </div>

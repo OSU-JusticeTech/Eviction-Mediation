@@ -69,6 +69,7 @@ class MediatorMessagesController < ApplicationController
             file_name: file.FileName,
             preview_url: view_file_path(file.FileID),
             download_url: download_file_path(file.FileID),
+            file_size: file.human_file_size,
             view_url: view_file_path(file.FileID),
             sign_url: view_file_path(file.FileID),
             tenant_signature_required: is_html && file.agreement_signable? && !file.TenantSignature,

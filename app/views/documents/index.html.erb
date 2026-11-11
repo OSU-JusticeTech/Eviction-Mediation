@@ -27,7 +27,7 @@
       <td data-label="Type"><span class="badge"><%= f.FileTypes.to_s.upcase %></span></td>
       <td data-label="Uploaded"><%= t ? t.strftime("%b %d, %Y %l:%M %p") : "-" %></td>
       <td class="docs-actions-cell">
-        <%= link_to "Download",
+        <%= link_to get_download_label(f),
                     download_document_path(f.FileID),
                     class: "btn btn-secondary btn-sm" %>
 

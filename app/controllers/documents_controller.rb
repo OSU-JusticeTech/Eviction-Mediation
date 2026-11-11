@@ -140,6 +140,7 @@ class DocumentsController < ApplicationController
         file_name: file_draft.FileName,
         preview_url: view_file_path(file_draft.FileID),
         download_url: download_file_path(file_draft.FileID),
+        file_size: file_draft.human_file_size,
         view_url: view_file_path(file_draft.FileID),
         sign_url: view_file_path(file_draft.FileID),
         tenant_signature_required: !file_draft.TenantSignature,

@@ -31,7 +31,7 @@
                   File attached: <strong><%= file.FileName %></strong><br>
                   <%= link_to "View", document_path(file.FileID), class: "chatview-link" %>
                   <span aria-hidden="true">·</span>
-                  <%= link_to "Download", download_file_path(file.FileID), class: "chatview-link" %>
+                  <%= link_to get_download_label(file), download_file_path(file.FileID), class: "chatview-link" %>
                 </p>
                 <small class="message-timestamp"><%= message.MessageDate.strftime("%B %d, %Y %I:%M %p") %></small>
               </div>
