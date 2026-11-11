@@ -401,4 +401,19 @@
       </div>
     </div>
   <% end %>
+
+  <div class="info-card" style="margin-top: 1.5rem;">
+    <div class="card-header"><h2>My Notes</h2></div>
+    <div class="card-body">
+      <% if is_admin %>
+        <textarea rows="8" style="width: 100%;" readonly><%= @mediation.MediatorNotes %></textarea>
+      <% else %>
+        <%= form_with url: notes_mediator_case_path(@mediation.ConversationID), method: :patch do |f| %>
+          <%= f.text_area :notes, value: @mediation.MediatorNotes, rows: 8, style: "width: 100%;",
+                          placeholder: "Notes for this case..." %>
+          <%= f.submit "Save Notes", class: "btn btn-primary", style: "width: auto; margin-top: 0.75rem;" %>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
 </div>

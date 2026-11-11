@@ -156,6 +156,7 @@ end
   # Allow third party mediator to view cases
   resources :third_party_mediations, only: [ :index ]
   resources :mediator_cases, only: [ :show ] do
+    patch :notes, on: :member
     resources :time_entries, only: [ :create ], controller: "mediator_time_entries"
   end
   resources :time_entries, only: [], controller: "mediator_time_entries" do
