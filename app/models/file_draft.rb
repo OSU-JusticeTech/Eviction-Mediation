@@ -55,6 +55,14 @@ class FileDraft < ApplicationRecord
     nil
   end
 
+  # Size of the stored file, e.g. "245 KB". nil if the file can't be read.
+  def human_file_size
+    size = DocumentStorage.configured.resolve(self.FileURLPath).size
+    ActiveSupport::NumberHelper.number_to_human_size(size)
+  rescue StandardError
+    nil
+  end
+
   def agreement_terms
     return {} unless has_attribute?(:AgreementTerms)
     JSON.parse(self[:AgreementTerms].presence || "{}")

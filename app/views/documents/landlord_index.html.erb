@@ -16,7 +16,7 @@
           <tr>
             <td><%= file.FileName %></td>
             <td><%= link_to "View", document_path(file.FileID), class: "view-link" %></td>
-            <td><%= link_to "Download", download_file_path(file.FileID), class: "view-link" %></td>
+            <td><%= link_to get_download_label(file), download_file_path(file.FileID), class: "view-link" %></td>
           </tr>
         <% end %>
       </tbody>

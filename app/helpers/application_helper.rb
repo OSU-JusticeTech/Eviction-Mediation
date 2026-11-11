@@ -1,4 +1,10 @@
 module ApplicationHelper
+  # "Download (245 KB)", or plain "Download" if the size is unavailable.
+  def get_download_label(file)
+    size = file.human_file_size
+    size ? "Download (#{size})" : "Download"
+  end
+
   def needs_good_faith_response?(mediation, user)
     return false if mediation.deleted_at.nil?
 
