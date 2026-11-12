@@ -2,7 +2,7 @@ class MediatorCasesController < ApplicationController
   before_action :require_login
   before_action :set_user
   before_action :authorize_mediator_or_admin
-  before_action :set_mediation, only: [ :show ]
+  before_action :set_mediation, only: [ :show, :notes ]
 
   def show
     @mediation = PrimaryMessageGroup.find(params[:id])
@@ -33,7 +33,18 @@ class MediatorCasesController < ApplicationController
       .where("EndTime > ?", Time.current)
       .order(:StartTime)
       .first
-      
+
+  end
+
+  def notes
+    # Only the assigned mediator may write notes (admins are read-only).
+    unless @user.Role == "Mediator" && @mediation.MediatorID == @user.UserID
+      redirect_to mediator_case_path(@mediation.ConversationID), alert: "You can't edit notes on this case."
+      return
+    end
+
+    @mediation.update_column(:MediatorNotes, params[:notes].to_s)
+    redirect_to mediator_case_path(@mediation.ConversationID), notice: "Notes saved."
   end
 
   private

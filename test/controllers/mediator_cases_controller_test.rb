@@ -67,4 +67,35 @@ class MediatorCasesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to dashboard_path
     assert_equal "Access Denied", flash[:alert]
   end
+
+  test "assigned mediator sees the notes form" do
+    log_in_as(@mediator_user)
+
+    get mediator_case_url(@mediation)
+
+    assert_select "form[action=?]", notes_mediator_case_path(@mediation.ConversationID) do
+      assert_select "textarea[name=notes]"
+    end
+  end
+
+  test "assigned mediator can save notes" do
+    log_in_as(@mediator_user)
+
+    patch notes_mediator_case_url(@mediation), params: { notes: "Tenant prefers mornings." }
+
+    assert_redirected_to mediator_case_path(@mediation.ConversationID)
+    assert_equal "Tenant prefers mornings.", @mediation.reload.MediatorNotes
+  end
+
+  test "admin sees notes read-only and cannot save them" do
+    @mediation.update_column(:MediatorNotes, "Original notes")
+    log_in_as(users(:admin1))
+
+    get mediator_case_url(@mediation)
+    assert_select "form[action=?]", notes_mediator_case_path(@mediation.ConversationID), count: 0
+    assert_select "textarea[readonly]", text: "Original notes"
+
+    patch notes_mediator_case_url(@mediation), params: { notes: "Changed" }
+    assert_equal "Original notes", @mediation.reload.MediatorNotes
+  end
 end
