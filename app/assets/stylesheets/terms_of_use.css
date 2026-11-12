@@ -4,6 +4,15 @@
   margin: clamp(1rem, 4vw, 2rem) auto;
 }
 
+.terms-page.terms-page--acceptance {
+  max-height: min(90vh, 41rem);
+}
+
+.terms-page__text h1 {
+  font-size: clamp(1.75rem, 4vw, 2.125rem);
+  line-height: 1.2;
+}
+
 .terms-page__text h2 {
   margin: 1rem 0 0.5rem;
   font-size: 1.125rem;

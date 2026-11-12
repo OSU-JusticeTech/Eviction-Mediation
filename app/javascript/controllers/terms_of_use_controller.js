@@ -3,7 +3,7 @@ import { Controller } from "@hotwired/stimulus"
 const storageKey = "evictionMediationTermsAccepted"
 
 export default class extends Controller {
-  static targets = ["instructions", "content", "actions", "agree", "error", "back"]
+  static targets = ["content", "actions", "agree", "error", "back"]
   static values = { redirectUrl: String, returnUrl: String }
 
   connect() {
@@ -19,8 +19,8 @@ export default class extends Controller {
       return
     }
 
+    this.element.classList.toggle("terms-page--acceptance", !accepted)
     this.backTarget.hidden = !accepted
-    this.instructionsTarget.hidden = accepted
     this.actionsTarget.hidden = accepted
     this.reachedEnd = false
     this.updateAcceptance()

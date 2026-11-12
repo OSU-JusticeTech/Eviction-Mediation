@@ -19,7 +19,7 @@ class SessionsTest < ApplicationSystemTestCase
     visit login_path
     window = page.current_window
     original_size = window.size
-    window.resize_to(1000, 650)
+    window.resize_to(1440, 1080)
     page.execute_script("localStorage.removeItem('evictionMediationTermsAccepted')")
     
     fill_in "email", with: @user.Email
