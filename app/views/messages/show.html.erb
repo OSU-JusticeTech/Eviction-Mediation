@@ -200,6 +200,8 @@
                 <p>By continuing to use this chat, you agree to these terms.</p>
               </div>
             <% end %>
+            <%= link_to "Terms of Use", terms_of_use_path(return_to: request.fullpath),
+                        class: "conversation-link", data: { turbo: false } %>
           </div>
         </div>
       </div>

@@ -16,6 +16,7 @@
 //= link login.css
 //= link signup.css
 //= link chat.css
+//= link terms_of_use.css
 //= link messages_tenant.css
 //= link messages_landlord.css
 //= link screening_questions.css

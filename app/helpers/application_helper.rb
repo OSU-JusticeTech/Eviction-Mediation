@@ -5,6 +5,10 @@ module ApplicationHelper
     size ? "Download (#{size})" : "Download"
   end
 
+  def terms_of_use_applies?
+    current_user&.Role.in?(%w[Tenant Landlord])
+  end
+
   def needs_good_faith_response?(mediation, user)
     return false if mediation.deleted_at.nil?
 

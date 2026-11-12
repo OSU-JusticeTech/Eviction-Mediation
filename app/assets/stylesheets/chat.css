@@ -1296,34 +1296,6 @@
     display: none;
   }
 
-  /* The terms-of-use and chat-terms modals are native <dialog> elements opened
-     with showModal() so the browser enforces a focus trap. Reset the dialog UA
-     box defaults and let the shared .conversation-modal overlay styles drive the
-     appearance. */
-  dialog.conversation-modal {
-    width: 100%;
-    height: 100%;
-    max-width: none;
-    max-height: none;
-    margin: 0;
-    border: 0;
-    color: inherit;
-    outline: none;
-  }
-
-  dialog.conversation-modal:focus,
-  dialog.conversation-modal:focus-visible {
-    outline: none !important;
-  }
-
-  dialog.conversation-modal:not([open]) {
-    display: none;
-  }
-
-  dialog.conversation-modal::backdrop {
-    background: transparent;
-  }
-
   .conversation-modal__content {
     background: #ffffff;
     border-radius: 20px;
@@ -1333,35 +1305,6 @@
     display: flex;
     flex-direction: column;
     gap: 1.1rem;
-  }
-
-  .terms-body-wrapper {
-    position: relative;
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .terms-scroll-hint {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 72px;
-    background: linear-gradient(to bottom, transparent, #ffffff);
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    padding-bottom: 6px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
-
-  .terms-scroll-hint i {
-    color: #102a4d;
-    font-size: 1rem;
   }
 
   .conversation-modal__header {

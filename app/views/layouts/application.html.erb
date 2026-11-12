@@ -63,8 +63,15 @@
   <% end %>
   </head>
 
-  <body class="<%= content_for?(:body_class) ? yield(:body_class) : '' %>">
-    <% unless (controller_name == "sessions" && action_name == "new")  || (controller_name == "users" && action_name == "new") %>
+  <body class="site-layout <%= yield :body_class %>">
+    <% signup_page = controller_name == "users" && action_name == "new" %>
+    <% privacy_faq = controller_name == "resources" && params[:tab] == "faqs" && params[:category] == "data-privacy" %>
+    <% if terms_of_use_applies? && controller_name != "terms_of_use" && !privacy_faq %>
+      <div hidden data-controller="terms-of-use"
+           data-terms-of-use-redirect-url-value="<%= terms_of_use_path(return_to: request.get? ? request.fullpath : dashboard_path) %>"></div>
+    <% end %>
+
+    <% unless (controller_name == "sessions" && action_name == "new") || signup_page %>
       <% if current_user %>
         <div class="navbar-container">
           <%= render "shared/navbar" %>
@@ -91,118 +98,25 @@
       <%= yield %>
     </main>
 
-    <% if current_user && (current_user.Role == "Tenant" || current_user.Role == "Landlord") %>
-      <!-- Terms of Use Modal -->
-      <dialog id="termsOfUseModal" class="conversation-modal" tabindex="-1">
-        <div class="conversation-modal__content" style="max-width: 600px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;">
-          <div class="conversation-modal__header">
-            <h3>Terms of Use</h3>
-          </div>
-          <div class="terms-body-wrapper">
-          <div id="termsModalBody" class="conversation-modal__body" style="line-height: 1.6; overflow-y: auto; flex: 1; padding-right: 0.5rem;">
-            <h4 style="margin-top: 0.5rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Respectful Use</h4>
-            <p style="margin-bottom: 1rem;">
-              Do not harass, threaten, or intimidate anyone. Communicate honestly and respectfully. If communication becomes abusive or no progress is made, you can end the conversation. You do not have to agree to a settlement.
-            </p>
-            <h4 style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Mediation Steps and Certificates</h4>
-            <p style="margin-bottom: 0.5rem;">
-              To receive a Certificate of Mediation Attempt, a landlord must:
-            </p>
-            <ol style="margin-left: 1.5rem; margin-bottom: 1rem;">
-              <li style="margin-bottom: 0.5rem;">Start a mediation request or respond to a tenant's request within three business days.</li>
-              <li style="margin-bottom: 0.5rem;">Provide accurate and complete contact information for the tenant.</li>
-              <li style="margin-bottom: 0.5rem;">Respond to mediator outreach within three business days.</li>
-            </ol>
-            <p style="margin-bottom: 1rem;">
-              A settlement is not required. A landlord who completes these steps may still receive a certificate if the tenant does not communicate for five business days or mediation ends because the tenant violated the Respectful Use policy.
-            </p>
-            <p style="margin-bottom: 1rem;">
-              A Certificate of Mediation Attempt does not carry legal weight or guarantee a specific outcome, but shows the court that Mediation was attempted.
-            </p>
-            <h4 style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1rem; color: #102a4d;">Acknowledgment</h4>
-            <p style="margin-bottom: 1rem;">
-              By clicking "I Agree," you acknowledge that you have read the Legal Disclaimer and agree to these Terms of Use. This does not mean you agree to a settlement.
-            </p>
-          </div>
-          <div id="termsScrollHint" class="terms-scroll-hint" aria-hidden="true">
-            <i class="fas fa-chevron-down"></i>
-          </div>
-          </div>
-          <div class="conversation-modal__actions">
-            <button id="acceptTermsBtn" class="conversation-cta" style="background: #102a4d; color: white; border: none; padding: 0.75rem 2rem; border-radius: 999px; font-weight: 600; cursor: pointer; font-size: 0.95rem;">I Agree</button>
-          </div>
+    <footer class="site-footer" data-controller="legal-disclaimer"
+            data-action="turbo:before-cache@document->legal-disclaimer#close">
+      <nav aria-label="Site policies">
+        <%= link_to "Terms of Use", terms_of_use_path, data: { turbo: false } %>
+        <%= link_to "Data Privacy", resources_path(tab: "faqs", category: "data-privacy") %>
+        <%= button_tag "Legal Disclaimer", type: "button", class: "site-footer__disclaimer",
+                       aria: { haspopup: "dialog", controls: "site-legal-disclaimer" },
+                       data: { action: "legal-disclaimer#open" } %>
+      </nav>
+      <dialog id="site-legal-disclaimer" class="policy-panel site-legal-disclaimer" aria-labelledby="site-legal-disclaimer-heading"
+              data-legal-disclaimer-target="dialog">
+        <header>
+          <h2 id="site-legal-disclaimer-heading" class="policy-panel__title">Legal Disclaimer</h2>
+          <button type="button" autofocus data-action="legal-disclaimer#close">Close</button>
+        </header>
+        <div class="policy-panel__scroll" tabindex="0" role="region" aria-label="Disclaimer text">
+          <%= render "shared/legal_disclaimer_text" %>
         </div>
       </dialog>
-
-      <script>
-        (function() {
-          const modal = document.getElementById('termsOfUseModal');
-          const acceptBtn = document.getElementById('acceptTermsBtn');
-          const storageKey = 'evictionMediationTermsAccepted';
-
-          const termsBody = document.getElementById('termsModalBody');
-          const scrollHint = document.getElementById('termsScrollHint');
-
-          function updateScrollHint() {
-            if (!termsBody || !scrollHint) return;
-            const scrollable = termsBody.scrollHeight > termsBody.clientHeight + 8;
-            const atBottom = termsBody.scrollTop + termsBody.clientHeight >= termsBody.scrollHeight - 8;
-            scrollHint.style.opacity = (scrollable && !atBottom) ? '1' : '0';
-          }
-
-          if (termsBody) {
-            termsBody.addEventListener('scroll', updateScrollHint);
-          }
-
-          function showTermsModal() {
-            // Check if user has already accepted terms
-            const hasAccepted = localStorage.getItem(storageKey);
-
-            if (!hasAccepted && modal && !modal.open) {
-              // showModal() opens the dialog in the top layer so the browser
-              // enforces a focus trap (the rest of the page becomes inert).
-              if (typeof modal.showModal === 'function') {
-                modal.showModal();
-              } else {
-                modal.setAttribute('open', '');
-              }
-              // Move focus off the auto-focused button to the dialog itself
-              // (outline: none) so no focus ring shows on open.
-              modal.focus();
-              document.body.classList.add('has-modal-open');
-              requestAnimationFrame(updateScrollHint);
-            }
-          }
-
-          function hideTermsModal() {
-            if (modal) {
-              if (typeof modal.close === 'function' && modal.open) {
-                modal.close();
-              } else {
-                modal.removeAttribute('open');
-              }
-              document.body.classList.remove('has-modal-open');
-              localStorage.setItem(storageKey, 'true');
-            }
-          }
-
-          if (acceptBtn) {
-            acceptBtn.addEventListener('click', hideTermsModal);
-          }
-
-          // Persist acceptance even if the dialog is dismissed via Escape.
-          if (modal) {
-            modal.addEventListener('close', function () {
-              document.body.classList.remove('has-modal-open');
-              localStorage.setItem(storageKey, 'true');
-            });
-          }
-
-          // Show modal on page load
-          document.addEventListener('DOMContentLoaded', showTermsModal);
-          document.addEventListener('turbo:load', showTermsModal);
-        })();
-      </script>
-    <% end %>
+    </footer>
   </body>
 </html>

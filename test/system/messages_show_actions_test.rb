@@ -53,6 +53,22 @@ class MessagesShowActionsTest < ApplicationSystemTestCase
     assert_current_path mediation_ended_prompt_path(@mediation.ConversationID)
   end
 
+  test "a returning user can review the terms from conversation details without agreeing again" do
+    activate_mediation(@mediation)
+    @message_string.update!(deleted_at: nil)
+
+    sign_in_as(@tenant)
+    conversation_path = message_path(@mediation.ConversationID)
+    visit conversation_path
+    click_button "Conversation details"
+    within(".conversation-info-panel") { click_link "Terms of Use" }
+
+    assert_selector "h1", text: "Terms of Use"
+    assert_no_button "I Agree", disabled: :all
+    click_link "Back"
+    assert_current_path conversation_path
+  end
+
   private
 
   def sign_in_as(user)
