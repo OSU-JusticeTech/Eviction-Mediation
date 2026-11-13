@@ -51,7 +51,7 @@ class ResourcesController < ApplicationController
       escaped_line = CGI.escapeHTML(line)
       escaped_line.gsub!(/\*\*(.*?)\*\*/, '<strong>\1</strong>')
       # regex for [text](url) links 
-      escaped_line.gsub!(/\[([^\]]+)\]\(([^)\s]+)\)/, '<a href="\2" target="_blank" rel="noopener noreferrer">\1</a>')
+      escaped_line.gsub!(/\[([^\]]+)\]\(([^)\s]+)\)/, '<a href="\2" class="text-link" target="_blank" rel="noopener noreferrer">\1</a>')
       # regex indentations
       indent_level = (line[/\A[\t ]*/] || "").gsub("    ", "\t").count("\t")
       "<div style='margin-left: #{indent_level * 20}px;'>#{escaped_line}</div>"
