@@ -124,6 +124,7 @@ end
 
   # Public standalone FAQ page (linked from the logged-out landing page)
   get "/faqs", to: "faqs#index", as: "faqs"
+  get "/terms-of-use", to: "terms_of_use#show", as: "terms_of_use"
 
   # System Data
   resource :system_data, only: [ :show ]

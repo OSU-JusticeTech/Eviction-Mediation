@@ -26,11 +26,9 @@
       </span>
     </div>
 
-    <% if current_tab == "guide" %>
+    <% if %w[guide faqs].include?(current_tab) %>
       <%= render "faqs" %>
-      <%# <%= render "resources" %>
-      <%# <%= render "negotiation" %>
-      <% end %>
+    <% end %>
   </div>
 
 <% elsif current_tab != "guide" %>

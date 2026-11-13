@@ -32,15 +32,15 @@ class UsersTest < ApplicationSystemTestCase
       find("#zip-code").set("43215")
       find("#phone-number").set("614-555-0100")
 
-      # Use JavaScript to accept disclaimer (both checkbox and termsOpened tracker)
-      page.execute_script("document.getElementById('user_ProfileDisclaimer').checked = true;")
-      page.execute_script("document.getElementById('termsOpened').value = 'true';")
+      find("label.disclaimer-link").click
+      within("#legal-disclaimer") { click_button "I Agree" }
 
       click_button "Sign Up"
     end
 
-    assert_text "Account created successfully!"
+    accept_terms_if_present
     assert_current_path dashboard_path
+    assert_selector "h1", text: "Alice"
   end
 
   test "signing up as a landlord with valid data" do
@@ -63,8 +63,9 @@ class UsersTest < ApplicationSystemTestCase
       click_button "Sign Up"
     end
 
-    assert_text "Account created successfully!"
+    accept_terms_if_present
     assert_current_path dashboard_path
+    assert_selector "h1", text: "Bob"
   end
 
   test "signup fails with mismatched passwords" do

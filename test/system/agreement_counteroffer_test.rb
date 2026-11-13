@@ -44,16 +44,16 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
     within "#suggestion-vacate_date" do
       click_button "Counteroffer"
       assert_selector "#counteroffer-vacate_date:not([hidden])"
-      find("input[type=date]").set("2026-11-05")
+      page.execute_script("document.querySelector('#counteroffer-vacate_date input[type=date]').value = '2026-11-05'")
     end
     page.execute_script("document.querySelector('#counteroffer-vacate_date input[type=submit]').scrollIntoView({block: 'center'})")
-    before = page.evaluate_script("document.body.scrollTop")
+    before = page.evaluate_script("window.scrollY")
     assert_operator before, :>, 0
     within "#suggestion-vacate_date" do
       click_button "Save Counteroffer"
     end
     assert_selector "#suggestion-vacate_date", text: "Offered by Landlord"
-    after = page.evaluate_script("document.body.scrollTop")
+    after = page.evaluate_script("window.scrollY")
     assert_operator after, :>, 0
     assert_operator after, :>, before - 400
   end
@@ -109,7 +109,7 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
     assert_selector '[data-agreement-editor][data-editor-ready="true"]'
     assert_no_text "The document preview could not be edited"
     guide_top = page.evaluate_script("document.querySelector('.agreement-editor-guide').getBoundingClientRect().top")
-    assert_operator page.evaluate_script("document.body.scrollTop"), :>, 0
+    assert_operator page.evaluate_script("window.scrollY"), :>, 0
     assert_operator guide_top, :>=, 100
     assert_operator guide_top, :<, 220
     within_frame(find(".document-iframe")) do
@@ -163,7 +163,7 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
     visit view_file_path(@file.FileID)
     page.driver.browser.manage.window.resize_to(1200, 650)
     page.execute_script("document.querySelector('#suggestion-vacate_date').scrollIntoView({block: 'center'})")
-    before = page.evaluate_script("document.body.scrollTop")
+    before = page.evaluate_script("window.scrollY")
     assert_operator before, :>, 0
     within "#suggestion-vacate_date" do
       click_button "Accept"
@@ -173,7 +173,7 @@ class AgreementCounterofferTest < ApplicationSystemTestCase
       assert_text "Decision recorded. This item is closed."
       assert_text(/Accepted in document/i)
     end
-    assert_operator page.evaluate_script("document.body.scrollTop"), :>, 0
+    assert_operator page.evaluate_script("window.scrollY"), :>, 0
     assert_selector "#suggestion-date1 .suggestion-actions"
     assert_equal 2, @file.reload.AgreementVersion
     assert_match %r{\AprivateDocuments/}, @file.FileURLPath

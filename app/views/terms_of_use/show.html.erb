@@ -1,0 +1,49 @@
+<% content_for :title, "Terms of Use" %>
+<% content_for :head do %>
+  <%= stylesheet_link_tag "terms_of_use" %>
+<% end %>
+
+<section class="policy-panel terms-page"
+  <% if terms_of_use_applies? %>
+    data-controller="terms-of-use"
+    data-terms-of-use-return-url-value="<%= @return_path %>"
+  <% end %>>
+  <div class="policy-panel__scroll terms-page__text" tabindex="0" role="region" aria-labelledby="terms-heading"
+       data-terms-of-use-target="content"
+       data-action="scroll->terms-of-use#updateAcceptance resize@window->terms-of-use#updateAcceptance">
+    <h1 id="terms-heading" class="policy-panel__title">Terms of Use</h1>
+    <h2>Respectful Use</h2>
+    <p>
+      Do not harass, threaten, or intimidate anyone. Communicate honestly and respectfully. If communication becomes abusive or no progress is made, you can end the conversation. You do not have to agree to a settlement.
+    </p>
+    <h2>Mediation Steps and Certificates</h2>
+    <p>
+      To receive a Certificate of Mediation Attempt, a landlord must:
+    </p>
+    <ol>
+      <li>Start a mediation request or respond to a tenant's request within three business days.</li>
+      <li>Provide accurate and complete contact information for the tenant.</li>
+      <li>Respond to mediator outreach within three business days.</li>
+    </ol>
+    <p>
+      A settlement is not required. A landlord who completes these steps may still receive a certificate if the tenant does not communicate for five business days or mediation ends because the tenant violated the Respectful Use policy.
+    </p>
+    <p>
+      A Certificate of Mediation Attempt does not carry legal weight or guarantee a specific outcome, but shows the court that Mediation was attempted.
+    </p>
+    <h2>Acknowledgment</h2>
+    <p>
+      By clicking "I Agree," you acknowledge that you have read the Legal Disclaimer and agree to these Terms of Use. This does not mean you agree to a settlement.
+    </p>
+    <% if terms_of_use_applies? %>
+      <div class="terms-page__actions" data-terms-of-use-target="actions" hidden>
+        <button type="button" class="terms-page__agree" disabled
+                data-terms-of-use-target="agree" data-action="terms-of-use#accept">I Agree</button>
+        <p role="alert" data-terms-of-use-target="error" hidden>
+          Your browser couldn’t save your acceptance. Allow site storage and try again.
+        </p>
+      </div>
+    <% end %>
+    <%= link_to "Back", @return_path, class: "terms-page__back", data: { terms_of_use_target: "back", turbo: false } %>
+  </div>
+</section>

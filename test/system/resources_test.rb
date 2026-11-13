@@ -43,7 +43,7 @@ class ResourcesTest < ApplicationSystemTestCase
     visit resources_path(tab: "guide")
     dismiss_terms_modal_if_present
 
-    click_link "Data Privacy"
+    within(".faq-tabs") { click_link "Data Privacy" }
     assert_text "Q: Who operates this platform?"
     assert_no_text "Q: How does this tool work?"
   end
@@ -56,6 +56,11 @@ class ResourcesTest < ApplicationSystemTestCase
     click_link "Resources"
     assert_current_path resources_path
     assert_text "Frequently Asked Questions"
+
+    within("main") { assert_no_link "Terms of Use" }
+    within(".site-footer") { click_link "Data Privacy" }
+    assert_current_path resources_path(tab: "faqs", category: "data-privacy")
+    assert_text "Q: Who operates this platform?"
   end
 
   private

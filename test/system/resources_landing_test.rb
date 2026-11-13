@@ -12,6 +12,20 @@ class ResourcesLandingTest < ApplicationSystemTestCase
     assert_link "Create a Free Account"
   end
 
+  test "footer opens public terms and shows the disclaimer without leaving the page" do
+    visit root_path
+    within(".site-footer") { click_link "Terms of Use" }
+    assert_current_path terms_of_use_path
+    assert_no_button "I Agree", disabled: :all
+
+    within(".site-footer") { click_button "Legal Disclaimer" }
+    assert_selector "#site-legal-disclaimer[open] h2", text: "Legal Disclaimer"
+    assert_current_path terms_of_use_path
+    within("#site-legal-disclaimer") { click_button "Close" }
+    assert_no_selector "#site-legal-disclaimer[open]"
+    assert_current_path terms_of_use_path
+  end
+
   test "log in and sign up links navigate to the right pages" do
     visit root_path
     click_link "Create a Free Account", match: :first
