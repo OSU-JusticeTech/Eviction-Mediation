@@ -35,12 +35,14 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   }
 
   def accept_terms_if_present
-    if page.has_css?("#termsOfUseModal[open]", wait: 2)
-      within("#termsOfUseModal") do
-        click_button "I Agree"
-      end
+    return unless page.has_css?(".terms-page__actions:not([hidden])", visible: :all, wait: 2)
 
-      assert_no_selector "#termsOfUseModal[open]"
-    end
+    scroll_to_end_of_terms
+    click_button "I Agree"
+    assert_no_selector ".terms-page"
+  end
+
+  def scroll_to_end_of_terms
+    find(".terms-page__text").send_keys(:end)
   end
 end

@@ -30,6 +30,93 @@ body {
     position: relative;
 }
 
+.site-layout {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+}
+
+.site-layout > main {
+    flex: 1 0 auto;
+}
+
+.site-footer {
+    background: #f1f5f9;
+    border-top: 1px solid #e2e8f0;
+    padding: 1rem;
+}
+
+.site-footer nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1.5rem;
+}
+
+.site-footer a,
+.site-footer__disclaimer {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.site-footer__disclaimer {
+    cursor: pointer;
+}
+
+.policy-panel {
+    width: min(42rem, calc(100% - 2rem));
+    max-height: 85vh;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    background: var(--bg-color);
+    color: var(--primary-color);
+    line-height: 1.6;
+    overflow: hidden;
+}
+
+.site-legal-disclaimer {
+    margin: auto;
+}
+
+.site-legal-disclaimer[open] {
+    display: flex;
+    flex-direction: column;
+}
+
+.site-legal-disclaimer::backdrop {
+    background: #e2e8f0;
+}
+
+.site-legal-disclaimer header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.policy-panel__title {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.site-legal-disclaimer header button {
+    padding: 0.35rem 0.75rem;
+    border: 1px solid currentColor;
+    border-radius: 0.375rem;
+    cursor: pointer;
+}
+
+.policy-panel__scroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.policy-panel p + p {
+    margin-top: 0.75rem;
+}
+
 /* Page Content Structure */
 .container {
     max-width: var(--content-max-width);
