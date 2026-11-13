@@ -80,24 +80,147 @@
           </p>
         <% end %>
 
-        <div style="display: flex; flex-direction: column; gap: 12px; align-items: flex-start; margin-top: 16px;">
-          <% if @meeting.ZoomLink.present? && @meeting.ZoomLink != 'null' %>
-            <%= link_to "Join Zoom Meeting",
-                        @meeting.ZoomLink,
-                        class: "btn-primary",
-                        target: "_blank",
-                        rel: "noopener noreferrer" %>
-          <% end %>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 16px;">
+  <% if @meeting.ZoomLink.present? && @meeting.ZoomLink != 'null' %>
+    <%= link_to "Join Zoom Meeting",
+                @meeting.ZoomLink,
+                class: "btn-primary",
+                target: "_blank",
+                rel: "noopener noreferrer" %>
+  <% end %>
 
-          <%= link_to "Open Mediation Case",
-                      mediator_case_path(@meeting.ConversationID),
-                      class: "btn-primary" %>
-        </div>
-      </div>
-    </div>
+  <%= link_to "Open Mediation Case",
+              mediator_case_path(@meeting.ConversationID),
+              class: "btn-primary",
+              style: "background: #0f2b50;" %>
 
-  </div>
+  <% if @meeting.Status.downcase == "scheduled" %>
+    <button type="button" class="btn-primary" style="background: white; color: #2563eb; border: 1px solid #2563eb;" onclick="openRescheduleModal(<%= @meeting.id %>, '<%= @meeting.StartTime.iso8601 %>', '<%= @meeting.EndTime.iso8601 %>')">
+      <i class="fa-regular fa-calendar-plus"></i> Reschedule Meeting
+    </button>
+  <% end %>
 </div>
+
+<%# Reschedule Modal %>
+<dialog id="rescheduleMeetingModal" style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); max-width: 450px; width: 100%;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+    <h3 style="margin: 0; color: #0b2b4b; font-size: 1.2rem;">Reschedule Session</h3>
+    <button type="button" onclick="this.closest('dialog').close()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">&times;</button>
+  </div>
+
+  <div class="schedule-meeting-form" style="display: flex; flex-direction: column; gap: 12px;">
+    <input type="hidden" id="edit-meeting-id">
+    
+    <div>
+      <label for="edit-meeting-date" style="display: block; margin-bottom: 4px; font-size: 0.85rem; font-weight: 600; color: #334155;">New Date</label>
+      <input type="date" id="edit-meeting-date" class="form-input" style="width: 100%; min-height: 40px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+    </div>
+    
+    <div>
+      <label for="edit-meeting-start" style="display: block; margin-bottom: 4px; font-size: 0.85rem; font-weight: 600; color: #334155;">New Start Time</label>
+      <input type="time" id="edit-meeting-start" class="form-input" style="width: 100%; min-height: 40px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+    </div>
+    
+    <div>
+      <label for="edit-meeting-duration" style="display: block; margin-bottom: 4px; font-size: 0.85rem; font-weight: 600; color: #334155;">New Duration</label>
+      <select id="edit-meeting-duration" class="form-input" style="width: 100%; min-height: 40px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+        <option value="30">30 minutes</option>
+        <option value="45">45 minutes</option>
+        <option value="60">60 minutes</option>
+        <option value="90">90 minutes</option>
+      </select>
+    </div>
+    
+    <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px;">
+      <button type="button" onclick="this.closest('dialog').close()" style="padding: 9px 16px; border: 1px solid #cbd5e1; background: white; border-radius: 6px; cursor: pointer; font-weight: 600;">Cancel</button>
+      <button type="button" id="btn-submit-reschedule" class="btn-primary" style="padding: 9px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; min-height: 40px;">
+        Update Meeting
+      </button>
+    </div>
+  </div>
+  <p id="reschedule-form-message" role="status" style="margin-top: 8px; font-size: 0.85rem; color: #ef4444;"></p>
+</dialog>
+
+<script>
+  window.openRescheduleModal = function(id, startIso, endIso) {
+    document.getElementById('edit-meeting-id').value = id;
+    
+    const startDate = new Date(startIso);
+    const endDate = endIso && endIso !== 'undefined' && endIso !== 'null' ? new Date(endIso) : new Date(startDate.getTime() + 30 * 60000);
+    
+    const year = startDate.getFullYear();
+    const month = String(startDate.getMonth() + 1).padStart(2, '0');
+    const day = String(startDate.getDate()).padStart(2, '0');
+    document.getElementById('edit-meeting-date').value = `${year}-${month}-${day}`;
+    
+    const hours = String(startDate.getHours()).padStart(2, '0');
+    const minutes = String(startDate.getMinutes()).padStart(2, '0');
+    document.getElementById('edit-meeting-start').value = `${hours}:${minutes}`;
+    
+    const durationMins = Math.round((endDate - startDate) / 60000);
+    const durationSelect = document.getElementById('edit-meeting-duration');
+    if (Array.from(durationSelect.options).some(opt => opt.value == durationMins)) {
+      durationSelect.value = durationMins;
+    } else {
+      durationSelect.value = "30";
+    }
+    
+    document.getElementById('rescheduleMeetingModal').showModal();
+  };
+
+  document.addEventListener("turbo:load", () => {
+    // Clear out duplicate event listeners caused by Turbo page navigation
+    const oldBtn = document.getElementById('btn-submit-reschedule');
+    if (!oldBtn) return;
+    
+    const submitBtn = oldBtn.cloneNode(true);
+    oldBtn.parentNode.replaceChild(submitBtn, oldBtn);
+
+    submitBtn.addEventListener('click', async () => {
+      const id = document.getElementById('edit-meeting-id').value;
+      const date = document.getElementById('edit-meeting-date').value;
+      const time = document.getElementById('edit-meeting-start').value;
+      const duration = parseInt(document.getElementById('edit-meeting-duration').value, 10);
+      
+      if (!date || !time) return;
+      
+      const startDateTime = new Date(`${date}T${time}`);
+      const endDateTime = new Date(startDateTime.getTime() + duration * 60000);
+      
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Updating...";
+      document.getElementById('reschedule-form-message').textContent = "";
+      
+      try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const res = await fetch(`/mediator_scheduled_meetings/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            meeting: { StartTime: startDateTime.toISOString(), EndTime: endDateTime.toISOString() }
+          })
+        });
+        
+        if (res.ok) {
+          window.location.reload();
+        } else {
+          document.getElementById('reschedule-form-message').textContent = 'Failed to update meeting.';
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Update Meeting";
+        }
+      } catch (e) {
+        console.error(e);
+        document.getElementById('reschedule-form-message').textContent = 'Network error. Please try again.';
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Update Meeting";
+      }
+    });
+  });
+</script>
 
 <style>
   .meeting-details-grid {
