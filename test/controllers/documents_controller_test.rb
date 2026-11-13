@@ -565,11 +565,18 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     log_in_as(@mediator)
 
     { "a" => "Agree to Vacate", "b" => "Pay and Stay Agreement", "c" => "Mediation Agreement" }.each do |template, name|
-      post generate_from_intake_path(template: template), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
+      file_ids_before = FileDraft.pluck(:FileID)
 
-      assert_redirected_to message_path(@mediation.ConversationID)
-      file = FileAttachment.order(:MessageID).last.file_draft
+      post generate_from_intake_path(template: template),
+          params: agreement_params.merge(conversation_id: @mediation.ConversationID)
+
+      assert_redirected_to documents_path
+
+      file = FileDraft.where.not(FileID: file_ids_before).sole
+
       assert_equal "Jane Doe - John Doe - #{name}", file.FileName
+      assert_nil file.AgreementConversationID
+      assert_not FileAttachment.exists?(FileID: file.FileID)
     end
   end
 
@@ -578,7 +585,10 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     post generate_from_intake_path(template: "a"), params: agreement_params.except(
       :amount1, :date1, :amount2, :date2
     ).merge(conversation_id: @mediation.ConversationID, additional_terms: "Return all keys.")
-    file = FileAttachment.order(:MessageID).last.file_draft
+    file = FileDraft.where(
+      CreatorID: @tenant.UserID,
+      AgreementTemplate: "a"
+    ).order(FileDraft.primary_key => :desc).first!
     document = Nokogiri::HTML(File.read(DocumentStorage.configured.resolve(file.FileURLPath)))
 
     assert_match "The Tenant owes Landlord $900. Tenant agrees to pay Landlord in the following manner:",
@@ -1244,22 +1254,32 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to documents_path
   end
 
-  test "generate_from_intake shares to conversation when conversation is present" do
+  test "generate_from_intake saves without sharing and returns to conversation" do
     log_in_as(@tenant)
 
-    assert_difference("Message.count", 1) do
-      post generate_from_intake_path(template: "a"), params: {
-        landlord_name: "Jane Doe",
-        tenant_name: "John Doe",
-        address: "123 Main Street",
-        negotiation_date: "2026-03-20",
-        reason: "Nonpayment",
-        money_owed: "900",
-        conversation_id: @mediation.ConversationID
-      }
+    return_path = message_path(@mediation.ConversationID)
+
+    assert_difference("FileDraft.count", 1) do
+      assert_no_difference("Message.count") do
+        assert_no_difference("FileAttachment.count") do
+          post generate_from_intake_path(template: "a"), params: {
+            landlord_name: "Jane Doe",
+            tenant_name: "John Doe",
+            address: "123 Main Street",
+            negotiation_date: "2026-03-20",
+            reason: "Nonpayment",
+            money_owed: "900",
+            conversation_id: @mediation.ConversationID,
+            return_to: return_path
+          }
+        end
+      end
     end
 
-    assert_redirected_to message_path(@mediation.ConversationID)
+    assert_redirected_to return_path
+
+    generated_document = FileDraft.find_by!(FileID: FileDraft.where(CreatorID: @tenant.UserID).order(FileDraft.primary_key => :desc).first.FileID)
+    assert_nil generated_document.AgreementConversationID
   end
 
   test "conversation agreement can be reviewed and signed immediately after reading it" do
@@ -1810,7 +1830,20 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
       monthly_payment_day: "15", monthly_payment_start: "2026-04-01",
       payment_method: "money_order"
     )
-    file = FileAttachment.order(:MessageID).last.file_draft
+    file = FileDraft.where(
+      CreatorID: @tenant.UserID,
+      AgreementTemplate: "b"
+    ).order(FileDraft.primary_key => :desc).first!
+
+    # Share the generated agreement before testing the review workflow.
+    post messages_path, params: {
+      ConversationID: @mediation.ConversationID,
+      Contents: "Agreement shared for review",
+      file_id: file.FileID
+    }
+
+    assert FileAttachment.exists?(FileID: file.FileID)
+    assert_equal @mediation.ConversationID, file.reload.agreement_conversation_id
 
     log_in_as(@landlord)
     get review_document_path(file.FileID)
@@ -1969,28 +2002,60 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "shared HTML creation saves private document message and attachment together" do
+  test "HTML agreement generation saves a private document without sharing" do
     log_in_as(@tenant)
-    assert_difference(["FileDraft.count", "Message.count", "FileAttachment.count"], 1) do
-      post generate_from_intake_path(template: "a"), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
-    end
-    assert_redirected_to message_path(@mediation.ConversationID)
-    locator = "privateDocuments/#{File.basename(Dir.glob(File.join(@document_storage_root, "*")).sole)}"
-    file = FileDraft.find_by!(FileURLPath: locator)
-    assert_equal @mediation.ConversationID, file.AgreementConversationID
-    assert_equal @mediation.ConversationID, file.messages.sole.ConversationID
-    assert_includes File.read(DocumentStorage.configured.resolve(locator)), "Jane Doe"
-  end
 
-  test "shared HTML creation rolls back document and message when attachment creation fails" do
-    log_in_as(@tenant)
-    FileAttachment.stub(:create!, ->(*) { raise ActiveRecord::RecordInvalid.new(FileAttachment.new) }) do
-      assert_no_difference(["FileDraft.count", "Message.count", "FileAttachment.count"]) do
-        post generate_from_intake_path(template: "a"), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
+    assert_difference("FileDraft.count", 1) do
+      assert_no_difference("Message.count") do
+        assert_no_difference("FileAttachment.count") do
+          post generate_from_intake_path(template: "a"),
+              params: agreement_params.merge(
+                conversation_id: @mediation.ConversationID
+              )
+        end
       end
     end
-    assert_response :service_unavailable
-    assert_empty Dir.children(@document_storage_root)
+
+    assert_redirected_to documents_path
+
+    file = FileDraft.where(
+      CreatorID: @tenant.UserID,
+      AgreementTemplate: "a"
+    ).order(FileDraft.primary_key => :desc).first!
+
+    assert_nil file.AgreementConversationID
+    assert_empty file.messages
+    assert_match(/\AprivateDocuments\//, file.FileURLPath)
+    assert_includes File.read(DocumentStorage.configured.resolve(file.FileURLPath)), "Jane Doe"
+  end
+
+  test "HTML agreement generation succeeds without creating a chat attachment" do
+    log_in_as(@tenant)
+
+    FileAttachment.stub(:create!, ->(*) {
+      raise ActiveRecord::RecordInvalid.new(FileAttachment.new)
+    }) do
+      assert_difference("FileDraft.count", 1) do
+        assert_no_difference("Message.count") do
+          assert_no_difference("FileAttachment.count") do
+            post generate_from_intake_path(template: "a"),
+                params: agreement_params.merge(
+                  conversation_id: @mediation.ConversationID
+                )
+          end
+        end
+      end
+    end
+
+    assert_redirected_to documents_path
+
+    file = FileDraft.where(
+      CreatorID: @tenant.UserID,
+      AgreementTemplate: "a"
+    ).order(FileDraft.primary_key => :desc).first!
+
+    assert_nil file.AgreementConversationID
+    assert File.exist?(DocumentStorage.configured.resolve(file.FileURLPath))
   end
 
   test "PDF generation failure leaves no file or record" do
@@ -2283,8 +2348,36 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
   def create_agreement_draft(template: "a", legacy: false)
     log_in_as(@tenant)
-    post generate_from_intake_path(template: template), params: agreement_params.merge(conversation_id: @mediation.ConversationID)
-    file = FileAttachment.order(:MessageID).last.file_draft
+
+    post generate_from_intake_path(template: template),
+        params: agreement_params.merge(conversation_id: @mediation.ConversationID)
+
+    assert_response :redirect
+
+    file = FileDraft.where(
+      CreatorID: @tenant.UserID,
+      FileTypes: "html"
+    ).order(FileDraft.primary_key => :desc).first!
+
+    assert_nil file.AgreementConversationID
+
+    # Simulate the manual sharing step required before agreement review.
+    message = Message.create!(
+      ConversationID: @mediation.ConversationID,
+      SenderID: @tenant.UserID,
+      MessageDate: Time.current,
+      Contents: "Agreement shared for review"
+    )
+
+    FileAttachment.create!(
+      MessageID: message.MessageID,
+      FileID: file.FileID
+    )
+
+    file.update!(
+      AgreementConversationID: @mediation.ConversationID
+    )
+
     return file unless legacy
 
     # Explicit compatibility fixture for permitted legacy reads.

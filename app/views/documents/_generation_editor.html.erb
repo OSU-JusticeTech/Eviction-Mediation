@@ -18,6 +18,7 @@
                 html: { id: "document-generation-form" } do %>
 
     <%= hidden_field_tag :conversation_id, params[:conversation_id] if params[:conversation_id].present? %>
+    <%= hidden_field_tag :return_to, params[:return_to] if params[:return_to].present? %>
 
     <% fields = @generation_fields %>
 
@@ -49,7 +50,7 @@
     </div>
 
     <div class="form-actions">
-      <%= link_to "Back to Templates", generate_file_path(conversation_id: params[:conversation_id]), class: "btn btn-secondary" %>
+      <%= link_to "Back to Templates", generate_file_path(conversation_id: params[:conversation_id], return_to: params[:return_to]), class: "btn btn-secondary" %>
       <%= submit_tag "Generate Document",
                      class: "btn btn-primary",
                      data: { generation_finish: true } %>
