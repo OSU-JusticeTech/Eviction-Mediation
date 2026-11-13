@@ -1244,22 +1244,32 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to documents_path
   end
 
-  test "generate_from_intake shares to conversation when conversation is present" do
+  test "generate_from_intake saves without sharing and returns to conversation" do
     log_in_as(@tenant)
 
-    assert_difference("Message.count", 1) do
-      post generate_from_intake_path(template: "a"), params: {
-        landlord_name: "Jane Doe",
-        tenant_name: "John Doe",
-        address: "123 Main Street",
-        negotiation_date: "2026-03-20",
-        reason: "Nonpayment",
-        money_owed: "900",
-        conversation_id: @mediation.ConversationID
-      }
+    return_path = message_path(@mediation.ConversationID)
+
+    assert_difference("FileDraft.count", 1) do
+      assert_no_difference("Message.count") do
+        assert_no_difference("FileAttachment.count") do
+          post generate_from_intake_path(template: "a"), params: {
+            landlord_name: "Jane Doe",
+            tenant_name: "John Doe",
+            address: "123 Main Street",
+            negotiation_date: "2026-03-20",
+            reason: "Nonpayment",
+            money_owed: "900",
+            conversation_id: @mediation.ConversationID,
+            return_to: return_path
+          }
+        end
+      end
     end
 
-    assert_redirected_to message_path(@mediation.ConversationID)
+    assert_redirected_to return_path
+
+    generated_document = FileDraft.find_by!(FileID: FileDraft.where(CreatorID: @tenant.UserID).order(FileDraft.primary_key => :desc).first.FileID)
+    assert_nil generated_document.AgreementConversationID
   end
 
   test "conversation agreement can be reviewed and signed immediately after reading it" do
