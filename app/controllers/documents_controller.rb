@@ -89,6 +89,7 @@ class DocumentsController < ApplicationController
     template = %w[a b c].include?(params[:template]) ? params[:template] : "a"
     @conversation_id = params[:conversation_id]
     conversation = PrimaryMessageGroup.find_by(ConversationID: @conversation_id) if @conversation_id.present?
+
     if @conversation_id.present? && (!conversation || !agreement_creator?(conversation))
       return render plain: "Unauthorized", status: :forbidden
     end
@@ -114,65 +115,16 @@ class DocumentsController < ApplicationController
       AgreementTerms: JSON.generate(terms),
       AgreementVersion: 1
     }
-    if conversation
-      attrs[:AgreementConversationID] = conversation.ConversationID
-    end
     attrs[pk_name] = pk_value if pk_name && pk_value
 
-    file_draft = nil
-    message = nil
+    # Save the document without automatically sharing it in a conversation
     DocumentCreation.new.call(extension: "html", writer: writer) do |locator|
-      file_draft = FileDraft.create!(attrs.merge(FileURLPath: locator))
-      if conversation
-        message = Message.create!(ConversationID: conversation.ConversationID, SenderID: @user.UserID,
-                                  Contents: "A new #{@template_name} agreement is ready to review and sign. Either party can suggest changes before signing.",
-                                  MessageDate: Time.current, recipientID: nil, is_system: true)
-        FileAttachment.create!(MessageID: message.MessageID, FileID: file_draft.FileID)
-      end
+      FileDraft.create!(attrs.merge(FileURLPath: locator))
     end
 
-    if conversation
-
-      # Broadcast to ActionCable
-      extension = File.extname(file_draft.FileURLPath.to_s).delete(".")
-      attachments_payload = [ {
-        file_id: file_draft.FileID,
-        file_name: file_draft.FileName,
-        preview_url: view_file_path(file_draft.FileID),
-        download_url: download_file_path(file_draft.FileID),
-        file_size: file_draft.human_file_size,
-        view_url: view_file_path(file_draft.FileID),
-        sign_url: view_file_path(file_draft.FileID),
-        tenant_signature_required: !file_draft.TenantSignature,
-        landlord_signature_required: !file_draft.LandlordSignature,
-        agreement_document: file_draft.agreement_document?,
-        extension: extension.presence || file_draft.FileTypes
-      } ]
-
-      sender_name = [ @user[:FName], @user[:LName] ].compact.join(" ").squeeze(" ").strip
-      sender_name = @user[:CompanyName].presence || @user[:Email] if sender_name.blank?
-
-      ActionCable.server.broadcast(
-        "messages_#{@conversation_id}",
-        {
-          message_id: message.MessageID,
-          contents: message.Contents,
-          sender_id: message.SenderID,
-          recipient_id: message.recipientID,
-          message_date: message.MessageDate.strftime("%-I:%M %p"),
-          message_timestamp: message.MessageDate.to_i,
-          sender_role: @user[:Role],
-          sender_name: sender_name,
-          attachments: attachments_payload,
-          broadcast: true,
-          is_system: true
-        }
-      )
-
-      redirect_to message_path(@conversation_id), notice: "Agreement draft shared for review."
-    else
-      redirect_to documents_path, notice: "Document generated successfully."
-    end
+    # Return to the page where document generation started
+    return_path = url_from(params[:return_to]) || documents_path
+    redirect_to return_path, notice: "Document generated successfully."
   rescue DocumentCreation::Failure
     render plain: "Unable to create document. Please try again.", status: :service_unavailable
   end

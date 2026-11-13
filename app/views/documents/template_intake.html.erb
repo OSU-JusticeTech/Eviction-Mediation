@@ -6,7 +6,8 @@
   <p class="docs-subtitle">Fill out the information below to generate your <%= @template_name %></p>
   <%= form_with url: generate_from_intake_path(template: @template), method: :post, local: true, class: "intake-form" do %>
     <%= hidden_field_tag :conversation_id, params[:conversation_id] if params[:conversation_id].present? %>
-    
+    <%= hidden_field_tag :return_to, params[:return_to] if params[:return_to].present? %>
+
     <div class="form-grid">
       <!-- Party Information -->
       <div class="form-section">
@@ -291,7 +292,7 @@
     <% end %>
 
     <div class="form-actions">
-      <%= link_to "← Back to Templates", generate_file_path, class: "btn btn-secondary" %>
+      <%= link_to "← Back to Templates", generate_file_path(conversation_id: params[:conversation_id], return_to: params[:return_to]), class: "btn btn-secondary" %>
       <%= submit_tag "Generate Document", class: "btn btn-primary" %>
     </div>
 

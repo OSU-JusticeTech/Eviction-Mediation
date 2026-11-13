@@ -14,7 +14,7 @@
         </iframe>
       </div>
       <div class="template-footer">
-        <%= button_to 'Select Template A', template_intake_path(template: 'a', conversation_id: params[:conversation_id]), method: :get, class: 'btn btn-primary btn-block' %>
+        <%= link_to 'Select Template A', template_intake_path(template: 'a', conversation_id: params[:conversation_id], return_to: params[:return_to]), class: 'btn btn-primary btn-block' %>
       </div>
     </div>
 
@@ -29,7 +29,7 @@
         </iframe>
       </div>
       <div class="template-footer">
-        <%= button_to 'Select Template B', template_intake_path(template: 'b', conversation_id: params[:conversation_id]), method: :get, class: 'btn btn-primary btn-block' %>
+        <%= link_to 'Select Template B', template_intake_path(template: 'b', conversation_id: params[:conversation_id], return_to: params[:return_to]), class: 'btn btn-primary btn-block' %>
       </div>
     </div>
 
@@ -44,7 +44,7 @@
         </iframe>
       </div>
       <div class="template-footer">
-        <%= link_to 'Select Template C', template_intake_path(template: 'c', conversation_id: params[:conversation_id]), class: 'btn btn-primary btn-block' %>
+        <%= link_to 'Select Template C', template_intake_path(template: 'c', conversation_id: params[:conversation_id], return_to: params[:return_to]), class: 'btn btn-primary btn-block' %>
       </div>
     </div>
   </div>
