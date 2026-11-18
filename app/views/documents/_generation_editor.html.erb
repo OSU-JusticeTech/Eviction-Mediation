@@ -30,32 +30,49 @@
                           data: { agreement_term: field } %>
     <% end %>
 
-    <div class="form-group" style="margin: 20px 0;">
-      <%= label_tag :reason, "Reason for Dispute", class: "form-label required-label" %>
 
-      <%= select_tag :reason,
-          options_for_select([
-            ["Select a reason", ""],
-            "Failure to Pay Rent",
-            "Violation of Lease Terms",
-            "Damage to Property",
-            "Illegal Activity",
-            "Nuisance or Disturbance",
-            "Expiration of Lease",
-            "Unknown"
-          ]),
-          class: "form-select",
-          required: true,
-          data: { agreement_term: "reason" } %>
-    </div>
+    <% if @template == "b" %>
+      <div class="form-group" style="margin: 20px 0;">
+        <%= label_tag :reason, "Payment Issue (include payments and months or dates covered)",
+                      class: "form-label required-label" %>
+
+        <%= text_area_tag :reason,
+                          @generation_values.fetch("reason", ""),
+                          class: "form-control",
+                          rows: 3,
+                          required: true,
+                          placeholder: "Example: Unpaid rent for September and October 2026",
+                          data: { agreement_term: "reason" } %>
+      </div>
+    <% else %>
+      <div class="form-group" style="margin: 20px 0;">
+        <%= label_tag :reason, "Reason for Dispute", class: "form-label required-label" %>
+
+        <%= select_tag :reason,
+            options_for_select([
+              ["Select a reason", ""],
+              "Failure to Pay Rent",
+              "Violation of Lease Terms",
+              "Damage to Property",
+              "Illegal Activity",
+              "Nuisance or Disturbance",
+              "Expiration of Lease",
+              "Unknown"
+            ], @generation_values.fetch("reason", "")),
+            class: "form-select",
+            required: true,
+            data: { agreement_term: "reason" } %>
+      </div>
+    <% end %>
 
     <div class="form-actions">
       <%= link_to "Back to Templates", generate_file_path(conversation_id: params[:conversation_id], return_to: params[:return_to]), class: "btn btn-secondary" %>
       <%= submit_tag "Generate Document",
-                     class: "btn btn-primary",
-                     data: { generation_finish: true } %>
+                    class: "btn btn-primary",
+                    data: { generation_finish: true } %>
     </div>
-  <% end %>
+
+    <% end %>
 
   <div class="document-preview-card">
     <iframe src="<%= template_preview_path(template: @template) %>"

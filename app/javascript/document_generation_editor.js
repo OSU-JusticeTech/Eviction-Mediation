@@ -58,6 +58,29 @@ function startDocumentGenerationEditor() {
     return value;
   }
 
+  function sortPaymentRows(doc) {
+    const tbody = doc.querySelector('[data-agreement-payment-anchor]')
+      ?.parentElement.querySelector('table tbody');
+
+    if (!tbody) return;
+
+    const rows = Array.from(
+      tbody.querySelectorAll('[data-agreement-payment-row]')
+    );
+
+    rows.sort((a, b) => {
+      const dateA = inputs.get(`date${a.dataset.agreementPaymentRow}`)?.value || '9999-12-31';
+      const dateB = inputs.get(`date${b.dataset.agreementPaymentRow}`)?.value || '9999-12-31';
+
+      return dateA.localeCompare(dateB);
+    });
+
+    rows.forEach((row, index) => {
+      row.querySelector('td').textContent = index + 1;
+      tbody.append(row);
+    });
+  }
+
   function writeField(doc, field, value) {
     const input = inputs.get(field);
     if (!input) return;
@@ -66,6 +89,9 @@ function startDocumentGenerationEditor() {
       if (node !== activeEdit?.node) node.textContent = displayValue(field, value, node);
       node.classList.toggle('agreement-changed', value !== original.get(field));
     });
+    if (/^date[1-6]$/.test(field)) {
+      sortPaymentRows(doc);
+    }
     refreshCount();
   }
 
@@ -104,6 +130,17 @@ function startDocumentGenerationEditor() {
     if (type !== 'date') editor.select();
   }
 
+  function updateConditionalSections(doc) {
+    doc.querySelectorAll('[data-agreement-conditional]').forEach(section => {
+      const field = section.dataset.agreementConditional;
+      const expectedValue = section.dataset.agreementConditionalValue;
+
+      const selected = inputs.get(field)?.value === expectedValue;
+
+      section.hidden = !selected;
+    });
+  }
+
   function markChoices(doc) {
     doc.querySelectorAll('[data-agreement-choice]').forEach(node => {
       const field = node.dataset.agreementChoice;
@@ -111,6 +148,8 @@ function startDocumentGenerationEditor() {
       node.querySelector('.checkbox')?.classList.toggle('checked', selected);
       node.classList.toggle('agreement-changed', inputs.get(field)?.value !== original.get(field));
     });
+
+    updateConditionalSections(doc);
   }
 
   function makeEditable(container) {
@@ -174,6 +213,24 @@ function startDocumentGenerationEditor() {
         row = doc.createElement('tr');
         row.innerHTML = `<td>${number}</td><td>$<span data-agreement-field="amount${number}">___________</span></td><td><span data-agreement-field="date${number}" data-agreement-format="long-date">TBD</span></td>`;
         table.querySelector('tbody').append(row);
+
+        const tbody = table.querySelector('tbody');
+
+        const rows = Array.from(
+          tbody.querySelectorAll('[data-agreement-payment-row]')
+        );
+
+        rows.sort((a, b) => {
+          const dateA = inputs.get(`date${a.dataset.agreementPaymentRow}`)?.value || '9999-12-31';
+          const dateB = inputs.get(`date${b.dataset.agreementPaymentRow}`)?.value || '9999-12-31';
+
+          return dateA.localeCompare(dateB);
+        });
+
+        rows.forEach((paymentRow, index) => {
+          paymentRow.querySelector('td').textContent = index + 1;
+          tbody.append(paymentRow);
+        });
       }
       row.className = 'agreement-new-payment';
       row.dataset.agreementPaymentRow = String(number);
@@ -258,7 +315,9 @@ function startDocumentGenerationEditor() {
       markChoices(doc);
       refreshCount();
     });
-    if (guide.dataset.agreementTemplate !== 'b') addPaymentControls(doc);
+    if (['a', 'b'].includes(guide.dataset.agreementTemplate)) {
+      addPaymentControls(doc);
+    }
     markChoices(doc);
     refreshCount();
     guide.dataset.editorReady = 'true';
@@ -309,7 +368,9 @@ function startDocumentGenerationEditor() {
         }
       ];
 
-      if (!paymentRequirements.some(option => option.selected)) {
+      const customScheduleSelected = value('payment_custom_schedule') === '1';
+
+      if (!paymentRequirements.some(option => option.selected) && !customScheduleSelected) {
         event.preventDefault();
         report('Please select at least one payment option.');
         guide.scrollIntoView({ block: 'start', behavior: 'auto' });

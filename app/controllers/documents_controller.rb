@@ -60,6 +60,7 @@ class DocumentsController < ApplicationController
 
   def template_preview
     @template = params[:template]
+    @agreement_editor_preview = true
 
 
     @landlord = ""
@@ -740,6 +741,7 @@ class DocumentsController < ApplicationController
       return render plain: "Unauthorized", status: :forbidden unless agreement_suggester?(conversation) &&
         file.agreement_editable? && !file.agreement_suggestions_pending?
 
+      @agreement_editor_preview = true
       assign_agreement_template_variables(file.AgreementTemplate, file.agreement_terms)
       return render template: agreement_template_file(file.AgreementTemplate), layout: false
     end
@@ -879,9 +881,10 @@ class DocumentsController < ApplicationController
   AGREEMENT_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed monthly_rent
                         best_option vacate_date rent_owed late_fees utilities other_charges
                         other_charges_description payment_lump_sum lump_sum_amount lump_sum_date
-                        payment_monthly monthly_payment_amount monthly_payment_months monthly_payment_day
-                        monthly_payment_start payment_final final_payment_amount final_payment_date
-                        payment_method payment_method_other_description additional_terms].freeze
+                        payment_monthly monthly_payment_amount monthly_payment_months monthly_payment_day landlord_representative tenant_representative
+                        monthly_payment_start payment_final final_payment_amount final_payment_date payment_custom_schedule rent_period late_fees_description utilities_period
+                        credits_description credits_amount reductions_description reductions_amount
+                        unresolved_payment_issues unresolved_payment_details payment_method payment_method_other_description additional_terms].freeze
   AGREEMENT_COMMON_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed
                                monthly_rent best_option].freeze
 
@@ -1160,10 +1163,17 @@ class DocumentsController < ApplicationController
   end
 
   def agreement_fields_for_template(template)
+    payment_fields = (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
+
     case template
-    when "a" then AGREEMENT_COMMON_FIELDS + %w[vacate_date additional_terms] + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
-    when "b" then AGREEMENT_COMMON_FIELDS + (AGREEMENT_FIELDS - AGREEMENT_COMMON_FIELDS - ["vacate_date"])
-    else AGREEMENT_COMMON_FIELDS + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
+    when "a"
+      AGREEMENT_COMMON_FIELDS + %w[vacate_date additional_terms] + payment_fields
+    when "b"
+      AGREEMENT_COMMON_FIELDS +
+        (AGREEMENT_FIELDS - AGREEMENT_COMMON_FIELDS - ["vacate_date"]) +
+        payment_fields
+    else
+      AGREEMENT_COMMON_FIELDS + payment_fields
     end
   end
 
@@ -1262,17 +1272,28 @@ class DocumentsController < ApplicationController
   end
 
   def agreement_template_file(template)
-    { "a" => "documents/templates/agree_to_vacate",
+    {
+      "a" => "documents/templates/agree_to_vacate",
       "b" => "documents/templates/pay_and_stay",
-      "c" => "documents/templates/mediation_agreement" }.fetch(template.to_s, "documents/templates/agree_to_vacate")
+      "c" => "documents/templates/mediation_agreement",
+      "d" => "documents/templates/custom_resolution"
+    }.fetch(template.to_s) do
+      raise ActionController::BadRequest, "Unknown agreement template"
+    end
   end
 
   def agreement_template_name(template)
-    { "a" => "Agree to Vacate", "b" => "Pay and Stay Agreement",
-      "c" => "Mediation Agreement" }.fetch(template.to_s, "Agreement")
+    {
+      "a" => "Move-Out Agreement",
+      "b" => "Pay-and-Stay Agreement",
+      "c" => "Agreement to Mediate",
+      "d" => "Custom Resolution Agreement"
+    }.fetch(template.to_s, "Unknown Agreement")
   end
 
   def assign_agreement_template_variables(template, terms)
+    @landlord_representative = terms["landlord_representative"].to_s
+    @tenant_representative = terms["tenant_representative"].to_s
     @landlord = terms["landlord_name"].to_s
     @tenant = terms["tenant_name"].to_s
     @address = terms["address"].to_s
@@ -1288,16 +1309,27 @@ class DocumentsController < ApplicationController
     @vacate_date = terms["vacate_date"] if template == "a"
     @schedule = (1..6).filter_map do |i|
       amount = terms["amount#{i}"].to_s
-      [ i, amount, terms["date#{i}"] ] if amount.present?
+      [i, amount, terms["date#{i}"]] if amount.present?
+    end.sort_by do |index, _amount, due_date|
+      parsed_date = begin
+        Date.iso8601(due_date.to_s)
+      rescue Date::Error
+        Date.new(9999, 12, 31)
+      end
+
+      [parsed_date, index]
     end
     if template == "b"
       %w[rent_owed late_fees utilities other_charges other_charges_description lump_sum_amount
          lump_sum_date monthly_payment_amount monthly_payment_months monthly_payment_day
          monthly_payment_start final_payment_amount final_payment_date payment_method
+         rent_period late_fees_description utilities_period
+         credits_description credits_amount reductions_description reductions_amount
+         unresolved_payment_issues unresolved_payment_details
          payment_method_other_description].each do |field|
         instance_variable_set("@#{field}", terms[field].to_s)
       end
-      %w[payment_lump_sum payment_monthly payment_final].each do |field|
+      %w[payment_lump_sum payment_monthly payment_final payment_custom_schedule].each do |field|
         instance_variable_set("@#{field}", terms[field] == "1")
       end
     end

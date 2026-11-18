@@ -7,7 +7,7 @@
       size: 8.5in 11in;
       margin: 0.5in;
     }
-    
+
     body {
       font-family: 'Times New Roman', serif;
       font-size: 12pt;
@@ -16,16 +16,16 @@
       padding: 0;
       max-width: 7.5in;
     }
-    
+
     .page {
       page-break-after: always;
       padding: 0.5in 0;
     }
-    
+
     .page:last-child {
       page-break-after: auto;
     }
-    
+
     h1 {
       text-align: center;
       font-size: 16pt;
@@ -33,73 +33,73 @@
       margin: 0 0 20px 0;
       text-transform: uppercase;
     }
-    
+
     h2 {
       font-size: 14pt;
       font-weight: bold;
       margin: 20px 0 10px 0;
       text-decoration: underline;
     }
-    
+
     h3 {
       font-size: 12pt;
       font-weight: bold;
       margin: 15px 0 8px 0;
     }
-    
+
     p {
       margin: 8px 0;
       text-align: justify;
     }
-    
+
     .info-box {
       border: 2px solid #000;
       padding: 15px;
       margin: 20px 0;
       background-color: #f9f9f9;
     }
-    
+
     .info-box h2 {
       margin-top: 0;
       text-align: center;
       text-decoration: none;
     }
-    
+
     .field {
       border-bottom: 1px solid #000;
       display: inline-block;
       min-width: 100px;
       padding: 0 5px;
     }
-    
+
     .field-short {
       min-width: 80px;
     }
-    
+
     .field-medium {
       min-width: 150px;
     }
-    
+
     .field-long {
       min-width: 250px;
     }
-    
+
     .field-full {
       width: 100%;
       display: block;
       margin: 5px 0;
     }
-    
+
     .checkbox-group {
       margin: 10px 0 10px 20px;
     }
-    
+
     .checkbox-item {
       margin: 5px 0;
       display: flex;
       align-items: baseline;
     }
-    
+
     .checkbox {
       display: inline-block;
       width: 15px;
@@ -108,7 +108,7 @@
       margin-right: 8px;
       flex-shrink: 0;
     }
-    
+
     .checkbox.checked::after {
       content: '✓';
       display: block;
@@ -116,49 +116,49 @@
       font-weight: bold;
       line-height: 15px;
     }
-    
+
     .signature-section {
       margin-top: 30px;
     }
-    
+
     .signature-line {
       border-bottom: 1px solid #000;
       width: 300px;
       display: inline-block;
       margin-left: 10px;
     }
-    
+
     .date-line {
       border-bottom: 1px solid #000;
       width: 150px;
       display: inline-block;
       margin-left: 10px;
     }
-    
+
     table {
       width: 100%;
       border-collapse: collapse;
       margin: 15px 0;
     }
-    
+
     table td {
       padding: 8px;
       border: 1px solid #000;
     }
-    
+
     .indent {
       margin-left: 30px;
     }
-    
+
     .bold {
       font-weight: bold;
     }
-    
+
     ul {
       margin: 10px 0;
       padding-left: 40px;
     }
-    
+
     li {
       margin: 5px 0;
     }
@@ -169,138 +169,181 @@
   <!-- PAGE 1 -->
   <div class="page">
     <h1>Pay and Stay Agreement</h1>
-    
+
     <div class="info-box">
-      <h2>About This Agreement (Please Read)</h2>
+      <h2>About This Agreement (please read)</h2>
+
       <p>
-        This is a <strong>Pay and Stay Agreement</strong>. It is used when a landlord and tenant want to settle a rent or payment issue 
-        without moving forward with an eviction.
+        This Agreement helps a landlord and tenant resolve a rent or payment issue
+        through an agreed payment arrangement. Landlord's promises about not filing
+        or pursuing eviction and dismissing an existing case are stated in Section 5.
       </p>
+
       <p>
-        A Pay and Stay Agreement gives the tenant a <strong>chance to stay in their home</strong> by agreeing to pay the amount owed 
-        through a payment plan. If the tenant makes the agreed payments on time, the landlord agrees <strong>not to file an eviction 
-        case</strong>, or to dismiss an eviction case that has already started.
-      </p>
-      <p>
-        This Agreement gives both sides clear expectations about:
-      </p>
-      <ul>
-        <li>how much is owed,</li>
-        <li>how and when payments will be made, and</li>
-        <li>what happens if the tenant pays as agreed or does not pay as agreed.</li>
-      </ul>
-      <p>
-        This document must be completed and signed by both the landlord and the tenant. Once signed, it becomes a binding 
-        agreement that can be enforced.
+        Participation is voluntary. Signing may create legally enforceable obligations,
+        including a promise to pay. Read the completed terms and ask questions before signing.
       </p>
     </div>
 
     <h2>Party Information</h2>
-    
+
     <p>
-      <strong>Landlord Name:</strong> 
+      <strong>Landlord / legal entity:</strong>
       <span class="field field-long" data-agreement-field="landlord_name"><%= @landlord %></span>
     </p>
-    
+
     <p>
-      <strong>Tenant Name(s):</strong> 
-      <span class="field field-long" data-agreement-field="tenant_name"><%= @tenant %></span>
-    </p>
-    
-    <p>
-      <strong>Property Address:</strong> 
-      <span class="field field-full" data-agreement-field="address"><%= @address %></span>
-    </p>
-    
-    <p>
-      <strong>Agreement Date:</strong> 
-      <span class="field field-medium" data-agreement-field="negotiation_date" data-agreement-format="long-date"><%= @date %></span>
+      <strong>Landlord's authorized representative, if applicable:</strong>
+      <span class="field field-long"
+            data-agreement-field="landlord_representative"><%= @landlord_representative %></span>
     </p>
 
-    <h2>Reason for Agreement</h2>
-    
     <p>
-      The parties are entering into this agreement for the following reason(s):
+      <strong>Tenant(s):</strong>
+      <span class="field field-long" data-agreement-field="tenant_name"><%= @tenant %></span>
     </p>
-    
+
+    <p>
+      <strong>Tenant's authorized representative, if applicable:</strong>
+      <span class="field field-long"
+            data-agreement-field="tenant_representative"><%= @tenant_representative %></span>
+    </p>
+
+    <p>
+      <strong>Rental property:</strong>
+      <span class="field field-full" data-agreement-field="address"><%= @address %></span>
+    </p>
+
+    <p>
+      <strong>Agreement Date:</strong>
+      <span class="field field-medium"
+            data-agreement-field="negotiation_date"
+            data-agreement-format="long-date"><%= @date %></span>
+    </p>
+
+    <h3>1. Reason for Agreement</h3>
+
+    <p>
+      This Agreement addresses the following payment issue:
+    </p>
+
     <p class="indent">
-      <span data-agreement-field="reason"><%= @reason %></span>
+      <span class="field field-full"
+            data-agreement-field="reason"><%= @reason %></span>
+    </p>
+
+    <p>
+      This Agreement is meant to help both sides resolve the issue,
+      avoid eviction when possible, and create a clear plan moving forward.
     </p>
 
   </div>
 
   <!-- PAGE 2 -->
   <div class="page">
-    <h1>Pay & Stay Negotiated Agreement</h1>
     
-    <p>This Agreement is between:</p>
-    
+    <h3>2. Agreed Payment Amount</h3>
+
     <p>
-      <strong>Landlord:</strong> 
-      <span class="field field-long" data-agreement-field="landlord_name"><%= @landlord %></span>
+      To resolve the payment issue identified above, Tenant agrees to pay the total agreed
+      payment amount shown in the table below, under the schedule in Section 3 and subject
+      to any changes expressly agreed in Sections 3 and 4. Landlord agrees to accept
+      these payments under this Agreement.
     </p>
+
     <p>
-      <strong>Tenant(s):</strong> 
-      <span class="field field-long" data-agreement-field="tenant_name"><%= @tenant %></span>
+      This agreed payment arrangement does not, by itself, establish that every charge
+      originally claimed was correct.
     </p>
-    
+
+    <p><strong>Include only the items that apply:</strong></p>
+
+    <table class="agreed-payment-table">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Period or description</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Rent</td>
+          <td><span class="field" data-agreement-field="rent_period"><%= @rent_period %></span></td>
+          <td>$<span data-agreement-field="rent_owed"><%= @rent_owed %></span></td>
+        </tr>
+        <tr>
+          <td>Late fees, if legally permitted</td>
+          <td><span class="field" data-agreement-field="late_fees_description"><%= @late_fees_description %></span></td>
+          <td>$<span data-agreement-field="late_fees"><%= @late_fees %></span></td>
+        </tr>
+        <tr>
+          <td>Utilities</td>
+          <td><span class="field" data-agreement-field="utilities_period"><%= @utilities_period %></span></td>
+          <td>$<span data-agreement-field="utilities"><%= @utilities %></span></td>
+        </tr>
+        <tr>
+          <td>Other specifically identified charges</td>
+          <td><span class="field" data-agreement-field="other_charges_description"><%= @other_charges_description %></span></td>
+          <td>$<span data-agreement-field="other_charges"><%= @other_charges %></span></td>
+        </tr>
+        <tr>
+          <td>Less payments and credits already received</td>
+          <td><span class="field" data-agreement-field="credits_description"><%= @credits_description %></span></td>
+          <td>− $<span data-agreement-field="credits_amount"><%= @credits_amount %></span></td>
+        </tr>
+        <tr>
+          <td>Less agreed reductions effective when this Agreement takes effect</td>
+          <td><span class="field" data-agreement-field="reductions_description"><%= @reductions_description %></span></td>
+          <td>− $<span data-agreement-field="reductions_amount"><%= @reductions_amount %></span></td>
+        </tr>
+        <tr>
+          <td colspan="2"><strong>Total agreed payment amount</strong></td>
+          <td><strong>$<span data-agreement-field="money_owed"><%= @money_owed %></span></strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>This Agreement resolves only the payment issue identified in Section 1.</p>
+
     <p>
-      The parties participated in a negotiation session on 
-      <span class="field field-medium" data-agreement-field="negotiation_date" data-agreement-format="long-date"><%= @date %></span>
-      and reached the following agreement:
+      <strong>Are there other payment issues the parties want to identify as unresolved?
+      Select one.</strong>
     </p>
-    
-    <h3>1. Reason for Agreement</h3>
-    
-    <p>The parties disagree about:</p>
-    <p class="field field-full" data-agreement-field="reason"><%= @reason %></p>
-    <p class="field field-full">___________</p>
-    <p class="field field-full">___________</p>
-    
-    <p>
-      This agreement is meant to help both sides resolve the issue, avoid eviction when possible, and create a clear plan 
-      moving forward.
-    </p>
-    
-    <hr style="border: 1px solid #000; margin: 15px 0;">
-    
-    <h3>2. Amount Currently Owed</h3>
-    
-    <p>The tenant currently owes the landlord the following:</p>
-    <p><strong>Total Amount Owed:</strong> $<span class="field field-medium" data-agreement-field="money_owed"><%= @money_owed %></span></p>
-    
-    <p>This amount is for (check all that apply):</p>
+
     <div class="checkbox-group">
-      <div class="checkbox-item">
-        <div class="checkbox<%= @rent_owed.present? && @rent_owed.to_f > 0 ? ' checked' : '' %>"></div>
-        <span>Rent: $<span class="field field-short" data-agreement-field="rent_owed"><%= @rent_owed.present? && @rent_owed.to_f > 0 ? @rent_owed : '___________' %></span></span>
+      <div class="checkbox-item"
+          data-agreement-choice="unresolved_payment_issues"
+          data-agreement-value="no">
+        <div class="checkbox<%= @unresolved_payment_issues == 'no' ? ' checked' : '' %>"></div>
+        <span>No.</span>
       </div>
-      <div class="checkbox-item">
-        <div class="checkbox<%= @late_fees.present? && @late_fees.to_f > 0 ? ' checked' : '' %>"></div>
-        <span>Late fees: $<span class="field field-short" data-agreement-field="late_fees"><%= @late_fees.present? && @late_fees.to_f > 0 ? @late_fees : '___________' %></span></span>
-      </div>
-      <div class="checkbox-item">
-        <div class="checkbox<%= @utilities.present? && @utilities.to_f > 0 ? ' checked' : '' %>"></div>
-        <span>Utilities: $<span class="field field-short" data-agreement-field="utilities"><%= @utilities.present? && @utilities.to_f > 0 ? @utilities : '___________' %></span></span>
-      </div>
-      <div class="checkbox-item">
-        <div class="checkbox<%= @other_charges.present? && @other_charges.to_f > 0 ? ' checked' : '' %>"></div>
-        <span>Other charges (list): $<span class="field field-long" data-agreement-field="other_charges_description"><%= @other_charges_description.present? ? @other_charges_description : '___________' %></span> = $<span class="field field-short" data-agreement-field="other_charges"><%= @other_charges.present? && @other_charges.to_f > 0 ? @other_charges : '___________' %></span></span>
+
+      <div class="checkbox-item"
+          data-agreement-choice="unresolved_payment_issues"
+          data-agreement-value="yes">
+        <div class="checkbox<%= @unresolved_payment_issues == 'yes' ? ' checked' : '' %>"></div>
+        <span>
+          Yes:
+          <span class="field field-long"
+                data-agreement-field="unresolved_payment_details"><%= @unresolved_payment_details %></span>
+        </span>
       </div>
     </div>
-    
+
     <hr style="border: 1px solid #000; margin: 15px 0;">
-    
+
+
     <h3>3. Payment Plan (Pay & Stay Terms)</h3>
-    
+
     <p>To resolve this balance, the tenant agrees to make the following payments:</p>
-    
+
     <p>
       <strong>Regular Rent:</strong> Tenant will continue to pay regular monthly rent of $<span class="field field-medium" data-agreement-field="monthly_rent"><%= @monthly_rent %></span>.
     </p>
-    
+
     <p><strong>Additional Payments Toward Balance (Check all that apply):</strong></p>
-    
+
     <div class="checkbox-group">
       <div class="checkbox-item" data-agreement-choice="payment_lump_sum" data-agreement-value="1">
         <div class="checkbox<%= @payment_lump_sum ? ' checked' : '' %>"></div>
@@ -325,13 +368,51 @@
           due on or before <span class="field field-medium" data-agreement-field="final_payment_date"><%= @final_payment_date.present? ? @final_payment_date : '___________' %></span> at 5:00 PM
         </span>
       </div>
+      <div class="checkbox-item"
+          data-agreement-choice="payment_custom_schedule"
+          data-agreement-value="1">
+        <div class="checkbox<%= @payment_custom_schedule ? ' checked' : '' %>"></div>
+        <span><strong>Other Payment Schedule</strong></span>
+      </div>
+      <% if @agreement_editor_preview || @payment_custom_schedule %>
+        <div data-agreement-conditional="payment_custom_schedule"
+            data-agreement-conditional-value="1">
+
+          <table class="custom-payment-schedule">
+            <thead>
+              <tr>
+                <th>Payment</th>
+                <th>Amount</th>
+                <th>Due Date</th>
+                <th>Due Time (if agreed)</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <% Array(@schedule).each_with_index do |(index, amount, due_date), position| %>
+                <tr data-agreement-payment-row="<%= index %>">
+                  <td><%= position + 1 %></td>
+                  <td>$<span data-agreement-field="amount<%= index %>"><%= amount %></span></td>
+                  <td>
+                    <span data-agreement-field="date<%= index %>"
+                          data-agreement-format="long-date"><%= due_date %></span>
+                  </td>
+                  <td>—</td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+
+          <div data-agreement-payment-anchor></div>
+        </div>
+      <% end %>
     </div>
-    
+
     <p><strong>Payment Method (Select one):</strong></p>
     <div class="checkbox-group">
       <div class="checkbox-item" data-agreement-choice="payment_method" data-agreement-value="online_portal">
         <div class="checkbox<%= @payment_method == 'online_portal' ? ' checked' : '' %>"></div>
-        <span>Online portal (Note: Some portals do <strong>not</strong> accept partial payments. Tenant and Landlord must confirm in advance 
+        <span>Online portal (Note: Some portals do <strong>not</strong> accept partial payments. Tenant and Landlord must confirm in advance
         that this payment plan can be processed through the portal.)</span>
       </div>
       <div class="checkbox-item" data-agreement-choice="payment_method" data-agreement-value="money_order">
@@ -355,53 +436,53 @@
     <p>
       Payments must be made using a method accepted by both parties unless they agree otherwise in writing.
     </p>
-    
+
     <hr style="border: 1px solid #000; margin: 15px 0;">
-    
+
     <h3>4. Rental Assistance</h3>
-    
+
     <p>
-      The landlord agrees to accept third-party rental assistance payments, and both parties will take timely steps to 
-      submit and process the rental assistance application. The landlord is not required to follow any requirements beyond 
+      The landlord agrees to accept third-party rental assistance payments, and both parties will take timely steps to
+      submit and process the rental assistance application. The landlord is not required to follow any requirements beyond
       what federal law requires to accept those payments.
     </p>
-    
+
     <hr style="border: 1px solid #000; margin: 15px 0;">
-    
+
     <h3>5. Mediation and Communication</h3>
-    
+
     <p>
-      A mediator may review and support communication between the parties. Mediators do not give legal advice and 
+      A mediator may review and support communication between the parties. Mediators do not give legal advice and
       cannot make decisions for the parties.
     </p>
-    
+
     <hr style="border: 1px solid #000; margin: 15px 0;">
-    
+
     <h3>6. If the Tenant Pays as Agreed</h3>
-    
+
     <p>If the tenant makes <strong>all payments</strong> listed in Sections 3 and 4:</p>
-    
+
     <ul>
       <li>The landlord will <strong>not</strong> file an eviction case based on the balance covered by this agreement.</li>
       <li>The tenant may <strong>remain in the property</strong>.</li>
       <li>Any pending eviction case will be dismissed by the next court date.</li>
     </ul>
-    
+
     <hr style="border: 1px solid #000; margin: 15px 0;">
-    
+
     <h3>7. If the Tenant Does Not Pay as Agreed</h3>
-    
+
     <p>
-      If the Tenant(s) fail to make any payment as agreed, the landlord may proceed with an eviction action under <strong>ORC 
+      If the Tenant(s) fail to make any payment as agreed, the landlord may proceed with an eviction action under <strong>ORC
       Chapter 1923</strong>.
     </p>
-    
+
     <hr style="border: 1px solid #000; margin: 15px 0;">
-    
+
     <h3>8. Additional Terms</h3>
-    
+
     <p>Any additional terms agreed to by both parties are listed here:</p>
-    
+
     <% if @additional_terms.present? %>
       <p data-agreement-field="additional_terms"><%= @additional_terms %></p>
     <% else %>
@@ -410,26 +491,26 @@
       <p class="field field-full">___________</p>
       <p class="field field-full">___________</p>
     <% end %>
-    
+
     <hr style="border: 1px solid #000; margin: 15px 0;">
-    
+
     <h3>9. Signatures and Final Agreement</h3>
-    
+
     <p>
-      Both parties agree that this Agreement may be executed in one or more counterparts, each of which may be signed 
-      by a party individually. Upon execution by all parties, their respective signed copies of this Agreement shall be 
-      combined into a single, integrated document. The integrated agreement shall be deemed the final, complete, and 
+      Both parties agree that this Agreement may be executed in one or more counterparts, each of which may be signed
+      by a party individually. Upon execution by all parties, their respective signed copies of this Agreement shall be
+      combined into a single, integrated document. The integrated agreement shall be deemed the final, complete, and
       enforceable version of this Agreement.
     </p>
-    
+
     <div class="signature-section" style="margin-top: 20px;">
       <p>
-        <strong>Landlord:</strong> 
+        <strong>Landlord:</strong>
         <span class="signature-line">___________</span>
         <span style="margin-left: 50px;"><strong>Date:</strong> <span class="date-line">___________</span></span>
       </p>
       <p>
-        <strong>Tenant:</strong> 
+        <strong>Tenant:</strong>
         <span class="signature-line">___________</span>
         <span style="margin-left: 50px;"><strong>Date:</strong> <span class="date-line">___________</span></span>
       </p>
