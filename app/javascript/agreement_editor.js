@@ -28,7 +28,18 @@ function startAgreementEditor() {
   }
 
   function displayValue(field, value, node) {
-    if (!value) return field === 'additional_terms' ? '___________' : (node.dataset.agreementFormat === 'long-date' ? 'TBD' : '___________');
+    if (!value) {
+      if (/^time[1-6]$/.test(field)) return '—';
+      return field === 'additional_terms' ? '___________' :
+        (node.dataset.agreementFormat === 'long-date' ? 'TBD' : '___________');
+    }
+    if (/^time[1-6]$/.test(field) && /^\d{2}:\d{2}$/.test(value)) {
+      const [hours, minutes] = value.split(':').map(Number);
+
+      if (hours < 24 && minutes < 60) {
+        return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
+      }
+    }
     if (node.dataset.agreementFormat === 'long-date') {
       const date = new Date(`${value}T12:00:00`);
       if (!Number.isNaN(date.getTime())) return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(date);
@@ -74,8 +85,8 @@ function startAgreementEditor() {
   }
 
   function inputType(field) {
-    if (/^(date[1-6]|negotiation_date|vacate_date|lump_sum_date|monthly_payment_start|final_payment_date)$/.test(field)) return 'date';
-    if (/^(amount[1-6]|money_owed|monthly_rent|rent_owed|late_fees|utilities|other_charges|lump_sum_amount|monthly_payment_amount|final_payment_amount)$/.test(field)) return 'number';
+    if (/^(date[1-6]|negotiation_date|vacate_date|lump_sum_date|monthly_payment_start|final_payment_date|forgiveness_deadline)$/.test(field)) return 'date';
+    if (/^(amount[1-6]|money_owed|monthly_rent|rent_owed|late_fees|utilities|other_charges|lump_sum_amount|monthly_payment_amount|final_payment_amount|forgiveness_amount|forgiveness_remaining_amount)$/.test(field)) return 'number';
     return 'text';
   }
 
@@ -100,12 +111,15 @@ function startAgreementEditor() {
     };
     activeEdit = { node, finish };
     editor.addEventListener('blur', () => finish(true), { once: true });
+    if (type === 'time') {
+      editor.addEventListener('change', () => finish(true), { once: true });
+    }
     editor.addEventListener('keydown', event => {
       if (event.key === 'Escape') { event.preventDefault(); finish(false); }
       if (event.key === 'Enter' && editor.tagName !== 'TEXTAREA') { event.preventDefault(); finish(true); }
     });
     editor.focus();
-    if (type !== 'date') editor.select();
+    if (type !== 'date' && type !== 'time') editor.select();
   }
 
   function updateConditionalSections(doc) {
@@ -122,7 +136,11 @@ function startAgreementEditor() {
   function markChoices(doc) {
     doc.querySelectorAll('[data-agreement-choice]').forEach(node => {
       const field = node.dataset.agreementChoice;
-      const selected = inputs.get(field)?.value === node.dataset.agreementValue;
+      const currentValue = inputs.get(field)?.value || '';
+
+      const selected = field === 'payment_method'
+        ? currentValue.split(',').includes(node.dataset.agreementValue)
+        : currentValue === node.dataset.agreementValue;
       node.querySelector('.checkbox')?.classList.toggle('checked', selected);
       node.classList.toggle('agreement-changed', inputs.get(field)?.value !== original.get(field));
     });
@@ -151,6 +169,9 @@ function startAgreementEditor() {
         if (activeEdit) activeEdit.finish(true);
         writeField(doc, `amount${number}`, '');
         writeField(doc, `date${number}`, '');
+        if (guide.dataset.agreementTemplate === 'b') {
+          writeField(doc, `time${number}`, '');
+        }
         row.remove();
       });
       (row.tagName === 'TR' ? row.lastElementChild : row).append(remove);
@@ -189,29 +210,23 @@ function startAgreementEditor() {
           anchor.before(table);
         }
         row = doc.createElement('tr');
-        row.innerHTML = `<td>${number}</td><td>$<span data-agreement-field="amount${number}">___________</span></td><td><span data-agreement-field="date${number}" data-agreement-format="long-date">TBD</span></td>`;
+        row.innerHTML = `
+          <td>${number}</td>
+          <td>$<span data-agreement-field="amount${number}">___________</span></td>
+          <td><span data-agreement-field="date${number}" data-agreement-format="long-date">TBD</span></td>
+          ${guide.dataset.agreementTemplate === 'b'
+            ? `<td><span data-agreement-field="time${number}">—</span></td>`
+            : ''}
+        `;
         table.querySelector('tbody').append(row);
-
-        const tbody = table.querySelector('tbody');
-
-        const rows = Array.from(
-          tbody.querySelectorAll('[data-agreement-payment-row]')
-        );
-
-        rows.sort((a, b) => {
-          const dateA = inputs.get(`date${a.dataset.agreementPaymentRow}`)?.value || '9999-12-31';
-          const dateB = inputs.get(`date${b.dataset.agreementPaymentRow}`)?.value || '9999-12-31';
-
-          return dateA.localeCompare(dateB);
-        });
-
-        rows.forEach((paymentRow, index) => {
-          paymentRow.querySelector('td').textContent = index + 1;
-          tbody.append(paymentRow);
-        });
       }
       row.className = 'agreement-new-payment';
       row.dataset.agreementPaymentRow = String(number);
+
+      if (row.tagName === 'TR') {
+        sortPaymentRows(doc);
+      }
+
       addPaymentControlsForRow(doc, row, number);
       makeEditable(row);
       editField(doc, row.querySelector(`[data-agreement-field="amount${number}"]`));
@@ -228,6 +243,9 @@ function startAgreementEditor() {
       if (activeEdit) activeEdit.finish(true);
       writeField(doc, `amount${number}`, '');
       writeField(doc, `date${number}`, '');
+      if (guide.dataset.agreementTemplate === 'b') {
+        writeField(doc, `time${number}`, '');
+      }
       row.remove();
     });
     (row.tagName === 'TR' ? row.lastElementChild : row).append(remove);
@@ -273,8 +291,32 @@ function startAgreementEditor() {
       if (!choice || !inputs.has(choice.dataset.agreementChoice)) return;
       const choiceField = choice.dataset.agreementChoice;
       const input = inputs.get(choiceField);
-      input.value = input.value === choice.dataset.agreementValue ?
-        (choiceField === 'payment_method' ? '' : (original.get(choiceField) === '' ? '' : '0')) : choice.dataset.agreementValue;
+      if (choiceField === 'payment_method' && guide.dataset.agreementTemplate === 'b') {
+        const selectedMethods = new Set(input.value.split(',').filter(Boolean));
+        const method = choice.dataset.agreementValue;
+
+        if (selectedMethods.has(method)) {
+          selectedMethods.delete(method);
+        } else {
+          selectedMethods.add(method);
+        }
+
+        input.value = Array.from(selectedMethods).join(',');
+      } else if ([
+        'unresolved_payment_issues',
+        'regular_rent_arrangement',
+        'payment_application',
+        'conditional_reduction',
+        'rental_assistance',
+        'assistance_status',
+        'assistance_amount_status'
+      ].includes(choiceField)) {
+        input.value = choice.dataset.agreementValue;
+      } else {
+        input.value = input.value === choice.dataset.agreementValue ?
+          (choiceField === 'payment_method' ? '' : (original.get(choiceField) === '' ? '' : '0')) :
+          choice.dataset.agreementValue;
+      }
       markChoices(doc);
       refreshCount();
     });

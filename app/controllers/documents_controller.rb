@@ -96,6 +96,49 @@ class DocumentsController < ApplicationController
     end
 
     terms = agreement_terms_from_params
+
+    if template == "b" && !valid_pay_and_stay_unresolved_issues?(terms)
+      return render plain: "Please select Yes or No for unresolved payment issues and provide details if Yes is selected.",
+                    status: :unprocessable_entity
+    end
+
+    if template == "b" && !valid_pay_and_stay_regular_rent?(terms)
+      return render plain: "Please enter a valid regular rent due day and select whether the rent arrangement is unchanged or modified, with details if modified.",
+                    status: :unprocessable_entity
+    end
+
+    if template == "b" && !valid_pay_and_stay_payment_times?(terms)
+      return render plain: "Please enter valid payment due times.",
+                    status: :unprocessable_entity
+    end
+
+    if template == "b" && !valid_pay_and_stay_payment_methods?(terms)
+      return render plain: "Please select valid payment methods.",
+                    status: :unprocessable_entity
+    end
+
+    if template == "b" && !valid_pay_and_stay_payment_application?(terms)
+      return render plain: "Please select how payments will be applied and provide instructions if payments will be applied differently.",
+                    status: :unprocessable_entity
+    end
+
+    if template == "b" && !valid_pay_and_stay_conditional_reduction?(terms)
+      return render plain: "Please select a conditional reduction option and complete all required details if conditional reduction is selected.",
+                    status: :unprocessable_entity
+    end
+
+    if template == "b" && !valid_pay_and_stay_rental_assistance?(terms)
+      return render plain: "Please select a rental assistance option.",
+                    status: :unprocessable_entity
+    end
+
+    if template == "b" &&
+      terms["rental_assistance"] == "arrangement" &&
+      !valid_pay_and_stay_assistance_status?(terms)
+      return render plain: "Please select a valid rental assistance application status.",
+                    status: :unprocessable_entity
+    end
+
     assign_agreement_template_variables(template, terms)
     @template_name = agreement_template_name(template)
     template_file = agreement_template_file(template)
@@ -374,7 +417,8 @@ class DocumentsController < ApplicationController
     when :invalid
       redirect_to view_file_path(file.FileID, edit: 1), alert: "One or more edited values are invalid. Review the document and try again."
     when :invalid_payment
-      redirect_to view_file_path(file.FileID, edit: 1), alert: "A payment date needs a payment amount. Add an amount or remove the date."
+      redirect_to view_file_path(file.FileID, edit: 1),
+            alert: "One or more payment terms are invalid. Check payment amounts, dates, times, methods, and payment application instructions."
     else
       redirect_to view_file_path(file.FileID), alert: "This agreement changed while you were editing. Review the latest version."
     end
@@ -501,9 +545,9 @@ class DocumentsController < ApplicationController
       end
     when :invalid_payment
       if request.format.json?
-        render json: { error: "A payment date needs a payment amount. Review the payment as a whole." }, status: :unprocessable_entity
+        render json: { error: "One or more payment terms are invalid. Check payment amounts, dates, times, methods, and payment application instructions." }, status: :unprocessable_entity
       else
-        redirect_to focus_path, alert: "A payment date needs a payment amount. Review the payment as a whole."
+        redirect_to focus_path, alert: "One or more payment terms are invalid. Check payment amounts, dates, times, methods, and payment application instructions."
       end
     else
       if request.format.json?
@@ -567,7 +611,7 @@ class DocumentsController < ApplicationController
     message = case result
     when :countered then completed_round ? "Review sent with counteroffers." : "Counteroffer saved. Complete the remaining suggestions to send it."
     when :invalid then "Enter a different value for this counteroffer."
-    when :invalid_payment then "A payment date needs a payment amount."
+    when :invalid_payment then "One or more payment terms are invalid. Check payment amounts, dates, times, methods, and payment application instructions."
     else "This suggestion is no longer available. Refresh the agreement."
     end
     if request.format.json?
@@ -879,12 +923,16 @@ class DocumentsController < ApplicationController
   end
 
   AGREEMENT_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed monthly_rent
+                        regular_rent_due_day regular_rent_arrangement regular_rent_change_details
                         best_option vacate_date rent_owed late_fees utilities other_charges
                         other_charges_description payment_lump_sum lump_sum_amount lump_sum_date
                         payment_monthly monthly_payment_amount monthly_payment_months monthly_payment_day landlord_representative tenant_representative
                         monthly_payment_start payment_final final_payment_amount final_payment_date payment_custom_schedule rent_period late_fees_description utilities_period
                         credits_description credits_amount reductions_description reductions_amount
-                        unresolved_payment_issues unresolved_payment_details payment_method payment_method_other_description additional_terms].freeze
+                        conditional_reduction forgiveness_amount forgiveness_deadline
+                        forgiveness_conditions forgiveness_remaining_amount forgiveness_failure_result
+                        unresolved_payment_issues unresolved_payment_details payment_method payment_method_other_description payment_recipient_instructions payment_application payment_application_instructions
+                        rental_assistance assistance_provider assistance_status assistance_amount_status assistance_amount assistance_confirmed].freeze
   AGREEMENT_COMMON_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed
                                monthly_rent best_option].freeze
 
@@ -1041,7 +1089,7 @@ class DocumentsController < ApplicationController
               when :updated then "Both parties accepted. The agreement has been updated."
               when :rejected then "Suggestion rejected."
               when :pending then "Decision saved. Waiting for the other party."
-              when :invalid_payment then "A payment date needs a payment amount."
+              when :invalid_payment then "One or more payment terms are invalid. Check payment amounts, dates, times, methods, and payment application instructions."
               else "This suggestion is no longer available. Refresh the agreement."
               end
 
@@ -1134,7 +1182,7 @@ class DocumentsController < ApplicationController
               when :countered
                 "Counteroffer submitted. Waiting for the other party."
               when :invalid_payment
-                "A payment date needs a payment amount."
+                "One or more payment terms are invalid. Check payment amounts, dates, times, methods, and payment application instructions."
               when :invalid
                 "Enter a valid counteroffer that differs from the current offer."
               else
@@ -1158,12 +1206,16 @@ class DocumentsController < ApplicationController
   end
 
   def agreement_terms_from_params
-    keys = AGREEMENT_FIELDS + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
+    keys = AGREEMENT_FIELDS + (1..6).flat_map do |i|
+      ["amount#{i}", "date#{i}", "time#{i}"]
+    end
+
     params.permit(*keys).to_h
   end
 
   def agreement_fields_for_template(template)
     payment_fields = (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
+    payment_time_fields = (1..6).map { |i| "time#{i}" }
 
     case template
     when "a"
@@ -1171,14 +1223,149 @@ class DocumentsController < ApplicationController
     when "b"
       AGREEMENT_COMMON_FIELDS +
         (AGREEMENT_FIELDS - AGREEMENT_COMMON_FIELDS - ["vacate_date"]) +
-        payment_fields
+        payment_fields + payment_time_fields
     else
       AGREEMENT_COMMON_FIELDS + payment_fields
     end
   end
 
+  def valid_pay_and_stay_unresolved_issues?(terms)
+    selection = terms["unresolved_payment_issues"].to_s.strip
+
+    return false unless %w[yes no].include?(selection)
+
+    return false if selection == "yes" &&
+                    terms["unresolved_payment_details"].to_s.strip.blank?
+
+    true
+  end
+
+  def valid_pay_and_stay_regular_rent?(terms)
+    due_day = terms["regular_rent_due_day"].to_s.strip
+    arrangement = terms["regular_rent_arrangement"].to_s.strip
+
+    return false unless due_day.match?(/\A\d{1,2}\z/) &&
+                        (1..31).cover?(due_day.to_i)
+
+    return false unless %w[unchanged modified].include?(arrangement)
+
+    if arrangement == "modified"
+      return false if terms["regular_rent_change_details"].to_s.strip.blank?
+    end
+
+    true
+  end
+
+  def valid_pay_and_stay_payment_times?(terms)
+    (1..6).all? do |i|
+      value = terms["time#{i}"].to_s.strip
+
+      value.blank? ||
+        value.match?(/\A(?:[01]\d|2[0-3]):[0-5]\d\z/)
+    end
+  end
+
+  def valid_pay_and_stay_payment_methods?(terms)
+    value = terms["payment_method"].to_s.strip
+    return true if value.blank?
+
+    allowed_methods = %w[
+      online_portal money_order cashiers_check personal_check cash other
+    ]
+
+    selected_methods = value.split(",").map(&:strip)
+
+    selected_methods.uniq.length == selected_methods.length &&
+      selected_methods.all? { |method| allowed_methods.include?(method) }
+  end
+
+  def valid_pay_and_stay_assistance_status?(terms)
+    %w[not_submitted pending approved].include?(terms["assistance_status"].to_s.strip)
+  end
+
+  def valid_pay_and_stay_rental_assistance?(terms)
+    %w[none arrangement].include?(terms["rental_assistance"].to_s.strip)
+  end
+
+  def valid_pay_and_stay_conditional_reduction?(terms)
+    selection = terms["conditional_reduction"].to_s.strip
+
+    return false unless %w[none conditional].include?(selection)
+    return true if selection == "none"
+
+    required_fields = %w[
+      forgiveness_amount
+      forgiveness_deadline
+      forgiveness_conditions
+      forgiveness_remaining_amount
+      forgiveness_failure_result
+    ]
+
+    return false unless required_fields.all? { |field| terms[field].to_s.strip.present? }
+
+    amount_fields = %w[forgiveness_amount forgiveness_remaining_amount]
+
+    return false unless amount_fields.all? do |field|
+      terms[field].to_s.strip.match?(/\A\d+(?:\.\d{1,2})?\z/)
+    end
+
+    Date.iso8601(terms["forgiveness_deadline"].to_s.strip)
+    true
+  rescue Date::Error
+    false
+  end
+
+  def valid_pay_and_stay_payment_application?(terms)
+    application = terms["payment_application"].to_s
+    instructions = terms["payment_application_instructions"].to_s.strip
+
+    return false unless %w[standard different].include?(application)
+    return false if application == "different" && instructions.blank?
+
+    true
+  end
+
   def valid_agreement_payment_terms?(terms)
-    (1..6).all? { |number| terms["date#{number}"].blank? || terms["amount#{number}"].present? }
+    payment_dates_valid = (1..6).all? do |number|
+      terms["date#{number}"].blank? || terms["amount#{number}"].present?
+    end
+
+    return false unless payment_dates_valid
+
+    # Apply the additional validation only to agreements that use this field.
+    if terms.key?("unresolved_payment_issues")
+      return false unless valid_pay_and_stay_unresolved_issues?(terms)
+    end
+
+    if terms.key?("regular_rent_arrangement") || terms.key?("regular_rent_due_day")
+      return false unless valid_pay_and_stay_regular_rent?(terms)
+    end
+
+    if (1..6).any? { |i| terms.key?("time#{i}") }
+      return false unless valid_pay_and_stay_payment_times?(terms)
+    end
+
+    if terms.key?("payment_method")
+      return false unless valid_pay_and_stay_payment_methods?(terms)
+    end
+
+    if terms.key?("payment_application")
+      return false unless valid_pay_and_stay_payment_application?(terms)
+    end
+
+    if terms.key?("conditional_reduction")
+      return false unless valid_pay_and_stay_conditional_reduction?(terms)
+    end
+
+    if terms.key?("rental_assistance")
+      return false unless valid_pay_and_stay_rental_assistance?(terms)
+    end
+
+    if terms.key?("assistance_status") && terms["assistance_status"].present?
+      return false unless valid_pay_and_stay_assistance_status?(terms)
+    end
+
+    true
   end
 
   def other_agreement_party_id(conversation, user_id)
@@ -1249,14 +1436,34 @@ class DocumentsController < ApplicationController
 
   def valid_agreement_counteroffer?(field, raw_value)
     value = raw_value.to_s.strip
+    if field.match?(/\Atime[1-6]\z/)
+      return value.blank? || value.match?(/\A(?:[01]\d|2[0-3]):[0-5]\d\z/)
+    end
+    return %w[unchanged modified].include?(value) if field == "regular_rent_arrangement"
+    return value.match?(/\A\d{1,2}\z/) && (1..31).cover?(value.to_i) if field == "regular_rent_due_day"
+    return %w[yes no].include?(value) if field == "unresolved_payment_issues"
+    return %w[standard different].include?(value) if field == "payment_application"
+    return %w[none conditional].include?(value) if field == "conditional_reduction"
+    return %w[none arrangement].include?(value) if field == "rental_assistance"
+    return %w[not_submitted pending approved].include?(value) if field == "assistance_status"
     return false if value.length > (field == "additional_terms" ? 5000 : 255)
     return false if %w[landlord_name tenant_name address negotiation_date reason money_owed vacate_date].include?(field) && value.blank?
     return %w[1 0].include?(value) if %w[payment_lump_sum payment_monthly payment_final].include?(field)
-    return value.blank? || %w[online_portal money_order cashiers_check other].include?(value) if field == "payment_method"
+    if field == "payment_method"
+      allowed_methods = %w[
+        online_portal money_order cashiers_check personal_check cash other
+      ]
+
+      selected_methods = value.split(",").map(&:strip)
+
+      return value.blank? ||
+            (selected_methods.uniq.length == selected_methods.length &&
+              selected_methods.all? { |method| allowed_methods.include?(method) })
+    end
     return value.blank? || value.match?(/\A\d+(?:\.\d{1,2})?\z/) if field.match?(/\Aamount[1-6]\z/) ||
-      %w[money_owed monthly_rent rent_owed late_fees utilities other_charges lump_sum_amount monthly_payment_amount final_payment_amount].include?(field)
+      %w[money_owed monthly_rent rent_owed late_fees utilities other_charges lump_sum_amount monthly_payment_amount final_payment_amount forgiveness_amount forgiveness_remaining_amount].include?(field)
     return value.blank? || (Date.iso8601(value) && true) if field.match?(/\Adate[1-6]\z/) ||
-      %w[negotiation_date vacate_date lump_sum_date monthly_payment_start final_payment_date].include?(field)
+      %w[negotiation_date vacate_date lump_sum_date monthly_payment_start final_payment_date forgiveness_deadline].include?(field)
     return value.blank? || (value.match?(/\A\d{1,2}\z/) && (1..31).cover?(value.to_i)) if field == "monthly_payment_day"
     return value.blank? || value.match?(/\A\d+\z/) if field == "monthly_payment_months"
 
@@ -1325,12 +1532,19 @@ class DocumentsController < ApplicationController
          monthly_payment_start final_payment_amount final_payment_date payment_method
          rent_period late_fees_description utilities_period
          credits_description credits_amount reductions_description reductions_amount
+         regular_rent_due_day regular_rent_arrangement regular_rent_change_details
          unresolved_payment_issues unresolved_payment_details
-         payment_method_other_description].each do |field|
+         conditional_reduction forgiveness_amount forgiveness_deadline
+         forgiveness_conditions forgiveness_remaining_amount forgiveness_failure_result
+         payment_method_other_description payment_recipient_instructions payment_application payment_application_instructions rental_assistance
+         assistance_provider assistance_status assistance_amount assistance_confirmed].each do |field|
         instance_variable_set("@#{field}", terms[field].to_s)
       end
       %w[payment_lump_sum payment_monthly payment_final payment_custom_schedule].each do |field|
         instance_variable_set("@#{field}", terms[field] == "1")
+      end
+      (1..6).each do |i|
+        instance_variable_set("@time#{i}", terms["time#{i}"].to_s)
       end
     end
   end

@@ -50,7 +50,17 @@ function startDocumentGenerationEditor() {
   });
 
   function displayValue(field, value, node) {
-    if (!value) return field === 'additional_terms' ? '___________' : (node.dataset.agreementFormat === 'long-date' ? 'TBD' : '___________');
+    if (!value) {
+      if (/^time[1-6]$/.test(field)) return '—';
+      return field === 'additional_terms' ? '___________' :
+        (node.dataset.agreementFormat === 'long-date' ? 'TBD' : '___________');
+    }
+    if (/^time[1-6]$/.test(field) && /^\d{2}:\d{2}$/.test(value)) {
+      const [hours, minutes] = value.split(':').map(Number);
+      if (hours < 24 && minutes < 60) {
+        return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
+      }
+    }
     if (node.dataset.agreementFormat === 'long-date') {
       const date = new Date(`${value}T12:00:00`);
       if (!Number.isNaN(date.getTime())) return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(date);
@@ -96,8 +106,9 @@ function startDocumentGenerationEditor() {
   }
 
   function inputType(field) {
-    if (/^(date[1-6]|negotiation_date|vacate_date|lump_sum_date|monthly_payment_start|final_payment_date)$/.test(field)) return 'date';
-    if (/^(amount[1-6]|money_owed|monthly_rent|rent_owed|late_fees|utilities|other_charges|lump_sum_amount|monthly_payment_amount|final_payment_amount)$/.test(field)) return 'number';
+    if (/^(date[1-6]|negotiation_date|vacate_date|lump_sum_date|monthly_payment_start|final_payment_date|forgiveness_deadline)$/.test(field)) return 'date';
+    if (/^time[1-6]$/.test(field)) return 'time';
+    if (/^(amount[1-6]|money_owed|monthly_rent|rent_owed|late_fees|utilities|other_charges|lump_sum_amount|monthly_payment_amount|final_payment_amount|forgiveness_amount|forgiveness_remaining_amount)$/.test(field)) return 'number';
     return 'text';
   }
 
@@ -122,12 +133,15 @@ function startDocumentGenerationEditor() {
     };
     activeEdit = { node, finish };
     editor.addEventListener('blur', () => finish(true), { once: true });
+    if (type === 'time') {
+      editor.addEventListener('change', () => finish(true), { once: true });
+    }
     editor.addEventListener('keydown', event => {
       if (event.key === 'Escape') { event.preventDefault(); finish(false); }
       if (event.key === 'Enter' && editor.tagName !== 'TEXTAREA') { event.preventDefault(); finish(true); }
     });
     editor.focus();
-    if (type !== 'date') editor.select();
+    if (type !== 'date' && type !== 'time') editor.select();
   }
 
   function updateConditionalSections(doc) {
@@ -144,7 +158,11 @@ function startDocumentGenerationEditor() {
   function markChoices(doc) {
     doc.querySelectorAll('[data-agreement-choice]').forEach(node => {
       const field = node.dataset.agreementChoice;
-      const selected = inputs.get(field)?.value === node.dataset.agreementValue;
+      const currentValue = inputs.get(field)?.value || '';
+
+      const selected = field === 'payment_method'
+        ? currentValue.split(',').includes(node.dataset.agreementValue)
+        : currentValue === node.dataset.agreementValue;
       node.querySelector('.checkbox')?.classList.toggle('checked', selected);
       node.classList.toggle('agreement-changed', inputs.get(field)?.value !== original.get(field));
     });
@@ -173,6 +191,7 @@ function startDocumentGenerationEditor() {
         if (activeEdit) activeEdit.finish(true);
         writeField(doc, `amount${number}`, '');
         writeField(doc, `date${number}`, '');
+        writeField(doc, `time${number}`, '');
         row.remove();
       });
       (row.tagName === 'TR' ? row.lastElementChild : row).append(remove);
@@ -211,7 +230,12 @@ function startDocumentGenerationEditor() {
           anchor.before(table);
         }
         row = doc.createElement('tr');
-        row.innerHTML = `<td>${number}</td><td>$<span data-agreement-field="amount${number}">___________</span></td><td><span data-agreement-field="date${number}" data-agreement-format="long-date">TBD</span></td>`;
+        row.innerHTML = `
+          <td>${number}</td>
+          <td>$<span data-agreement-field="amount${number}">___________</span></td>
+          <td><span data-agreement-field="date${number}" data-agreement-format="long-date">TBD</span></td>
+          <td><span data-agreement-field="time${number}">—</span></td>
+        `;
         table.querySelector('tbody').append(row);
 
         const tbody = table.querySelector('tbody');
@@ -256,6 +280,7 @@ function startDocumentGenerationEditor() {
       if (activeEdit) activeEdit.finish(true);
       writeField(doc, `amount${number}`, '');
       writeField(doc, `date${number}`, '');
+      writeField(doc, `time${number}`, '');
       row.remove();
     });
     (row.tagName === 'TR' ? row.lastElementChild : row).append(remove);
@@ -310,8 +335,32 @@ function startDocumentGenerationEditor() {
       if (!choice || !inputs.has(choice.dataset.agreementChoice)) return;
       const choiceField = choice.dataset.agreementChoice;
       const input = inputs.get(choiceField);
-      input.value = input.value === choice.dataset.agreementValue ?
-        (choiceField === 'payment_method' ? '' : (original.get(choiceField) === '' ? '' : '0')) : choice.dataset.agreementValue;
+      if (choiceField === 'payment_method' && guide.dataset.agreementTemplate === 'b') {
+        const selectedMethods = new Set(input.value.split(',').filter(Boolean));
+        const method = choice.dataset.agreementValue;
+
+        if (selectedMethods.has(method)) {
+          selectedMethods.delete(method);
+        } else {
+          selectedMethods.add(method);
+        }
+
+        input.value = Array.from(selectedMethods).join(',');
+      } else if ([
+        'unresolved_payment_issues',
+        'regular_rent_arrangement',
+        'payment_application',
+        'conditional_reduction',
+        'rental_assistance',
+        'assistance_status',
+        'assistance_amount_status'
+      ].includes(choiceField)) {
+        input.value = choice.dataset.agreementValue;
+      } else {
+        input.value = input.value === choice.dataset.agreementValue ?
+          (choiceField === 'payment_method' ? '' : (original.get(choiceField) === '' ? '' : '0')) :
+          choice.dataset.agreementValue;
+      }
       markChoices(doc);
       refreshCount();
     });
@@ -344,6 +393,46 @@ function startDocumentGenerationEditor() {
 
     if (template === 'b') {
       const value = field => inputs.get(field)?.value.trim() || '';
+      const rentDueDay = value('regular_rent_due_day');
+      const rentArrangement = value('regular_rent_arrangement');
+
+      if (!/^\d+$/.test(rentDueDay) ||
+          Number(rentDueDay) < 1 ||
+          Number(rentDueDay) > 31) {
+        event.preventDefault();
+        report('Please enter a valid regular rent due day (1–31).');
+        guide.scrollIntoView({ block: 'start', behavior: 'auto' });
+        return;
+      }
+
+      if (!['unchanged', 'modified'].includes(rentArrangement)) {
+        event.preventDefault();
+        report('Please select whether the regular rent arrangement is unchanged or modified.');
+        guide.scrollIntoView({ block: 'start', behavior: 'auto' });
+        return;
+      }
+
+      if (rentArrangement === 'modified' && !value('regular_rent_change_details')) {
+        event.preventDefault();
+        report('Please describe the agreed changes to regular rent.');
+        guide.scrollIntoView({ block: 'start', behavior: 'auto' });
+        return;
+      }
+      const unresolvedIssues = value('unresolved_payment_issues');
+
+      if (!['yes', 'no'].includes(unresolvedIssues)) {
+        event.preventDefault();
+        report('Please select Yes or No for unresolved payment issues.');
+        guide.scrollIntoView({ block: 'start', behavior: 'auto' });
+        return;
+      }
+
+      if (unresolvedIssues === 'yes' && !value('unresolved_payment_details')) {
+        event.preventDefault();
+        report('Please describe the unresolved payment issues.');
+        guide.scrollIntoView({ block: 'start', behavior: 'auto' });
+        return;
+      }
 
       const paymentRequirements = [
         {
