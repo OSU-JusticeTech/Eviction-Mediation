@@ -1,17 +1,18 @@
 <div class="faq-content">
   <h1>Frequently Asked Questions</h1>
 
+  <% selected_slug = params[:category].presence || @faqs.keys.first.to_s.parameterize %>
+
   <!-- FAQ Category Tabs -->
   <div class="faq-tabs">
     <% @faqs.keys.each do |category| %>
       <a href="<%= resources_path(tab: params[:tab], category: category.parameterize) %>"
-         class="<%= 'active' if params[:category] == category.parameterize %>">
+         class="<%= 'active' if selected_slug == category.parameterize %>">
         <%= category %>
       </a>
     <% end %>
   </div>
 
-  <% selected_slug = params[:category].presence || @faqs.keys.first.to_s.parameterize %>
   <% selected_category = @faqs.keys.find { |category| category.parameterize == selected_slug } %>
   <% if selected_category %>
     <div class="accordion">
