@@ -16,7 +16,7 @@ function startDocumentGenerationEditor() {
   const original = new Map(Array.from(inputs, ([key, input]) => [key, input.value]));
   const template = guide.dataset.agreementTemplate;
 
-  const requiredFields = [
+  const requiredFields = guide.dataset.requiredAgreementFields?.split(' ') ?? [
     'landlord_name',
     'tenant_name',
     'address',
@@ -29,6 +29,8 @@ function startDocumentGenerationEditor() {
       'satisfaction_business_days', 'attachments'
     ] : [])
   ];
+  const moveOutRules = guide.dataset.moveOutRules && JSON.parse(guide.dataset.moveOutRules);
+  const value = field => inputs.get(field)?.value.trim() || '';
   let activeEdit = null;
   let movedToPreview = false;
 
@@ -37,7 +39,74 @@ function startDocumentGenerationEditor() {
     error.hidden = !message;
   }
 
+  function moveOutChecks() {
+    const { conditional, representation, methods, rows, instructions, choices, dates, counts, labels } = moveOutRules;
+    const fields = [
+      ...requiredFields,
+      ...conditional.filter(([, conditions]) =>
+        Object.entries(conditions).every(([field, options]) => options.includes(value(field)))).flatMap(([fields]) => fields),
+      ...representation.filter(fields => fields.some(field => value(field))).flat()
+    ];
+    const validDate = date => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date.startsWith('0000')) return false;
+      const parsed = new Date(`${date}T00:00:00Z`);
+      return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(date);
+    };
+    const validTime = time => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time);
+    const validAmount = amount => /^\d+(?:\.\d{1,2})?$/.test(amount);
+    const checks = fields.map(field => {
+      const current = value(field);
+      const label = labels[field] || field.replaceAll('_', ' ');
+      if (!current) return `Complete the ${label}.`;
+      if (current.length > 5000 || (choices[field] && !choices[field].includes(current))) return `Enter a valid value for ${label}.`;
+      if (dates.includes(field) && !validDate(current)) return `Enter a valid date for ${label}.`;
+      if (counts.includes(field) && !/^[1-9]\d*$/.test(current)) return `Enter the ${label} as a whole number greater than zero.`;
+      if (field === 'move_out_time' && !validTime(current)) return `Enter a valid time for ${label}.`;
+      if (field === 'move_out_amount' && !validAmount(current)) return `Enter the ${label} in dollars with up to two decimal places.`;
+      return '';
+    });
+    if (['payment', 'both'].includes(value('move_out_payment'))) {
+      checks.push(methods.some(field => value(field) === 'yes') ? '' : 'Select at least one payment method.');
+      const activeRows = rows.map((fields, index) => [index + 1, fields.map(value)])
+        .filter(([, values]) => values.some(Boolean));
+      if (value('move_out_schedule')) {
+        const lines = value('move_out_schedule').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+        const valid = lines.every(line => {
+          const [amount, date, time, extra] = line.split(/\s*\|\s*/);
+          return value('move_out_schedule').length <= 30000 && !activeRows.length && extra === undefined && validAmount(amount) && validDate(date) && (!time || validTime(time));
+        });
+        checks.push(valid ? '' : 'Enter a valid amount, due date, and optional due time on each saved payment schedule line.');
+      } else if (!activeRows.length) {
+        checks.push('Add at least one payment with an amount and due date.');
+      } else {
+        activeRows.forEach(([number, [amount, date, time]]) => {
+          checks.push(amount.length <= 5000 && validAmount(amount) ? '' : `Enter a valid amount for payment ${number} in dollars with up to two decimal places.`);
+          checks.push(validDate(date) ? '' : `Enter a valid due date for payment ${number}.`);
+          if (time) checks.push(validTime(time) ? '' : `Enter a valid due time for payment ${number}.`);
+        });
+      }
+    }
+    instructions.forEach(field => {
+      if (value(field).length > 5000) checks.push(`Enter a valid value for ${field.replaceAll('_', ' ')}.`);
+    });
+    return checks;
+  }
+
+  function moveOutSignerError() {
+    const signers = value('move_out_additional_signers').toLowerCase();
+    return signers && signers !== moveOutRules.noAdditionalSigners ? moveOutRules.additionalSignersError : '';
+  }
+
   function refreshCount() {
+    if (moveOutRules) {
+      const checks = moveOutChecks();
+      count.textContent = `${checks.filter(message => !message).length} of ${checks.length} required fields completed`;
+      const signerError = moveOutSignerError();
+      if (signerError && error.hidden) report(signerError);
+      if (!signerError && error.textContent === moveOutRules.additionalSignersError) report('');
+      finish.disabled = false;
+      return;
+    }
     const missing = requiredFields.filter(field =>
       !inputs.get(field)?.value.trim()
     );
@@ -65,7 +134,7 @@ function startDocumentGenerationEditor() {
       const ordinal = `${day}${suffix}`;
       return field === 'monthly_payment_day' ? ordinal : `the ${ordinal} day of each month`;
     }
-    if (/^time[1-6]$/.test(field) && /^\d{2}:\d{2}$/.test(value)) {
+    if ((/^time[1-6]$/.test(field) || field === 'move_out_time') && /^\d{2}:\d{2}$/.test(value)) {
       const [hours, minutes] = value.split(':').map(Number);
       if (hours < 24 && minutes < 60) {
         return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
@@ -96,7 +165,7 @@ function startDocumentGenerationEditor() {
     });
 
     rows.forEach((row, index) => {
-      if (template !== 'b') row.querySelector('td').textContent = index + 1;
+      if (!['b', 'move_out_v1'].includes(template)) row.querySelector('td').textContent = index + 1;
       tbody.append(row);
     });
   }
@@ -165,7 +234,8 @@ function startDocumentGenerationEditor() {
       const expectedValue = section.dataset.agreementConditionalValue;
 
       const value = inputs.get(field)?.value || '';
-      const selected = field === 'payment_method' ? value.split(',').includes(expectedValue) : value === expectedValue;
+      const selected = field === 'payment_method' ?
+        value.split(',').includes(expectedValue) : expectedValue.split(' ').includes(value);
 
       section.hidden = !selected;
     });
@@ -198,19 +268,7 @@ function startDocumentGenerationEditor() {
 
   function addPaymentControls(doc) {
     doc.querySelectorAll('[data-agreement-payment-row]').forEach(row => {
-      const number = Number(row.dataset.agreementPaymentRow);
-      const remove = doc.createElement('button');
-      remove.type = 'button';
-      remove.className = 'agreement-remove-payment';
-      remove.textContent = 'Remove payment';
-      remove.addEventListener('click', () => {
-        if (activeEdit) activeEdit.finish(true);
-        writeField(doc, `amount${number}`, '');
-        writeField(doc, `date${number}`, '');
-        writeField(doc, `time${number}`, '');
-        row.remove();
-      });
-      (row.tagName === 'TR' ? row.lastElementChild : row).append(remove);
+      addPaymentControlsForRow(doc, row, Number(row.dataset.agreementPaymentRow));
     });
     const anchor = doc.querySelector('[data-agreement-payment-anchor]');
     if (!anchor) return;
@@ -221,7 +279,8 @@ function startDocumentGenerationEditor() {
     add.textContent = '+ Add payment';
     add.addEventListener('click', () => {
       const number = Array.from({ length: 6 }, (_, index) => index + 1).find(index =>
-        !inputs.get(`amount${index}`)?.value && !inputs.get(`date${index}`)?.value);
+        !doc.querySelector(`[data-agreement-payment-row="${index}"]`) &&
+        !inputs.get(`amount${index}`)?.value && !inputs.get(`date${index}`)?.value && !inputs.get(`time${index}`)?.value);
       if (!number) { report('The payment schedule supports up to six payments.'); return; }
       report('');
       let row;
@@ -247,33 +306,16 @@ function startDocumentGenerationEditor() {
         }
         row = doc.createElement('tr');
         row.innerHTML = `
-          <td>${number}</td>
+          ${template === 'move_out_v1' ? '' : `<td>${number}</td>`}
           <td>$<span data-agreement-field="amount${number}">___________</span></td>
           <td><span data-agreement-field="date${number}" data-agreement-format="long-date">TBD</span></td>
-          <td><span data-agreement-field="time${number}" title="Time and AM/PM">—</span></td>
+          <td><span data-agreement-field="time${number}" data-agreement-input="time" title="Time and AM/PM">—</span></td>
         `;
         table.querySelector('tbody').append(row);
-
-        const tbody = table.querySelector('tbody');
-
-        const rows = Array.from(
-          tbody.querySelectorAll('[data-agreement-payment-row]')
-        );
-
-        rows.sort((a, b) => {
-          const dateA = inputs.get(`date${a.dataset.agreementPaymentRow}`)?.value || '9999-12-31';
-          const dateB = inputs.get(`date${b.dataset.agreementPaymentRow}`)?.value || '9999-12-31';
-
-          return dateA.localeCompare(dateB);
-        });
-
-        rows.forEach((paymentRow, index) => {
-          if (template !== 'b') paymentRow.querySelector('td').textContent = index + 1;
-          tbody.append(paymentRow);
-        });
       }
       row.className = 'agreement-new-payment';
       row.dataset.agreementPaymentRow = String(number);
+      if (row.tagName === 'TR') sortPaymentRows(doc);
       addPaymentControlsForRow(doc, row, number);
       makeEditable(row);
       editField(doc, row.querySelector(`[data-agreement-field="amount${number}"]`));
@@ -352,7 +394,9 @@ function startDocumentGenerationEditor() {
       if (!choice || !inputs.has(choice.dataset.agreementChoice)) return;
       const choiceField = choice.dataset.agreementChoice;
       const input = inputs.get(choiceField);
-      if (choiceField === 'payment_method' && guide.dataset.agreementTemplate === 'b') {
+      if (choiceField.startsWith('move_out_method_')) {
+        input.value = input.value === 'yes' ? '' : 'yes';
+      } else if (choiceField === 'payment_method' && guide.dataset.agreementTemplate === 'b') {
         const selectedMethods = new Set(input.value.split(',').filter(Boolean));
         const method = choice.dataset.agreementValue;
 
@@ -392,7 +436,7 @@ function startDocumentGenerationEditor() {
       markChoices(doc);
       refreshCount();
     });
-    if (['a', 'b'].includes(guide.dataset.agreementTemplate)) {
+    if ((['a', 'b'].includes(template) || (template === 'move_out_v1' && doc.querySelector('[data-agreement-payment-anchor]')))) {
       addPaymentControls(doc);
     }
     markChoices(doc);
@@ -410,6 +454,15 @@ function startDocumentGenerationEditor() {
   if (frame.contentDocument?.readyState === 'complete') initializeFrame();
   form.addEventListener('submit', event => {
     if (activeEdit) activeEdit.finish(true);
+    if (moveOutRules) {
+      const message = moveOutChecks().find(Boolean) || moveOutSignerError();
+      if (message) {
+        event.preventDefault();
+        report(message);
+        guide.scrollIntoView({ block: 'start', behavior: 'auto' });
+      }
+      return;
+    }
     const dateWithoutAmount = Array.from({ length: 6 }, (_, index) => index + 1).some(number =>
       inputs.get(`date${number}`)?.value && !inputs.get(`amount${number}`)?.value);
     if (dateWithoutAmount) {

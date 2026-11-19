@@ -6,7 +6,7 @@ class AgreementSignature
   def call(original, file:, role:, name:, signed_at:)
     unless file.FileTypes.to_s.downcase.delete_prefix(".") == "html" &&
            File.extname(file.FileURLPath.to_s).downcase == ".html" &&
-           (file.AgreementTemplate.blank? || %w[a b c].include?(file.AgreementTemplate))
+           (file.AgreementTemplate.blank? || [*%w[a b c], MoveOutTerms::TEMPLATE].include?(file.AgreementTemplate))
       raise Invalid, "Unsupported agreement"
     end
     html_content = original.dup.force_encoding(Encoding::UTF_8)
@@ -14,14 +14,20 @@ class AgreementSignature
     signed_date = signed_at.strftime("%B %d, %Y")
     escaped_signature_name = ERB::Util.html_escape(name)
 
-    if file.revised_pay_and_stay?
+    if file.revised_pay_and_stay? || file.revised_move_out?
       slots = {
         "signature" => ["signature-line", "/s/ #{escaped_signature_name}"],
         "name" => ["field", escaped_signature_name],
         "date" => ["date-line", signed_date]
       }
+      if file.revised_move_out?
+        # Unsigned copies generated before capacities had defaults can still be signed.
+        blank_capacity = %r{(<p>Title / capacity: )___________(</p>\s*<p>Date: <span class="date-line" data-signature-slot="#{role}-date">)}
+        html_content.sub!(blank_capacity) { "#{$1}#{role}#{$2}" }
+      end
       slots.each do |slot, (css_class, value)|
-        replace_once!(html_content, /(<span class="#{css_class}" data-signature-slot="#{role}-#{slot}">)___________(<\/span>)/) do |match|
+        placeholder = file.revised_move_out? && slot == "name" ? "(?:___________|Filled when signed)" : "___________"
+        replace_once!(html_content, /(<span class="#{css_class}" data-signature-slot="#{role}-#{slot}">)#{placeholder}(<\/span>)/) do |match|
           "#{match[1]}#{value}#{match[2]}"
         end
       end

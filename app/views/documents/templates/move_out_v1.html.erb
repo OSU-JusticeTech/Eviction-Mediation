@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Move-Out Agreement</title>
+  <style>
+    body { max-width: 48rem; margin: 2rem auto; padding: 0 1rem; color: #161616; font: 1rem/1.45 Georgia, serif; }
+    h1 { text-align: center; }
+    h2 { font-size: 1.2rem; }
+    h3 { font-size: 1.05rem; }
+    .field { white-space: pre-wrap; overflow-wrap: anywhere; text-decoration: underline; }
+    .checkbox::before { content: "☐"; }
+    .checkbox.checked::before { content: "☑"; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: .35rem; border: 1px solid #777; }
+    .signature-block { break-inside: avoid; }
+    [hidden] { display: none; }
+    @media print { .signatures { break-before: page; } }
+  </style>
+</head>
+<body>
+<%
+  terms = @move_out_terms
+  preview = @agreement_editor_preview
+  legacy_schedule = terms["move_out_schedule"].present?
+  field = ->(key, type = "", title = "", sentence_end: false) do
+    value = terms[key].presence || "___________"
+    value = Date.iso8601(value, Date::GREGORIAN).strftime("%B %d, %Y") if !preview && type == "date" && terms[key].present?
+    value = Time.strptime(value, "%H:%M").strftime("%-I:%M %p") if !preview && type == "time" && terms[key].present?
+    span = tag.span(value, class: "field", title: title.presence, data: {
+      agreement_field: key, agreement_input: type.presence,
+      agreement_format: ("long-date" if type == "date")
+    })
+    sentence_end && !value.rstrip.end_with?(".") ? span + "." : span
+  end
+  choice = ->(key, value) do
+    tag.span(tag.span(class: ["checkbox", ("checked" if terms[key] == value)]),
+      data: { agreement_choice: key, agreement_value: value, agreement_select_one: true })
+  end
+  payment = MoveOutTerms.payment?(terms)
+  forgiveness = MoveOutTerms.forgiveness?(terms)
+%>
+<h1>MOVE-OUT AGREEMENT</h1>
+<p>This is the Agreement reached between:</p>
+<h2>Party Information:</h2>
+<p>Landlord / legal entity: <%= field.call("landlord_name", "", "") %></p>
+<% if preview || terms["landlord_representative"].present? %>
+  <p>Landlord’s authorized representative, if applicable: <%= field.call("landlord_representative", "", "") %> <%= field.call("landlord_capacity", "", "") %></p>
+<% end %>
+<p>Tenant(s) Name(s): <%= field.call("tenant_name", "", "") %></p>
+<% if preview || terms["tenant_representative"].present? %>
+  <p>Tenant’s authorized representative, if applicable: <%= field.call("tenant_representative", "", "") %> <%= field.call("tenant_capacity", "", "") %></p>
+<% end %>
+<p>Rental property: <%= field.call("address", "", "") %></p>
+<p>Agreement Date: <%= field.call("negotiation_date", "date", "") %></p>
+<p>The parties had a disagreement concerning: <%= field.call("reason", "textarea", "", sentence_end: true) %></p>
+<p>The parties agreed to the following:</p>
+
+<h2>1. Move-out deadline:</h2>
+<p>Tenant shall vacate and return possession of the rental property by <%= field.call("move_out_time", "time", "") %> on <%= field.call("vacate_date", "date", "", sentence_end: true) %></p>
+<p>How Tenant will notify Landlord that possession has been returned: <%= field.call("possession_notice", "textarea", "", sentence_end: true) %></p>
+
+<h2>2. Landlord’s agreement</h2>
+<% if @agreement_editor_preview || terms["case_status"] == "unfiled" %>
+  <p><%= choice.call("case_status", "unfiled") %> No eviction case concerning this dispute has been filed.</p>
+<% end %>
+<% if preview || terms["case_status"] == "unfiled" %>
+  <p data-agreement-conditional="case_status" data-agreement-conditional-value="unfiled" <%= "hidden" unless terms["case_status"] == "unfiled" %>>If Tenant vacates and returns possession by the deadline in Section 1, Landlord shall not file an eviction action seeking possession based on the dispute addressed by this Agreement.</p>
+<% end %>
+<% if @agreement_editor_preview || terms["case_status"] == "filed" %>
+  <p><%= choice.call("case_status", "filed") %> An eviction case concerning this dispute has been filed.</p>
+<% end %>
+<% if preview || terms["case_status"] == "filed" %>
+  <div data-agreement-conditional="case_status" data-agreement-conditional-value="filed" <%= "hidden" unless terms["case_status"] == "filed" %>>
+    <p>Court: <%= field.call("move_out_court", "", "", sentence_end: true) %> Case number: <%= field.call("move_out_case_number", "", "", sentence_end: true) %></p>
+    <p>If Tenant vacates and returns possession by the deadline in Section 1, Landlord shall file a dismissal of <%= field.call("dismissal_scope", "", "") %> within <%= field.call("dismissal_days", "positive-integer", "") %> business days after Tenant returns possession.</p>
+    <p>Landlord shall provide Tenant a copy of the filed dismissal.</p>
+  </div>
+<% end %>
+<p>Any additional conditions for Landlord’s promise above:</p>
+<% if @agreement_editor_preview || terms["case_conditions"] == "none" %>
+  <p><%= choice.call("case_conditions", "none") %> None.</p>
+<% end %>
+<% if @agreement_editor_preview || terms["case_conditions"] == "specific" %>
+  <p><%= choice.call("case_conditions", "specific") %> Only the following specific conditions: <%= field.call("case_conditions_details", "textarea", "", sentence_end: true) %></p>
+<% end %>
+<p>The move-out instructions in Section 3 are not additional conditions of Landlord’s promise unless expressly identified above.</p>
+<p>Any agreement concerning money claims is stated in Section 5.</p>
+<p>Signing this Agreement does not itself dismiss a case, cancel a hearing, or change a court order. The parties must follow court requirements unless the court changes them.</p>
+
+<h2>3. Move-out Instructions, If Agreed</h2>
+<% if preview || MoveOutTerms::INSTRUCTIONS.any? { |key| terms[key].present? } %>
+  <p>The parties agree to the following selected instructions:</p>
+  <% if preview || terms["key_return"].present? %>
+    <p>Keys and access devices: Tenant shall return <%= field.call("key_return", "textarea", "Items, person or location, and deadline", sentence_end: true) %></p>
+  <% end %>
+  <% if preview || terms["belongings"].present? %><p>Belongings: Tenant shall remove <%= field.call("belongings", "textarea", "", sentence_end: true) %></p><% end %>
+  <% if preview || terms["cleaning"].present? %><p>Cleaning: <%= field.call("cleaning", "textarea", "", sentence_end: true) %></p><% end %>
+  <% if preview || terms["walkthrough"].present? %><p>Walkthrough: <%= field.call("walkthrough", "textarea", "", sentence_end: true) %></p><% end %>
+<% end %>
+<p>Security deposit</p>
+<% if @agreement_editor_preview || terms["deposit_choice"] == "none" %>
+  <p><%= choice.call("deposit_choice", "none") %> No separate arrangement is included. Applicable Ohio law governs.</p>
+<% end %>
+<% if @agreement_editor_preview || terms["deposit_choice"] == "specific" %>
+  <p><%= choice.call("deposit_choice", "specific") %> The parties agree to the following arrangement, consistent with applicable Ohio law: <%= field.call("deposit_details", "textarea", "", sentence_end: true) %></p>
+<% end %>
+<p>Tenant will provide Landlord a forwarding address in writing for the security-deposit accounting and any amount due. Payments, deposit credits, and forgiveness under this Agreement will not be counted twice.</p>
+<p>Unselected instructions are not additional terms of this Agreement.</p>
+
+<h2>4. If Tenant Does Not Vacate As Agreed</h2>
+<p>This Agreement does not authorize Landlord to remove Tenant, change locks, shut off utilities, or remove belongings outside the legal process. Any action to recover possession must follow applicable law and court procedures.</p>
+
+<h2>5. Payment arrangement, If Agreed</h2>
+<% if @agreement_editor_preview || terms["move_out_payment"] == "none" %>
+  <p><%= choice.call("move_out_payment", "none") %> No payment terms are included in this Agreement. This does not, by itself, resolve or forgive any money claim.</p>
+<% end %>
+<% if @agreement_editor_preview || terms["move_out_payment"] == "unresolved" %>
+  <p><%= choice.call("move_out_payment", "unresolved") %> The payment dispute remains unresolved by this Agreement.</p>
+<% end %>
+<% if preview || payment || forgiveness %>
+  <p>The parties include payment and/or conditional-forgiveness terms below.</p>
+  <% if preview %>
+    <p><%= choice.call("move_out_payment", "payment") %> A. Agreed Payment</p>
+    <p><%= choice.call("move_out_payment", "forgiveness") %> B. Conditional Forgiveness</p>
+    <p><%= choice.call("move_out_payment", "both") %> A and B</p>
+  <% end %>
+<% end %>
+<% if preview || payment %>
+  <section data-agreement-conditional="move_out_payment" data-agreement-conditional-value="payment both" <%= "hidden" unless payment %>>
+    <h3>A. Agreed Payment</h3>
+    <p>To resolve <%= field.call("payment_issue", "textarea", "") %>, Tenant agrees to pay Landlord $<%= field.call("move_out_amount", "number", "") %> as follows:</p>
+    <% if preview && legacy_schedule %>
+      <p>Payment amount | Due date (YYYY-MM-DD) | Due time (HH:MM, optional). Enter one payment per line.</p>
+      <p><%= field.call("move_out_schedule", "textarea", "") %></p>
+    <% else %>
+      <table>
+        <thead><tr><th>Payment amount</th><th>Due date</th><th>Due time, if agreed</th></tr></thead>
+        <tbody>
+          <% if legacy_schedule %>
+            <% MoveOutTerms.rows(terms["move_out_schedule"]).each do |amount, date, time| %>
+              <tr><td>$<%= amount %></td><td><%= Date.iso8601(date, Date::GREGORIAN).strftime("%B %d, %Y") %></td>
+                <td><%= Time.strptime(time, "%H:%M").strftime("%-I:%M %p") if time.present? %></td></tr>
+            <% end %>
+          <% else %>
+            <% MoveOutTerms.payment_rows(terms).sort_by { |number, (_, date)| [date.presence || "9999-12-31", number] }.each do |number, (amount, date, time)| %>
+              <tr data-agreement-payment-row="<%= number %>">
+                <td>$<%= preview ? field.call("amount#{number}", "number", "") : amount %></td>
+                <td><%= preview ? field.call("date#{number}", "date", "") : Date.iso8601(date, Date::GREGORIAN).strftime("%B %d, %Y") %></td>
+                <td><%= preview ? field.call("time#{number}", "time", "") : (Time.strptime(time, "%H:%M").strftime("%-I:%M %p") if time.present?) %></td>
+              </tr>
+            <% end %>
+          <% end %>
+        </tbody>
+      </table>
+      <% if preview %><div data-agreement-payment-anchor></div><% end %>
+    <% end %>
+    <p>Landlord agrees to accept these payments under this Agreement. This payment arrangement does not, by itself, establish that every charge originally claimed was correct.</p>
+    <p>Within <%= field.call("payment_confirmation_days", "positive-integer", "") %> business days after Tenant completes the agreed payments, Landlord will provide Tenant written confirmation that this payment obligation has been satisfied.</p>
+  </section>
+<% end %>
+<% if preview || forgiveness %>
+  <section data-agreement-conditional="move_out_payment" data-agreement-conditional-value="forgiveness both" <%= "hidden" unless forgiveness %>>
+    <h3>B. Conditional Forgiveness</h3>
+    <p>If Tenant moves out and returns possession by the deadline in Section 1 and completes the additional conditions identified below, Landlord agrees not to collect the selected amounts or charges.</p>
+    <p>Additional conditions:</p>
+    <% if @agreement_editor_preview || terms["forgiveness_conditions_choice"] == "none" %>
+      <p><%= choice.call("forgiveness_conditions_choice", "none") %> None.</p>
+    <% end %>
+    <% if @agreement_editor_preview || terms["forgiveness_conditions_choice"] == "specific" %>
+      <p><%= choice.call("forgiveness_conditions_choice", "specific") %> The following specific actions and deadlines: <%= field.call("forgiveness_conditions_details", "textarea", "", sentence_end: true) %></p>
+    <% end %>
+    <p>Amounts or charges covered</p>
+    <% if @agreement_editor_preview || terms["forgiveness_scope"] == "all" %>
+      <p><%= choice.call("forgiveness_scope", "all") %> All amounts Landlord claims concerning this tenancy through <%= field.call("forgiveness_cutoff", "date", "") %>, except any payments expressly retained under Section 5A.</p>
+    <% end %>
+    <% if @agreement_editor_preview || terms["forgiveness_scope"] == "specific" %>
+      <p><%= choice.call("forgiveness_scope", "specific") %> Only the following amounts or charges: <%= field.call("forgiveness_charges", "textarea", "", sentence_end: true) %></p>
+    <% end %>
+    <p>Once those conditions are completed, Landlord will not seek payment of the forgiven amounts and will provide Tenant written confirmation within <%= field.call("forgiveness_confirmation_days", "positive-integer", "") %> business days.</p>
+    <p>If the conditions are not completed, this forgiveness does not take effect. That does not, by itself, establish that the claimed amounts are valid or owed.</p>
+    <% if preview || payment %>
+      <p>If both payment and conditional forgiveness are selected: The forgiveness covers <%= field.call("remaining_charges", "textarea", "") %> and does not cancel the agreed payments in Section 5A.</p>
+    <% end %>
+    <p>Treatment of the identified charges in the security-deposit accounting: <%= field.call("forgiveness_deposit_treatment", "textarea", "", sentence_end: true) %></p>
+  </section>
+<% end %>
+
+<% if preview || payment %>
+  <section data-agreement-conditional="move_out_payment" data-agreement-conditional-value="payment both" <%= "hidden" unless payment %>>
+    <h2>6. Payment method, If Applicable</h2>
+    <% if @agreement_editor_preview || terms["move_out_method_portal"] == "yes" %>
+      <p><%= choice.call("move_out_method_portal", "yes") %> Online portal: <%= field.call("move_out_portal", "", "", sentence_end: true) %> The parties have confirmed that the portal accepts the agreed payments.</p>
+    <% end %>
+    <% if @agreement_editor_preview || terms["move_out_method_money_order"] == "yes" %>
+      <p><%= choice.call("move_out_method_money_order", "yes") %> Money order.</p>
+    <% end %>
+    <% if @agreement_editor_preview || terms["move_out_method_check"] == "yes" %>
+      <p><%= choice.call("move_out_method_check", "yes") %> Check: <%= field.call("check_type", "", "", sentence_end: true) %></p>
+    <% end %>
+    <% if @agreement_editor_preview || terms["move_out_method_cash"] == "yes" %>
+      <p><%= choice.call("move_out_method_cash", "yes") %> Cash.</p>
+    <% end %>
+    <% if @agreement_editor_preview || terms["move_out_method_other"] == "yes" %>
+      <p><%= choice.call("move_out_method_other", "yes") %> Other: <%= field.call("other_method", "", "", sentence_end: true) %></p>
+    <% end %>
+    <p>Payments will be made to: <%= field.call("move_out_recipient", "textarea", "", sentence_end: true) %></p>
+    <p>Landlord will provide or make available a receipt or payment confirmation for each payment.</p>
+  </section>
+<% end %>
+
+<h2>7. Additional provisions, If Any</h2>
+<% if @agreement_editor_preview || terms["additional_choice"] == "none" %>
+  <p><%= choice.call("additional_choice", "none") %> None.</p>
+<% end %>
+<% if @agreement_editor_preview || terms["additional_choice"] == "specific" %>
+  <p><%= choice.call("additional_choice", "specific") %> The parties agree to these additional specific terms: <%= field.call("additional_terms", "textarea", "", sentence_end: true) %></p>
+<% end %>
+<p>This Agreement resolves only the matters expressly identified. It does not settle other claims or disagreements.</p>
+<p>This Agreement does not take away legal protections that cannot legally be given up.</p>
+<p>[SIGNATURE PAGE FOLLOWS]</p>
+
+<section class="signatures">
+  <h2>8. Acknowledgement, Signature, and Final Agreement</h2>
+  <p>This Agreement takes effect when all required parties have signed.</p>
+  <p>This Agreement may be signed in separate copies. Each signed copy must contain the same terms. Together, the signed copies form one Agreement.</p>
+  <p>Each party confirms that they have read the completed terms, had an opportunity to ask questions and seek legal advice, and voluntarily agree.</p>
+  <p>Each party will receive a complete signed copy and any attachments. Keep that copy for your records.</p>
+  <% [["Landlord", "Landlord / authorized representatives:"], ["Tenant", "Tenant(s) / authorized representatives:"]].each do |role, label| %>
+    <div class="signature-block">
+      <h3><%= label %></h3>
+      <p>Signature: <span class="signature-line" data-signature-slot="<%= role %>-signature">___________</span></p>
+      <p>Printed name: <span class="field" data-signature-slot="<%= role %>-name">Filled when signed</span></p>
+      <p>Title / capacity: <%= terms["#{role.downcase}_capacity"].presence || role %></p>
+      <p>Date: <span class="date-line" data-signature-slot="<%= role %>-date">___________</span></p>
+    </div>
+  <% end %>
+  <% if preview %><p>Additional required parties: <%= field.call("move_out_additional_signers", "", "", sentence_end: true) %></p><% end %>
+  <p>Attachments: <%= field.call("attachments", "", "", sentence_end: true) %></p>
+</section>
+</body>
+</html>

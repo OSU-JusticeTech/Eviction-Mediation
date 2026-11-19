@@ -280,6 +280,15 @@
                     <% if (params[:counteroffer_error] == field || @counteroffer_error_field == field) %>
                       <p class="suggestion-save-error" role="alert"><%= @agreement_editor_error || (params[:counteroffer_reason] == 'payment' ? (@file.AgreementTemplate == 'b' ? 'Complete the details required by your selections.' : 'A payment date needs a payment amount.') : 'Enter a different value for this counteroffer.') %></p>
                     <% end %>
+                    <% case_status = if @file.revised_move_out? && item[:fields].include?("case_status")
+                         if @counteroffer_error_field == field
+                           @submitted_counteroffer["case_status"]
+                         elsif staged
+                           staged["case_status"]
+                         else
+                           @agreement_proposal.dig("changes", "case_status", "to")
+                         end
+                       end %>
                     <div class="suggestion-counteroffer-fields">
                       <% item[:fields].each do |counter_field| %>
                         <% offered_value = if @counteroffer_error_field == field
@@ -289,18 +298,29 @@
                            else
                              @agreement_proposal["changes"][counter_field]["to"]
                            end %>
-                        <div class="form-group">
+                        <% filed_case_detail = @file.revised_move_out? && MoveOutTerms::FILED_CASE_FIELDS.include?(counter_field) %>
+                        <div class="form-group" <%= 'data-counteroffer-filed-case' if filed_case_detail %>
+                             <%= 'hidden' if filed_case_detail && case_status != "filed" %>>
                           <%= label_tag "counteroffer_#{counter_field}", "Your proposed #{agreement_field_label(counter_field).downcase}", class: "form-label" %>
-                          <% if @file.revised_pay_and_stay? && (choices = pay_and_stay_counteroffer_choices(counter_field)) %>
+                          <% if @file.revised_move_out? && (choices = MoveOutTerms::CHOICES[counter_field]) %>
+                            <%= select_tag "counteroffer[#{counter_field}]", options_for_select(choices.map { |choice| [choice.humanize, choice] }, offered_value),
+                                  include_blank: true, id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% elsif @file.revised_move_out? && MoveOutTerms::METHOD_FIELDS.include?(counter_field) %>
+                            <%= select_tag "counteroffer[#{counter_field}]", options_for_select([["Not selected", ""], ["Selected", "yes"]], offered_value),
+                                  id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% elsif @file.revised_pay_and_stay? && (choices = pay_and_stay_counteroffer_choices(counter_field)) %>
                             <%= select_tag "counteroffer[#{counter_field}]", options_for_select(choices, offered_value),
                                   include_blank: true, id: "counteroffer_#{counter_field}", class: "form-input" %>
-                          <% elsif @file.AgreementTemplate == "b" && PayAndStayTerms::COUNTS.include?(counter_field) %>
+                          <% elsif (@file.AgreementTemplate == "b" && PayAndStayTerms::COUNTS.include?(counter_field)) ||
+                                (@file.revised_move_out? && MoveOutTerms::COUNTS.include?(counter_field)) %>
                             <%= number_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", min: 1, step: 1, class: "form-input" %>
                           <% elsif counter_field.match?(/\Adate[1-6]\z/) || %w[negotiation_date vacate_date lump_sum_date monthly_payment_start final_payment_date forgiveness_deadline].include?(counter_field) ||
-                                (@file.AgreementTemplate == "b" && PayAndStayTerms::DATES.include?(counter_field)) %>
+                                (@file.AgreementTemplate == "b" && PayAndStayTerms::DATES.include?(counter_field)) ||
+                                (@file.revised_move_out? && MoveOutTerms::DATES.include?(counter_field)) %>
                             <%= date_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input" %>
                           <% elsif counter_field.match?(/\Aamount[1-6]\z/) || %w[money_owed monthly_rent rent_owed late_fees utilities other_charges lump_sum_amount monthly_payment_amount final_payment_amount credits_amount reductions_amount forgiveness_amount forgiveness_remaining_amount].include?(counter_field) ||
-                                (@file.AgreementTemplate == "b" && PayAndStayTerms::AMOUNTS.include?(counter_field)) %>
+                                (@file.AgreementTemplate == "b" && PayAndStayTerms::AMOUNTS.include?(counter_field)) ||
+                                (@file.revised_move_out? && counter_field == "move_out_amount") %>
                             <%= number_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", step: 0.01, min: 0, class: "form-input" %>
                           <% elsif PayAndStayTerms::PAYMENT_OPTIONS.key?(counter_field) %>
                             <%= select_tag "counteroffer[#{counter_field}]", options_for_select([["Selected", "1"], ["Not selected", "0"]], offered_value), include_blank: true, id: "counteroffer_#{counter_field}", class: "form-input" %>
@@ -313,10 +333,11 @@
                             <% else %>
                               <%= select_tag "counteroffer[#{counter_field}]", options_for_select(PayAndStayTerms::PAYMENT_METHODS.invert.to_a, offered_value), id: "counteroffer_#{counter_field}", class: "form-input" %>
                             <% end %>
-                          <% elsif counter_field.match?(/\Atime[1-6]\z/) %>
+                          <% elsif counter_field.match?(/\Atime[1-6]\z/) || (@file.revised_move_out? && counter_field == "move_out_time") %>
                             <%= time_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input" %>
                           <% elsif counter_field == "additional_terms" ||
-                                (@file.AgreementTemplate == "b" && PayAndStayTerms::MULTILINE.include?(counter_field)) %>
+                                (@file.AgreementTemplate == "b" && PayAndStayTerms::MULTILINE.include?(counter_field)) ||
+                                (@file.revised_move_out? && counter_field == "move_out_schedule") %>
                             <%= text_area_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input", rows: 3 %>
                           <% else %>
                             <%= text_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input" %>
@@ -365,11 +386,15 @@
         <p class="signing-description">Sign only if you agree to the version shown above. If suggested changes are later accepted, both parties will need to sign the updated document.</p>
         <%= form_with url: apply_signature_document_path(@file.FileID), method: :post, local: true, class: "signature-form" do |form| %>
           <%= hidden_field_tag :agreement_version, @file.AgreementVersion if @file.agreement_document? %>
-          <div class="form-group">
-            <%= form.label :signature_name, "Your Full Name", class: "form-label" %>
-            <%= form.text_field :signature_name, value: "#{signer.FName} #{signer.LName}", class: "form-input", required: true %>
-            <small class="form-hint">Your signature will be recorded as: <strong>/s/ [Your Name]</strong></small>
-          </div>
+          <% if @file.revised_move_out? %>
+            <p>Your signature will be recorded as <strong>/s/ <%= [signer.FName, signer.LName].compact.join(" ").squish %></strong>.</p>
+          <% else %>
+            <div class="form-group">
+              <%= form.label :signature_name, "Your Full Name", class: "form-label" %>
+              <%= form.text_field :signature_name, value: "#{signer.FName} #{signer.LName}", class: "form-input", required: true %>
+              <small class="form-hint">Your signature will be recorded as: <strong>/s/ [Your Name]</strong></small>
+            </div>
+          <% end %>
           <div class="form-actions">
             <%= form.submit "Sign Document", class: "btn-sign", disabled: true, id: "sign-document-button" %>
           </div>
@@ -411,6 +436,12 @@
     }
 
     if (!card) return;
+    card.addEventListener('change', function(event) {
+      if (!event.target.matches('[name="counteroffer[case_status]"]')) return;
+      event.target.form.querySelectorAll('[data-counteroffer-filed-case]').forEach(function(field) {
+        field.hidden = event.target.value !== 'filed';
+      });
+    });
     card.addEventListener('click', function(event) {
       const toggle = event.target.closest('.suggestion-counteroffer-toggle');
       if (!toggle) return;

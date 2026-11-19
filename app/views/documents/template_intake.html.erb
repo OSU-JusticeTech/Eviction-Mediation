@@ -1,4 +1,4 @@
-<% if %w[a b].include?(@template) %>
+<% if ["b", MoveOutTerms::TEMPLATE].include?(@template) %>
   <%= render "generation_editor" %>
 <% else %>
 <div class="docs-wrapper">

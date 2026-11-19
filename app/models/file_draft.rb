@@ -66,7 +66,14 @@ class FileDraft < ApplicationRecord
   def agreement_terms
     return {} unless has_attribute?(:AgreementTerms)
     terms = JSON.parse(self[:AgreementTerms].presence || "{}")
-    terms.is_a?(Hash) ? terms : {}
+    return {} unless terms.is_a?(Hash)
+    return terms unless revised_move_out? && terms["move_out_schedule"].present?
+
+    # Pending proposals created against the old schedule must still apply to that field.
+    if agreement_suggestions_pending? && agreement_proposal.fetch("changes").key?("move_out_schedule")
+      return terms
+    end
+    MoveOutTerms.structured_schedule(terms)
   rescue JSON::ParserError
     {}
   end
@@ -93,7 +100,7 @@ class FileDraft < ApplicationRecord
 
     terms = agreement_terms
     grouped = {}
-    (1..6).each do |number|
+    (revised_move_out? ? [] : (1..6)).each do |number|
       amount_key = "amount#{number}"
       date_key = "date#{number}"
       amount = changes[amount_key]
@@ -124,8 +131,15 @@ class FileDraft < ApplicationRecord
       grouped[date_key] = :skip if date
     end
 
-    if self[:AgreementTemplate] == "b"
-      PayAndStayTerms::REVIEW_GROUPS.each_key do |key|
+    review_groups = if revised_move_out?
+      MoveOutTerms::GROUPS
+    elsif self[:AgreementTemplate] == "b"
+      PayAndStayTerms::REVIEW_GROUPS
+    else
+      {}
+    end
+    unless review_groups.empty?
+      review_groups.each_key do |key|
         fields = changes.keys.select { |field| changes[field]["group_key"] == key }
         next if fields.empty?
 
@@ -149,6 +163,10 @@ class FileDraft < ApplicationRecord
     has_attribute?(:AgreementTemplate) && self[:AgreementTemplate].present? &&
       has_attribute?(:AgreementVersion) && self[:AgreementVersion].present? &&
       agreement_conversation_id.present?
+  end
+
+  def revised_move_out?
+    has_attribute?(:AgreementTemplate) && self[:AgreementTemplate] == MoveOutTerms::TEMPLATE
   end
 
   def revised_pay_and_stay?

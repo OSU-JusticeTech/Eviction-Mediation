@@ -473,13 +473,48 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Please choose a file to upload.", flash[:alert]
   end
 
+  test "the picker presents Move-Out Agreement once in the Template A slot" do
+    log_in_as(@tenant)
+
+    get generate_file_path
+    assert_response :success
+    assert_select ".template-card", text: /Move-Out Agreement/, count: 1 do
+      assert_select ".template-badge", text: "Template A"
+      assert_select "iframe[src=?]", template_preview_path(template: MoveOutTerms::TEMPLATE)
+      assert_select "a[href=?]", template_intake_path(template: MoveOutTerms::TEMPLATE)
+    end
+    assert_select ".template-title", text: "Agree to Vacate", count: 0
+  end
+
+  test "the legacy Move Out conversation preview opens the revised editor" do
+    log_in_as(@tenant)
+    intake = IntakeQuestion.create!(UserID: @tenant.UserID, Reason: "Unknown", BestOption: "Move Out")
+    @mediation.update!(IntakeID: intake.IntakeID)
+    conversation_id = @mediation.ConversationID
+
+    get intake_template_view_path(conversation_id: conversation_id)
+    assert_response :success
+    assert_select "a[href=?]", template_intake_path(template: MoveOutTerms::TEMPLATE,
+                                                  conversation_id: conversation_id,
+                                                  return_to: message_path(conversation_id))
+    assert_select "form[action=?]", generate_filled_template_path, count: 0
+  end
+
+  test "legacy Template A preview renders the revised agreement" do
+    log_in_as(@tenant)
+    get template_preview_path(template: "a")
+
+    assert_response :success
+    assert_select "h1", text: "MOVE-OUT AGREEMENT"
+  end
+
   test "template intake renders with conversation data" do
     log_in_as(@tenant)
 
     get template_intake_path(template: "a"), params: { conversation_id: @mediation.ConversationID }
 
     assert_response :success
-    assert_select "input[type='hidden'][name='additional_terms']", count: 1
+    assert_select "input[name='move_out_time']", count: 1
   end
 
   [ :template_intake, :intake_template_view ].each do |endpoint|
@@ -557,18 +592,23 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_nil assigns(:template_conversation)
-    assert_select "form[action=?]", generate_from_intake_path(template: "a")
+    assert_select "form[action=?]", generate_from_intake_path(template: MoveOutTerms::TEMPLATE)
     assert_select "input[name='conversation_id']", count: 0
   end
 
   test "generated agreement titles use both entered party names for every template" do
     log_in_as(@mediator)
 
-    { "a" => "Agree to Vacate", "b" => "Pay and Stay Agreement", "c" => "Mediation Agreement" }.each do |template, name|
+    templates = {
+      MoveOutTerms::TEMPLATE => ["Move-Out Agreement", move_out_params],
+      "b" => ["Pay and Stay Agreement", pay_and_stay_params],
+      "c" => ["Mediation Agreement", agreement_params]
+    }
+    templates.each do |template, (name, terms)|
       file_ids_before = FileDraft.pluck(:FileID)
 
       post generate_from_intake_path(template: template),
-          params: (template == "b" ? pay_and_stay_params : agreement_params).merge(conversation_id: @mediation.ConversationID)
+           params: terms.merge(conversation_id: @mediation.ConversationID)
 
       assert_redirected_to documents_path
 
@@ -580,15 +620,9 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "vacate agreement displays amount owed and additional terms without a payment schedule" do
-    log_in_as(@tenant)
-    post generate_from_intake_path(template: "a"), params: agreement_params.except(
-      :amount1, :date1, :amount2, :date2
-    ).merge(conversation_id: @mediation.ConversationID, additional_terms: "Return all keys.")
-    file = FileDraft.where(
-      CreatorID: @tenant.UserID,
-      AgreementTemplate: "a"
-    ).order(FileDraft.primary_key => :desc).first!
+  test "historical vacate agreement displays amount owed and additional terms without a payment schedule" do
+    file = create_agreement_draft(terms: agreement_params.except(:amount1, :date1, :amount2, :date2)
+      .merge(additional_terms: "Return all keys."))
     document = Nokogiri::HTML(File.read(DocumentStorage.configured.resolve(file.FileURLPath)))
 
     assert_match "The Tenant owes Landlord $900. Tenant agrees to pay Landlord in the following manner:",
@@ -596,6 +630,22 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "900", document.at_css('[data-agreement-field="money_owed"]').text
     assert_equal "Return all keys.", document.at_css('[data-agreement-field="additional_terms"]').text
     assert_equal 8, document.css("body > ol > li:not([data-agreement-payment-anchor])").count
+  end
+
+  test "historical signed vacate agreements are served with their saved bytes" do
+    file = create_agreement_draft
+    post apply_signature_document_path(file.FileID), params: { agreement_version: 1, signature_name: "John Doe" }
+    assert file.reload.TenantSignature
+    saved_bytes = DocumentStorage.configured.resolve(file.FileURLPath).binread
+    assert_includes saved_bytes, "/s/ John Doe"
+    assert_includes saved_bytes, "The Tenant owes Landlord"
+    refute_includes saved_bytes, "MOVE-OUT AGREEMENT"
+
+    [view_inline_document_path(file.FileID), download_file_path(file.FileID)].each do |path|
+      get path
+      assert_response :success
+      assert_equal saved_bytes, response.body.b
+    end
   end
 
   test "vacate amount owed and additional terms can be suggested and accepted" do
@@ -1180,62 +1230,29 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "You have already signed this document.", flash[:notice]
   end
 
-  test "generate_from_intake creates html file draft" do
+  test "legacy Template A HTML generation creates the revised Move-Out draft" do
     log_in_as(@tenant)
 
     assert_difference("FileDraft.count", 1) do
-      post generate_from_intake_path(template: "a"), params: {
-        landlord_name: "Jane Doe",
-        tenant_name: "John Doe",
-        address: "123 Main Street",
-        negotiation_date: "2026-03-20",
-        reason: "Nonpayment",
-        money_owed: "900"
-      }
+      post generate_from_intake_path(template: "a"), params: move_out_params
     end
 
     assert_redirected_to documents_path
-    assert_equal "Document generated successfully.", flash[:notice]
-    assert FileDraft.exists?(FileName: "Jane Doe - John Doe - Agree to Vacate")
+    file = FileDraft.find_by!(FileName: "Jane Doe - John Doe - Move-Out Agreement")
+    assert_equal MoveOutTerms::TEMPLATE, file.AgreementTemplate
+    assert_includes DocumentStorage.configured.resolve(file.FileURLPath).read, "MOVE-OUT AGREEMENT"
   end
 
-  test "generate_from_intake handles invalid negotiation date" do
+  test "legacy Template A HTML generation requires the revised terms" do
     log_in_as(@tenant)
 
-    assert_difference("FileDraft.count", 1) do
-      post generate_from_intake_path(template: "a"), params: {
-        landlord_name: "Jane Doe",
-        tenant_name: "John Doe",
-        address: "123 Main Street",
-        negotiation_date: "not-a-date",
-        reason: "Nonpayment",
-        money_owed: "900"
-      }
+    assert_no_difference("FileDraft.count") do
+      post generate_from_intake_path(template: "a"), params: agreement_params
     end
 
-    assert_redirected_to documents_path
-  end
-
-  test "agreement generation allows a payment schedule with a different total" do
-    log_in_as(@tenant)
-
-    assert_difference("FileDraft.count", 1) do
-      post generate_from_intake_path(template: "a"), params: agreement_params.merge(amount2: "300")
-    end
-
-    assert_redirected_to documents_path
-  end
-
-  test "agreement generation allows an empty payment schedule" do
-    log_in_as(@tenant)
-
-    assert_difference("FileDraft.count", 1) do
-      post generate_from_intake_path(template: "a"), params: agreement_params.except(
-        :amount1, :date1, :amount2, :date2
-      )
-    end
-
-    assert_redirected_to documents_path
+    assert_response :unprocessable_entity
+    assert_select "form[action=?]", generate_from_intake_path(template: MoveOutTerms::TEMPLATE)
+    assert_select "input[name='landlord_name'][value='Jane Doe']"
   end
 
   test "generate_from_intake supports pay and stay template" do
@@ -1855,10 +1872,9 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   %w[a c].each do |template|
-    test "template #{template} ignores pay and stay fields during creation and review" do
+    test "template #{template} ignores pay and stay fields during review" do
       unrelated = { rental_assistance: "invalid", payment_application: "invalid", additional_signature_parties: "Alex" }
-      file = create_agreement_draft(template: template, terms: agreement_params.merge(unrelated))
-      assert_empty file.agreement_terms.slice(*unrelated.keys.map(&:to_s))
+      file = create_agreement_draft(template: template)
 
       # A record previously created by the shared allowlist can still be reviewed.
       file.update!(AgreementTerms: file.agreement_terms.merge(unrelated.stringify_keys).to_json)
@@ -1930,6 +1946,263 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_includes html, marker
   end
 
+  test "Move-Out returns incomplete terms to the editor without saving" do
+    log_in_as(@tenant)
+    assert_no_difference("FileDraft.count") do
+      post generate_from_intake_path(template: MoveOutTerms::TEMPLATE),
+           params: move_out_params.merge(case_status: "filed")
+    end
+    assert_response :unprocessable_entity
+    assert_select '[data-agreement-editor-error]', text: 'Complete the court.'
+    assert_select 'input[name="move_out_time"][value="16:30"]'
+  end
+
+  test "Move-Out groups deadline changes through counteroffer acceptance and signs the accepted version" do
+    terms = move_out_params.merge(
+      landlord_representative: "Jane Doe", landlord_capacity: "Property manager",
+      reason: "Failure to Pay Rent.", attachments: "None."
+    )
+    file = create_agreement_draft(template: MoveOutTerms::TEMPLATE, terms: terms)
+    html = DocumentStorage.configured.resolve(file.FileURLPath).binread
+    assert_includes html, "MOVE-OUT AGREEMENT"
+    assert_includes html, "4:30 PM"
+    assert_includes html, "No payment terms are included"
+    refute_includes html, "shall file a dismissal"
+    refute_includes html, "B. Conditional Forgiveness"
+
+    log_in_as(@landlord)
+    patch update_review_document_path(file.FileID), params: { agreement_version: 1, move_out_time: "15:00" }
+    assert_redirected_to view_file_path(file.FileID)
+    assert_equal ["move_out_deadline"], file.reload.agreement_suggestion_items.pluck(:key)
+
+    log_in_as(@tenant)
+    get view_file_path(file.FileID)
+    assert_response :success
+    patch counteroffer_document_suggestion_path(file.FileID, "move_out_deadline"),
+          params: { counteroffer: move_out_params.slice(:vacate_date, :possession_notice).merge(move_out_time: "14:15") }, as: :json
+    assert_response :success
+
+    log_in_as(@landlord)
+    patch decide_document_suggestion_path(file.FileID, "move_out_deadline"), params: { decision: "accepted" }, as: :json
+    assert_response :success
+    assert_equal 2, file.reload.AgreementVersion
+    assert_equal "14:15", file.agreement_terms["move_out_time"]
+    post apply_signature_document_path(file.FileID), params: { signature_name: "Jane <Doe>", agreement_version: 2 }
+
+    log_in_as(@tenant)
+    post apply_signature_document_path(file.FileID), params: { agreement_version: 2 }
+    assert file.reload.agreement_fully_executed?
+    assert_equal "Failure to Pay Rent.", file.agreement_terms["reason"]
+    assert_equal "None.", file.agreement_terms["attachments"]
+
+    get download_file_path(file.FileID)
+    assert_response :success
+    html = response.body
+    assert_equal DocumentStorage.configured.resolve(file.FileURLPath).binread, html
+    assert_includes html, "2:15 PM"
+    assert_includes html, "/s/ Jane Doe"
+    assert_includes html, "/s/ John Doe"
+    page = Nokogiri::HTML(html)
+    assert_includes page.css("p").map(&:text), "The parties had a disagreement concerning: Failure to Pay Rent."
+    assert_includes page.css("p").map(&:text), "How Tenant will notify Landlord that possession has been returned: Email the property office."
+    assert_includes page.css("p").map(&:text), "Attachments: None."
+    assert_equal "Jane Doe", page.at_css('[data-signature-slot="Landlord-name"]').text
+    assert_equal "John Doe", page.at_css('[data-signature-slot="Tenant-name"]').text
+    assert_equal ["Title / capacity: Property manager", "Title / capacity: Tenant"],
+                 page.css(".signature-block p").map(&:text).grep(/Title \/ capacity/)
+  end
+
+  test "Move-Out renders filed dismissal, agreed payments and conditional forgiveness together" do
+    terms = move_out_params.merge(
+      case_status: "filed", move_out_court: "Municipal Court", move_out_case_number: "2026 CV 42",
+      dismissal_scope: "the possession claim", dismissal_days: "5",
+      move_out_payment: "both", payment_issue: "May rent", move_out_amount: "350",
+      amount2: "200", date2: "2026-04-01", time2: "17:45",
+      amount1: "140", date1: "2026-04-10",
+      payment_confirmation_days: "3", move_out_method_check: "yes", check_type: "Personal check",
+      move_out_recipient: "Property office", forgiveness_conditions_choice: "none",
+      forgiveness_scope: "specific", forgiveness_charges: "Late fees",
+      forgiveness_confirmation_days: "7", remaining_charges: "May late fees",
+      forgiveness_deposit_treatment: "No deposit deduction for forgiven charges"
+    )
+    file = create_agreement_draft(template: MoveOutTerms::TEMPLATE, terms: terms)
+    page = Nokogiri::HTML(DocumentStorage.configured.resolve(file.FileURLPath).binread)
+    assert_includes page.text, "the possession claim"
+    assert_includes page.text, "Landlord shall provide Tenant a copy of the filed dismissal."
+    refute_includes page.text, "Landlord shall not file"
+    assert_equal ["$200", "April 01, 2026", "5:45 PM", "$140", "April 10, 2026", ""],
+                 page.css("tbody td").map(&:text)
+    assert_includes page.text, "May late fees"
+    assert_includes page.text, "No deposit deduction for forgiven charges"
+    assert_includes page.text, "Personal check"
+  end
+
+  test "Move-Out blocks an incomplete payment schedule" do
+    log_in_as(@tenant)
+    bad_payment = move_out_params.merge(
+      move_out_payment: "payment", payment_issue: "May rent", move_out_amount: "350",
+      amount1: "350", date1: "2026-02-30", payment_confirmation_days: "3",
+      move_out_method_cash: "yes", move_out_recipient: "Property office"
+    )
+    assert_no_difference("FileDraft.count") do
+      post generate_from_intake_path(template: MoveOutTerms::TEMPLATE), params: bad_payment
+      assert_response :unprocessable_entity
+      assert_select '[data-agreement-editor-error]', text: 'Enter a valid due date for payment 1.'
+      assert_select 'input[name="amount1"][value="350"]'
+      assert_select 'input[name="date1"][value="2026-02-30"]'
+    end
+  end
+
+  test "Move-Out generates with only landlord and tenant signatures" do
+    log_in_as(@tenant)
+    [nil, "", "  ", "None", " nOnE "].each do |signers|
+      params = signers.nil? ? move_out_params : move_out_params.merge(move_out_additional_signers: signers)
+      assert_difference("FileDraft.count", 1, "Additional required parties: #{signers.inspect}") do
+        post generate_from_intake_path(template: MoveOutTerms::TEMPLATE), params: params
+        assert_response :redirect
+        file = FileDraft.where(CreatorID: @tenant.UserID).order(FileDraft.primary_key => :desc).first!
+        page = Nokogiri::HTML(DocumentStorage.configured.resolve(file.FileURLPath).binread)
+        assert_equal %w[Landlord-signature Tenant-signature],
+                     page.css('[data-signature-slot$="-signature"]').map { |slot| slot["data-signature-slot"] }
+        assert_includes page.text, "Title / capacity: Landlord"
+        assert_includes page.text, "Title / capacity: Tenant"
+      end
+    end
+  end
+
+  test "Move-Out rejects agreements that require another signer" do
+    log_in_as(@tenant)
+
+    assert_no_difference("FileDraft.count") do
+      ["Second tenant", "None, except a guarantor"].each do |signers|
+        post generate_from_intake_path(template: MoveOutTerms::TEMPLATE),
+             params: move_out_params.merge(move_out_additional_signers: signers)
+        assert_response :unprocessable_entity
+        assert_select '[data-agreement-editor-error]', text: MoveOutTerms::ADDITIONAL_SIGNERS_ERROR
+        assert_select 'input[name="move_out_additional_signers"][value=?]', signers
+      end
+    end
+  end
+
+  test "Move-Out preview offers one case choice and excludes stale filed terms from an unfiled agreement" do
+    log_in_as(@tenant)
+    get template_preview_path(template: MoveOutTerms::TEMPLATE)
+    assert_response :success
+    assert_select '[data-agreement-choice="case_status"][data-agreement-select-one]', count: 2
+    assert_select '[data-agreement-conditional="case_status"][data-agreement-conditional-value="filed"][hidden]' do
+      %w[move_out_court move_out_case_number dismissal_scope dismissal_days].each do |field|
+        assert_select "[data-agreement-field='#{field}']"
+      end
+    end
+    assert_select '[data-agreement-field="walkthrough"][data-agreement-input="textarea"]'
+
+    file = create_agreement_draft(template: MoveOutTerms::TEMPLATE, terms: move_out_params.merge(
+      move_out_court: "Stale Court", move_out_case_number: "Stale case",
+      dismissal_scope: "Stale dismissal", dismissal_days: "invalid",
+      walkthrough: "Meet at the front door after key return."
+    ))
+    assert_empty file.agreement_terms.keys & %w[move_out_court move_out_case_number dismissal_scope dismissal_days]
+    html = DocumentStorage.configured.resolve(file.FileURLPath).binread
+    refute_includes html, "Stale"
+    assert_includes html, "Meet at the front door after key return."
+  end
+
+  test "Move-Out generation checks the active payment and forgiveness requirements" do
+    log_in_as(@tenant)
+    payment = move_out_params.merge(move_out_payment: "payment", payment_issue: "Rent", move_out_amount: "350",
+      payment_confirmation_days: "3", move_out_method_cash: "yes", move_out_recipient: "Property office")
+    {
+      {} => /Add at least one payment/,
+      { amount3: "12.345", date3: "2026-04-01" } => /valid amount for payment 3/,
+      { amount3: "12.34", date3: "2026-04-01", time3: "25:00" } => /valid due time for payment 3/
+    }.each do |row, error|
+      assert_no_difference("FileDraft.count") do
+        post generate_from_intake_path(template: MoveOutTerms::TEMPLATE), params: payment.merge(row)
+        assert_response :unprocessable_entity
+        assert_select '[data-agreement-editor-error]', text: error
+      end
+    end
+
+    create_agreement_draft(template: MoveOutTerms::TEMPLATE, terms: payment.merge(amount3: "12.34", date3: "2026-04-01"))
+    forgiveness = payment.merge(move_out_payment: "forgiveness", amount3: "invalid", date3: "invalid",
+      forgiveness_conditions_choice: "none", forgiveness_scope: "all", forgiveness_cutoff: "2026-04-30",
+      forgiveness_confirmation_days: "3", forgiveness_deposit_treatment: "No deduction")
+    file = create_agreement_draft(template: MoveOutTerms::TEMPLATE, terms: forgiveness)
+    refute file.agreement_terms.key?("amount3")
+    html = DocumentStorage.configured.resolve(file.FileURLPath).binread
+    assert_includes html, "April 30, 2026"
+    refute_includes html, "A. Agreed Payment"
+
+    post generate_from_intake_path(template: MoveOutTerms::TEMPLATE), params: forgiveness.merge(forgiveness_cutoff: "2026-02-30")
+    assert_response :unprocessable_entity
+    assert_select '[data-agreement-editor-error]', text: /valid date for forgiveness cutoff/
+    create_agreement_draft(template: MoveOutTerms::TEMPLATE, terms: move_out_params.merge(move_out_payment: "unresolved"))
+  end
+
+  test "Move-Out keeps payment row slots across removal, counteroffer and acceptance" do
+    terms = move_out_params.merge(move_out_payment: "payment", payment_issue: "Rent", move_out_amount: "350",
+      payment_confirmation_days: "3", move_out_method_cash: "yes", move_out_recipient: "Property office",
+      amount1: "100", date1: "2026-04-10", time1: "09:30", amount4: "200", date4: "2026-04-01")
+    file = create_agreement_draft(template: MoveOutTerms::TEMPLATE, terms: terms)
+    log_in_as(@landlord)
+    get view_inline_document_path(file.FileID, editable_preview: 1)
+    assert_select 'tr[data-agreement-payment-row="4"] [data-agreement-field="time4"][data-agreement-input="time"]'
+    assert_select '[data-agreement-payment-anchor]'
+    patch update_review_document_path(file.FileID), params: {
+      agreement_version: 1, amount1: "", date1: "", time1: "", amount2: "75", date2: "2026-04-05"
+    }
+    assert_redirected_to view_file_path(file.FileID)
+    item = file.reload.agreement_suggestion_items.sole
+    assert_equal "move_out_financial_terms", item[:key]
+
+    log_in_as(@tenant)
+    proposed = file.agreement_proposal.fetch("changes").transform_values { |change| change.fetch("to") }
+    patch counteroffer_document_suggestion_path(file.FileID, item[:key]),
+          params: { counteroffer: proposed.merge("date4" => "2026-04-15", "time4" => "18:30") }, as: :json
+    assert_response :success
+
+    log_in_as(@landlord)
+    patch decide_document_suggestion_path(file.FileID, item[:key]), params: { decision: "accepted" }, as: :json
+    assert_response :success
+    assert_equal [2, 4], MoveOutTerms.payment_rows(file.reload.agreement_terms).map(&:first)
+    page = Nokogiri::HTML(DocumentStorage.configured.resolve(file.FileURLPath).binread)
+    assert_equal %w[2 4], page.css("tbody tr").map { |row| row["data-agreement-payment-row"] }
+    assert_equal "6:30 PM", page.css("tbody tr").last.css("td").last.text
+  end
+
+  test "Move-Out preserves previously saved pipe-delimited schedules while opening them as payment rows" do
+    terms = move_out_params.merge(move_out_payment: "payment", payment_issue: "Rent", move_out_amount: "350",
+      payment_confirmation_days: "3", move_out_method_cash: "yes", move_out_recipient: "Property office",
+      amount1: "100", date1: "2026-04-10", amount2: "200", date2: "2026-04-01", time2: "17:45")
+    file = create_agreement_draft(template: MoveOutTerms::TEMPLATE, terms: terms)
+    old_terms = file.agreement_terms.except(*MoveOutTerms::ROW_FIELDS).merge(
+      "move_out_schedule" => "100 | 2026-04-10\n200 | 2026-04-01 | 17:45"
+    )
+    file.update!(AgreementTerms: old_terms.to_json)
+    source = DocumentStorage.configured.resolve(file.FileURLPath)
+    original = source.binread
+    log_in_as(@landlord)
+    get view_inline_document_path(file.FileID, editable_preview: 1)
+    assert_response :success
+    assert_select 'tr[data-agreement-payment-row="2"] [data-agreement-field="time2"]', text: "17:45"
+    assert_equal old_terms, JSON.parse(file.reload.AgreementTerms)
+    assert_equal original, source.binread
+  end
+
+  test "Move-Out and Pay-and-Stay keep their separate terms and renderers" do
+    move_out = create_agreement_draft(template: MoveOutTerms::TEMPLATE,
+                                     terms: move_out_params.merge(monthly_rent: "9876"))
+    pay_and_stay = create_agreement_draft(template: "b",
+                                         terms: pay_and_stay_params.merge(move_out_time: "16:30"))
+    refute move_out.agreement_terms.key?("monthly_rent")
+    refute pay_and_stay.agreement_terms.key?("move_out_time")
+    assert pay_and_stay.revised_pay_and_stay?
+    refute pay_and_stay.revised_move_out?
+    html = DocumentStorage.configured.resolve(pay_and_stay.FileURLPath).binread
+    assert_includes html, "PAY-AND-STAY AGREEMENT"
+    refute_includes html, "Move-out deadline"
+  end
+
   test "generate_from_intake saves without sharing and returns to conversation" do
     log_in_as(@tenant)
 
@@ -1938,16 +2211,8 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_difference("FileDraft.count", 1) do
       assert_no_difference("Message.count") do
         assert_no_difference("FileAttachment.count") do
-          post generate_from_intake_path(template: "a"), params: {
-            landlord_name: "Jane Doe",
-            tenant_name: "John Doe",
-            address: "123 Main Street",
-            negotiation_date: "2026-03-20",
-            reason: "Nonpayment",
-            money_owed: "900",
-            conversation_id: @mediation.ConversationID,
-            return_to: return_path
-          }
+          post generate_from_intake_path(template: MoveOutTerms::TEMPLATE),
+               params: move_out_params.merge(conversation_id: @mediation.ConversationID, return_to: return_path)
         end
       end
     end
@@ -2540,9 +2805,9 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
   test "agreements without a conversation do not enter the review workflow" do
     log_in_as(@tenant)
-    post generate_from_intake_path(template: "a"), params: agreement_params
+    post generate_from_intake_path(template: MoveOutTerms::TEMPLATE), params: move_out_params
     file = FileDraft.where(CreatorID: @tenant.UserID, FileTypes: "html").order(Arel.sql("[CreatedAt] DESC")).first
-    assert_equal "a", file.AgreementTemplate
+    assert_equal MoveOutTerms::TEMPLATE, file.AgreementTemplate
     assert_nil file.agreement_conversation_id
     assert_not file.agreement_signable?
   end
@@ -2550,7 +2815,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   test "sending a generated agreement from the chat attaches it and starts review" do
     activate_mediation(@mediation)
     log_in_as(@tenant)
-    post generate_from_intake_path(template: "a"), params: agreement_params
+    post generate_from_intake_path(template: MoveOutTerms::TEMPLATE), params: move_out_params
     file = FileDraft.where(CreatorID: @tenant.UserID, FileTypes: "html").order(Arel.sql("[CreatedAt] DESC")).first
 
     assert_difference("Message.count", 1) do
@@ -2567,27 +2832,22 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", text: "Review & Sign"
   end
 
-  test "generate_filled_template creates pdf file draft" do
+  test "both legacy PDF routes send explicit and implicit Template A to the revised editor" do
     log_in_as(@tenant)
+    conversation_id = @mediation.ConversationID
+    return_path = message_path(conversation_id)
 
-    assert_difference("FileDraft.count", 1) do
-      post generate_filled_template_path, params: {
-        template: "a",
-        landlord_name: "Jane Doe",
-        tenant_name: "John Doe",
-        address: "123 Main Street",
-        negotiation_date: "2026-03-20",
-        reason: "Nonpayment",
-        money_owed: "900",
-        best_option: "Move Out",
-        amount1: "900",
-        date1: "2026-03-30"
-      }
+    [generate_filled_template_path, generate_filled_template_document_path("legacy-id")].each do |path|
+      [{ template: "a" }, {}].each do |legacy_params|
+        assert_no_difference("FileDraft.count") do
+          post path, params: legacy_params.merge(conversation_id: conversation_id, return_to: return_path)
+        end
+
+        assert_response :see_other
+        assert_redirected_to template_intake_path(template: MoveOutTerms::TEMPLATE,
+                                                  conversation_id: conversation_id, return_to: return_path)
+      end
     end
-
-    assert_redirected_to documents_path
-    assert_equal "Document generated.", flash[:notice]
-    assert FileDraft.exists?(FileName: "Jane Doe - John Doe - Agree to Vacate", FileTypes: "pdf")
   end
 
   test "legacy pay and stay generation opens the current agreement editor" do
@@ -2669,8 +2929,8 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_difference("FileDraft.count", 1) do
       assert_no_difference("Message.count") do
         assert_no_difference("FileAttachment.count") do
-          post generate_from_intake_path(template: "a"),
-              params: agreement_params.merge(
+          post generate_from_intake_path(template: MoveOutTerms::TEMPLATE),
+              params: move_out_params.merge(
                 conversation_id: @mediation.ConversationID
               )
         end
@@ -2681,7 +2941,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     file = FileDraft.where(
       CreatorID: @tenant.UserID,
-      AgreementTemplate: "a"
+      AgreementTemplate: MoveOutTerms::TEMPLATE
     ).order(FileDraft.primary_key => :desc).first!
 
     assert_nil file.AgreementConversationID
@@ -2699,8 +2959,8 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
       assert_difference("FileDraft.count", 1) do
         assert_no_difference("Message.count") do
           assert_no_difference("FileAttachment.count") do
-            post generate_from_intake_path(template: "a"),
-                params: agreement_params.merge(
+            post generate_from_intake_path(template: MoveOutTerms::TEMPLATE),
+                params: move_out_params.merge(
                   conversation_id: @mediation.ConversationID
                 )
           end
@@ -2712,7 +2972,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     file = FileDraft.where(
       CreatorID: @tenant.UserID,
-      AgreementTemplate: "a"
+      AgreementTemplate: MoveOutTerms::TEMPLATE
     ).order(FileDraft.primary_key => :desc).first!
 
     assert_nil file.AgreementConversationID
@@ -2957,9 +3217,9 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     when "upload"
       post documents_path, params: { file: build_uploaded_file("private.txt", "text/plain", "private upload bytes") }
     when "html"
-      post generate_from_intake_path(template: "a"), params: agreement_params
+      post generate_from_intake_path(template: MoveOutTerms::TEMPLATE), params: move_out_params
     when "pdf"
-      post generate_filled_template_path, params: agreement_params.merge(template: "a")
+      post generate_filled_template_path, params: agreement_params.merge(template: "c")
     end
   end
 
@@ -3006,6 +3266,14 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
       amount1: "500", date1: "2026-03-30", amount2: "400", date2: "2026-04-30" }
   end
 
+  def move_out_params
+    agreement_params.slice(:landlord_name, :tenant_name, :address, :negotiation_date, :reason, :vacate_date).merge(
+      move_out_time: "16:30", possession_notice: "Email the property office",
+      case_status: "unfiled", case_conditions: "none", deposit_choice: "none",
+      move_out_payment: "none", additional_choice: "none", attachments: "None"
+    )
+  end
+
   def pay_and_stay_params
     agreement_params.except(:vacate_date, :amount1, :date1, :amount2, :date2).merge(
       monthly_rent: "1200", regular_rent_due_day: "1", regular_rent_arrangement: "unchanged",
@@ -3030,15 +3298,16 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     log_in_as(@tenant)
     terms ||= template == "b" ? pay_and_stay_params : agreement_params
 
-    post generate_from_intake_path(template: template),
-        params: terms.merge(conversation_id: @mediation.ConversationID)
+    file = if template == "a"
+      create_historical_vacate_draft(terms)
+    else
+      post generate_from_intake_path(template: template),
+           params: terms.merge(conversation_id: @mediation.ConversationID)
+      assert_response :redirect
 
-    assert_response :redirect
-
-    file = FileDraft.where(
-      CreatorID: @tenant.UserID,
-      FileTypes: "html"
-    ).order(FileDraft.primary_key => :desc).first!
+      FileDraft.where(CreatorID: @tenant.UserID, FileTypes: "html")
+               .order(FileDraft.primary_key => :desc).first!
+    end
 
     assert_nil file.AgreementConversationID
 
@@ -3070,6 +3339,26 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     (@legacy_agreement_fixture_paths ||= []) << legacy_path
     file.update!(FileURLPath: legacy_locator)
     file
+  end
+
+  def create_historical_vacate_draft(terms)
+    controller = DocumentsController.new
+    controller.send(:assign_agreement_template_variables, "a", terms.stringify_keys)
+    html = DocumentsController.renderer.render(template: "documents/templates/agree_to_vacate",
+                                               assigns: controller.view_assigns, layout: false)
+
+    writer = ->(path) { File.write(path, html) }
+    DocumentCreation.new.call(extension: "html", writer: writer) do |locator|
+      attrs = {
+        FileID: SecureRandom.uuid, FileName: "Jane Doe - John Doe - Agree to Vacate",
+        FileTypes: "html", FileURLPath: locator, CreatorID: @tenant.UserID,
+        TenantSignature: false, LandlordSignature: false,
+        AgreementTemplate: "a", AgreementTerms: terms.to_json, AgreementVersion: 1
+      }
+      key, value = controller.send(:next_filedraft_pk_value)
+      attrs[key] = value if key && value
+      FileDraft.create!(attrs).reload
+    end
   end
 
   def create_checkpoint_pay_and_stay_draft

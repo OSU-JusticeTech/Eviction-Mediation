@@ -1,6 +1,8 @@
 <div class="docs-wrapper"
      data-document-generation-editor
-     data-agreement-template="<%= @template %>">
+     data-agreement-template="<%= @template %>"
+     <% if @template == MoveOutTerms::TEMPLATE %>data-required-agreement-fields="<%= MoveOutTerms::REQUIRED.join(" ") %>"
+       data-move-out-rules="<%= MoveOutTerms.editor_rules.to_json %>"<% end %>>
 
   <h1 class="docs-title">Create <%= @template_name %></h1>
   <p class="docs-subtitle">
@@ -23,7 +25,7 @@
     <% fields = @generation_fields %>
 
     <% fields.each do |field| %>
-      <% next if field == "reason" %>
+      <% next if field == "reason" && @template != MoveOutTerms::TEMPLATE %>
 
       <%= hidden_field_tag field,
                           @generation_values.fetch(field, ""),
@@ -44,7 +46,7 @@
                           placeholder: "Example: Unpaid rent for September and October 2026",
                           data: { agreement_term: "reason" } %>
       </div>
-    <% else %>
+    <% elsif @template != MoveOutTerms::TEMPLATE %>
       <div class="form-group" style="margin: 20px 0;">
         <%= label_tag :reason, "Reason for Dispute", class: "form-label required-label" %>
 

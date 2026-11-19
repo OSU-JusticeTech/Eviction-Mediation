@@ -13,6 +13,7 @@ function startAgreementEditor() {
   const error = guide.querySelector('[data-agreement-editor-error]');
   const inputs = new Map(Array.from(form.querySelectorAll('[data-agreement-term]')).map(input => [input.dataset.agreementTerm, input]));
   const original = new Map(Array.from(inputs, ([key, input]) => [key, input.dataset.agreementOriginal ?? input.value]));
+  const template = guide.dataset.agreementTemplate;
   let activeEdit = null;
   let movedToPreview = false;
 
@@ -39,7 +40,7 @@ function startAgreementEditor() {
       const ordinal = `${day}${suffix}`;
       return field === 'monthly_payment_day' ? ordinal : `the ${ordinal} day of each month`;
     }
-    if (/^time[1-6]$/.test(field) && /^\d{2}:\d{2}$/.test(value)) {
+    if ((/^time[1-6]$/.test(field) || field === 'move_out_time') && /^\d{2}:\d{2}$/.test(value)) {
       const [hours, minutes] = value.split(':').map(Number);
 
       if (hours < 24 && minutes < 60) {
@@ -71,7 +72,7 @@ function startAgreementEditor() {
     });
 
     rows.forEach((row, index) => {
-      if (guide.dataset.agreementTemplate !== 'b') row.querySelector('td').textContent = index + 1;
+      if (!['b', 'move_out_v1'].includes(template)) row.querySelector('td').textContent = index + 1;
       tbody.append(row);
     });
   }
@@ -139,7 +140,8 @@ function startAgreementEditor() {
       const expectedValue = section.dataset.agreementConditionalValue;
 
       const value = inputs.get(field)?.value || '';
-      const selected = field === 'payment_method' ? value.split(',').includes(expectedValue) : value === expectedValue;
+      const selected = field === 'payment_method' ?
+        value.split(',').includes(expectedValue) : expectedValue.split(' ').includes(value);
 
       section.hidden = !selected;
     });
@@ -181,7 +183,7 @@ function startAgreementEditor() {
         if (activeEdit) activeEdit.finish(true);
         writeField(doc, `amount${number}`, '');
         writeField(doc, `date${number}`, '');
-        if (guide.dataset.agreementTemplate === 'b') {
+        if (['b', 'move_out_v1'].includes(template)) {
           writeField(doc, `time${number}`, '');
         }
         row.remove();
@@ -197,7 +199,8 @@ function startAgreementEditor() {
     add.textContent = '+ Add payment';
     add.addEventListener('click', () => {
       const number = Array.from({ length: 6 }, (_, index) => index + 1).find(index =>
-        !inputs.get(`amount${index}`)?.value && !inputs.get(`date${index}`)?.value);
+        !doc.querySelector(`[data-agreement-payment-row="${index}"]`) &&
+        !inputs.get(`amount${index}`)?.value && !inputs.get(`date${index}`)?.value && !inputs.get(`time${index}`)?.value);
       if (!number) { report('The payment schedule supports up to six payments.'); return; }
       report('');
       let row;
@@ -223,11 +226,11 @@ function startAgreementEditor() {
         }
         row = doc.createElement('tr');
         row.innerHTML = `
-          <td>${number}</td>
+          ${template === 'move_out_v1' ? '' : `<td>${number}</td>`}
           <td>$<span data-agreement-field="amount${number}">___________</span></td>
           <td><span data-agreement-field="date${number}" data-agreement-format="long-date">TBD</span></td>
-          ${guide.dataset.agreementTemplate === 'b'
-            ? `<td><span data-agreement-field="time${number}" title="Time and AM/PM">—</span></td>`
+          ${['b', 'move_out_v1'].includes(template)
+            ? `<td><span data-agreement-field="time${number}" data-agreement-input="time" title="Time and AM/PM">—</span></td>`
             : ''}
         `;
         table.querySelector('tbody').append(row);
@@ -255,7 +258,7 @@ function startAgreementEditor() {
       if (activeEdit) activeEdit.finish(true);
       writeField(doc, `amount${number}`, '');
       writeField(doc, `date${number}`, '');
-      if (guide.dataset.agreementTemplate === 'b') {
+      if (['b', 'move_out_v1'].includes(template)) {
         writeField(doc, `time${number}`, '');
       }
       row.remove();
@@ -304,7 +307,9 @@ function startAgreementEditor() {
       if (!choice || !inputs.has(choice.dataset.agreementChoice)) return;
       const choiceField = choice.dataset.agreementChoice;
       const input = inputs.get(choiceField);
-      if (choiceField === 'payment_method' && guide.dataset.agreementTemplate === 'b') {
+      if (choiceField.startsWith('move_out_method_')) {
+        input.value = input.value === 'yes' ? '' : 'yes';
+      } else if (choiceField === 'payment_method' && guide.dataset.agreementTemplate === 'b') {
         const method = choice.dataset.agreementValue;
         const selectedMethods = new Set(input.value.split(',').filter(Boolean));
 
@@ -345,7 +350,7 @@ function startAgreementEditor() {
       markChoices(doc);
       refreshCount();
     });
-    if (['a', 'b'].includes(guide.dataset.agreementTemplate)) {
+    if ((['a', 'b'].includes(template) || (template === 'move_out_v1' && doc.querySelector('[data-agreement-payment-anchor]')))) {
       addPaymentControls(doc);
     }
     markChoices(doc);
