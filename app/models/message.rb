@@ -50,8 +50,10 @@ class Message < ApplicationRecord
       # the system message used when generating and sharing in one action.
       recipients = notification_recipients.select { |user| [ mediation.TenantID, mediation.LandlordID ].include?(user.UserID) }
       agreements.each do |file|
-        status = if file.TenantSignature && file.LandlordSignature
+        status = if file.agreement_fully_executed?
           "Both parties have already signed this agreement."
+        elsif file.TenantSignature && file.LandlordSignature
+          PayAndStayTerms::ADDITIONAL_SIGNERS_NOTICE
         elsif file.agreement_suggestions_pending?
           "Suggestions remain pending. Review them before signing."
         else

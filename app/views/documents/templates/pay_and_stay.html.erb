@@ -70,6 +70,12 @@
       display: inline-block;
       min-width: 100px;
       padding: 0 5px;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    [hidden] {
+      display: none !important;
     }
 
     .field-short {
@@ -168,14 +174,14 @@
 
   <!-- PAGE 1 -->
   <div class="page">
-    <h1>Pay and Stay Agreement</h1>
+    <h1>PAY-AND-STAY AGREEMENT</h1>
 
     <div class="info-box">
       <h2>About This Agreement (please read)</h2>
 
       <p>
         This Agreement helps a landlord and tenant resolve a rent or payment issue
-        through an agreed payment arrangement. Landlord's promises about not filing
+        through an agreed payment arrangement. Landlord’s promises about not filing
         or pursuing eviction and dismissing an existing case are stated in Section 5.
       </p>
 
@@ -185,51 +191,51 @@
       </p>
     </div>
 
-    <h2>Party Information</h2>
+    <h2>Party Information:</h2>
 
     <p>
-      <strong>Landlord / legal entity:</strong>
-      <span class="field field-long" data-agreement-field="landlord_name"><%= @landlord %></span>
+      <strong>Landlord / legal entity:</strong><%= " *" if @agreement_editor_preview %>
+      <span class="field field-long" data-agreement-field="landlord_name" title="Name"><%= @landlord %></span>
     </p>
 
     <p>
-      <strong>Landlord's authorized representative, if applicable:</strong>
+      <strong>Landlord’s authorized representative, if applicable:</strong>
       <span class="field field-long"
-            data-agreement-field="landlord_representative"><%= @landlord_representative %></span>
+            data-agreement-field="landlord_representative" title="Name and capacity"><%= @landlord_representative %></span>
     </p>
 
     <p>
-      <strong>Tenant(s):</strong>
-      <span class="field field-long" data-agreement-field="tenant_name"><%= @tenant %></span>
+      <strong>Tenant(s):</strong><%= " *" if @agreement_editor_preview %>
+      <span class="field field-long" data-agreement-field="tenant_name" title="Names"><%= @tenant %></span>
     </p>
 
     <p>
-      <strong>Tenant's authorized representative, if applicable:</strong>
+      <strong>Tenant’s authorized representative, if applicable:</strong>
       <span class="field field-long"
-            data-agreement-field="tenant_representative"><%= @tenant_representative %></span>
+            data-agreement-field="tenant_representative" title="Name and capacity"><%= @tenant_representative %></span>
     </p>
 
     <p>
-      <strong>Rental property:</strong>
-      <span class="field field-full" data-agreement-field="address"><%= @address %></span>
+      <strong>Rental property:</strong><%= " *" if @agreement_editor_preview %>
+      <span class="field field-full" data-agreement-field="address" title="Street, unit, city, Ohio, ZIP"><%= @address %></span>
     </p>
 
     <p>
-      <strong>Agreement Date:</strong>
+      <strong>Agreement Date:</strong><%= " *" if @agreement_editor_preview %>
       <span class="field field-medium"
-            data-agreement-field="negotiation_date"
+            data-agreement-field="negotiation_date" title="Date"
             data-agreement-format="long-date"><%= @date %></span>
     </p>
 
     <h3>1. Reason for Agreement</h3>
 
     <p>
-      This Agreement addresses the following payment issue:
+      This Agreement addresses the following payment issue:<%= " *" if @agreement_editor_preview %>
     </p>
 
     <p class="indent">
       <span class="field field-full"
-            data-agreement-field="reason"><%= @reason %></span>
+            data-agreement-field="reason" title="Briefly identify the payments and months or dates covered."><%= @reason %></span>
     </p>
 
     <p>
@@ -270,48 +276,48 @@
         <% if @agreement_editor_preview || @rent_owed.present? || @rent_period.present? %>
           <tr>
             <td>Rent</td>
-            <td><span class="field" data-agreement-field="rent_period"><%= @rent_period %></span></td>
+            <td><span class="field" data-agreement-field="rent_period" title="Months or dates"><%= @rent_period %></span></td>
             <td>$<span data-agreement-field="rent_owed"><%= @rent_owed %></span></td>
           </tr>
         <% end %>
         <% if @agreement_editor_preview || @late_fees.present? || @late_fees_description.present? %>
           <tr>
             <td>Late fees, if legally permitted</td>
-            <td><span class="field" data-agreement-field="late_fees_description"><%= @late_fees_description %></span></td>
+            <td><span class="field" data-agreement-field="late_fees_description" title="Details"><%= @late_fees_description %></span></td>
             <td>$<span data-agreement-field="late_fees"><%= @late_fees %></span></td>
           </tr>
         <% end %>
         <% if @agreement_editor_preview || @utilities.present? || @utilities_period.present? %>
           <tr>
             <td>Utilities</td>
-            <td><span class="field" data-agreement-field="utilities_period"><%= @utilities_period %></span></td>
+            <td><span class="field" data-agreement-field="utilities_period" title="Period or description"><%= @utilities_period %></span></td>
             <td>$<span data-agreement-field="utilities"><%= @utilities %></span></td>
           </tr>
         <% end %>
         <% if @agreement_editor_preview || @other_charges.present? || @other_charges_description.present? %>
           <tr>
             <td>Other specifically identified charges</td>
-            <td><span class="field" data-agreement-field="other_charges_description"><%= @other_charges_description %></span></td>
+            <td><span class="field" data-agreement-field="other_charges_description" title="Description"><%= @other_charges_description %></span></td>
             <td>$<span data-agreement-field="other_charges"><%= @other_charges %></span></td>
           </tr>
         <% end %>
         <% if @agreement_editor_preview || @credits_amount.present? || @credits_description.present? %>
           <tr>
             <td>Less payments and credits already received</td>
-            <td><span class="field" data-agreement-field="credits_description"><%= @credits_description %></span></td>
-            <td>− $<span data-agreement-field="credits_amount"><%= @credits_amount %></span></td>
+            <td><span class="field" data-agreement-field="credits_description" title="Details"><%= @credits_description %></span></td>
+            <td>- $<span data-agreement-field="credits_amount"><%= @credits_amount %></span></td>
           </tr>
         <% end %>
         <% if @agreement_editor_preview || @reductions_amount.present? || @reductions_description.present? %>
           <tr>
             <td>Less agreed reductions effective when this Agreement takes effect</td>
-            <td><span class="field" data-agreement-field="reductions_description"><%= @reductions_description %></span></td>
-            <td>− $<span data-agreement-field="reductions_amount"><%= @reductions_amount %></span></td>
+            <td><span class="field" data-agreement-field="reductions_description" title="Details"><%= @reductions_description %></span></td>
+            <td>- $<span data-agreement-field="reductions_amount"><%= @reductions_amount %></span></td>
           </tr>
         <% end %>
         <tr>
-          <td colspan="2"><strong>Total agreed payment amount</strong></td>
-          <td><strong>$<span data-agreement-field="money_owed"><%= @money_owed %></span></strong></td>
+          <td colspan="2"><strong>Total agreed payment amount</strong><%= " *" if @agreement_editor_preview %></td>
+          <td><strong>$<span data-agreement-field="money_owed" title="Sum of the applicable items"><%= @money_owed %></span></strong><%= " *" if @agreement_editor_preview %></td>
         </tr>
       </tbody>
     </table>
@@ -320,7 +326,7 @@
 
     <p>
       <strong>Are there other payment issues the parties want to identify as unresolved?
-      Select one.</strong>
+      Select one.</strong><%= " *" if @agreement_editor_preview %>
     </p>
 
     <div class="checkbox-group">
@@ -339,7 +345,8 @@
           Yes:
           <% if @agreement_editor_preview || @unresolved_payment_issues == "yes" %>
             <span class="field field-long"
-                  data-agreement-field="unresolved_payment_details"><%= @unresolved_payment_details %></span>
+                  data-agreement-field="unresolved_payment_details" title="Identify specifically."
+                  data-agreement-conditional="unresolved_payment_issues" data-agreement-conditional-value="yes"><%= @unresolved_payment_details %></span>
           <% end %>
         </span>
       </div>
@@ -348,27 +355,25 @@
     <hr style="border: 1px solid #000; margin: 15px 0;">
 
 
-    <h3>3. Payment Plan (Pay & Stay Terms)</h3>
-
-    <p>To resolve this balance, the tenant agrees to make the following payments:</p>
+    <h3>3. Payment Plan</h3>
 
     <p>
-      <strong>Regular Rent:</strong>
-      Tenant will pay regular monthly rent of
+      <strong>Regular Rent:</strong><%= " *" if @agreement_editor_preview %>
+      Tenant will continue to pay regular monthly rent of
       $<span class="field field-medium" data-agreement-field="monthly_rent"><%= @monthly_rent %></span>,
-      due on the
-      <span class="field field-short" data-agreement-field="regular_rent_due_day"><%= @regular_rent_due_day %></span>
-      day of each month.
+      due
+      <span class="field field-short" data-agreement-field="regular_rent_due_day" title="Day of the month (1–31) or date (YYYY-MM-DD)"><%= @regular_rent_due_day.to_s.match?(/\A\d{1,2}\z/) ? "the #{@regular_rent_due_day.to_i.ordinalize} day of each month" : @regular_rent_due_day %></span>
+      under the rental agreement, except for any change expressly agreed below.<%= " *" if @agreement_editor_preview %>
     </p>
 
-    <p><strong>Regular Rent Arrangement (Select one):</strong></p>
+    <p><strong>Select one.</strong><%= " *" if @agreement_editor_preview %></p>
 
     <div class="checkbox-group">
       <div class="checkbox-item"
           data-agreement-choice="regular_rent_arrangement"
           data-agreement-value="unchanged">
         <div class="checkbox<%= @regular_rent_arrangement == 'unchanged' ? ' checked' : '' %>"></div>
-        <span>The regular rent arrangement remains unchanged.</span>
+        <span>No change to regular rent or its due date.</span>
       </div>
 
       <div class="checkbox-item"
@@ -376,46 +381,49 @@
           data-agreement-value="modified">
         <div class="checkbox<%= @regular_rent_arrangement == 'modified' ? ' checked' : '' %>"></div>
         <span>
-          The parties agree to the following change:
+          The parties agree to this change:
           <% if @agreement_editor_preview || @regular_rent_arrangement == "modified" %>
             <span class="field field-long"
-                  data-agreement-field="regular_rent_change_details"><%= @regular_rent_change_details %></span>
+                  data-agreement-field="regular_rent_change_details" title="Amount, due date, and/or duration"
+                  data-agreement-conditional="regular_rent_arrangement" data-agreement-conditional-value="modified"><%= @regular_rent_change_details %></span>.
           <% end %>
         </span>
       </div>
     </div>
 
-    <p><strong>Additional Payments Toward Balance (Check all that apply):</strong></p>
+    <p>Regular rent is separate from the additional payments below.</p>
+
+    <p><strong>Additional Payments – Select All That Apply</strong><%= " *" if @agreement_editor_preview %></p>
 
     <div class="checkbox-group">
       <div class="checkbox-item" data-agreement-choice="payment_lump_sum" data-agreement-value="1">
         <div class="checkbox<%= @payment_lump_sum ? ' checked' : '' %>"></div>
         <span>
-          <strong>Lump Sum Payment:</strong> $<span class="field field-medium" data-agreement-field="lump_sum_amount"><%= @lump_sum_amount.present? ? @lump_sum_amount : '___________' %></span>
-          due on or before <span class="field field-medium" data-agreement-field="lump_sum_date"><%= @lump_sum_date.present? ? @lump_sum_date : '___________' %></span> at 5:00 PM
+          <strong>Lump Sum Payment:</strong> $<span class="field field-medium" data-agreement-field="lump_sum_amount"><%= (@agreement_editor_preview || @payment_lump_sum) && @lump_sum_amount.present? ? @lump_sum_amount : '___________' %></span>,
+          due on <span class="field field-medium" data-agreement-field="lump_sum_date"><%= (@agreement_editor_preview || @payment_lump_sum) && @lump_sum_date.present? ? @lump_sum_date : '___________' %></span>.
         </span>
       </div>
       <div class="checkbox-item" data-agreement-choice="payment_monthly" data-agreement-value="1">
         <div class="checkbox<%= @payment_monthly ? ' checked' : '' %>"></div>
         <span>
-          <strong>Monthly Payments:</strong> $<span class="field field-medium" data-agreement-field="monthly_payment_amount"><%= @monthly_payment_amount.present? ? @monthly_payment_amount : '___________' %></span>
-          per month for <span class="field field-short" data-agreement-field="monthly_payment_months"><%= @monthly_payment_months.present? ? @monthly_payment_months : '___________' %></span> months, due on or before the
-          <span class="field field-short" data-agreement-field="monthly_payment_day"><%= @monthly_payment_day.present? ? @monthly_payment_day : '___________' %></span> day of each month, starting
-          <span class="field field-medium" data-agreement-field="monthly_payment_start"><%= @monthly_payment_start.present? ? @monthly_payment_start : '___________' %></span>
+          <strong>Monthly Payments:</strong> $<span class="field field-medium" data-agreement-field="monthly_payment_amount"><%= (@agreement_editor_preview || @payment_monthly) && @monthly_payment_amount.present? ? @monthly_payment_amount : '___________' %></span>
+          per month for <span class="field field-short" data-agreement-field="monthly_payment_months"><%= (@agreement_editor_preview || @payment_monthly) && @monthly_payment_months.present? ? @monthly_payment_months : '___________' %></span> months, due on the
+          <span class="field field-short" data-agreement-field="monthly_payment_day"><%= (@agreement_editor_preview || @payment_monthly) && @monthly_payment_day.present? ? @monthly_payment_day.to_i.ordinalize : '___________' %></span> of each month, starting
+          <span class="field field-medium" data-agreement-field="monthly_payment_start"><%= (@agreement_editor_preview || @payment_monthly) && @monthly_payment_start.present? ? @monthly_payment_start : '___________' %></span>.
         </span>
       </div>
       <div class="checkbox-item" data-agreement-choice="payment_final" data-agreement-value="1">
         <div class="checkbox<%= @payment_final ? ' checked' : '' %>"></div>
         <span>
-          <strong>Final Payment:</strong> $<span class="field field-medium" data-agreement-field="final_payment_amount"><%= @final_payment_amount.present? ? @final_payment_amount : '___________' %></span>
-          due on or before <span class="field field-medium" data-agreement-field="final_payment_date"><%= @final_payment_date.present? ? @final_payment_date : '___________' %></span> at 5:00 PM
+          <strong>Final Payment:</strong> $<span class="field field-medium" data-agreement-field="final_payment_amount"><%= (@agreement_editor_preview || @payment_final) && @final_payment_amount.present? ? @final_payment_amount : '___________' %></span>,
+          due on <span class="field field-medium" data-agreement-field="final_payment_date"><%= (@agreement_editor_preview || @payment_final) && @final_payment_date.present? ? @final_payment_date : '___________' %></span>.
         </span>
       </div>
       <div class="checkbox-item"
           data-agreement-choice="payment_custom_schedule"
           data-agreement-value="1">
         <div class="checkbox<%= @payment_custom_schedule ? ' checked' : '' %>"></div>
-        <span><strong>Other Payment Schedule</strong></span>
+        <span><strong>Other Payment Schedule:</strong></span>
       </div>
       <% if @agreement_editor_preview || @payment_custom_schedule %>
         <div data-agreement-conditional="payment_custom_schedule"
@@ -426,15 +434,15 @@
               <tr>
                 <th>Payment</th>
                 <th>Amount</th>
-                <th>Due Date</th>
-                <th>Due Time (if agreed)</th>
+                <th>Due date</th>
+                <th>Due time, if agreed</th>
               </tr>
             </thead>
 
             <tbody>
-              <% Array(@schedule).each_with_index do |(index, amount, due_date), position| %>
+              <% Array(@schedule).each do |index, amount, due_date| %>
                 <tr data-agreement-payment-row="<%= index %>">
-                  <td><%= position + 1 %></td>
+                  <td><%= index %></td>
                   <td>$<span data-agreement-field="amount<%= index %>"><%= amount %></span></td>
                   <td>
                     <span data-agreement-field="date<%= index %>"
@@ -447,7 +455,7 @@
                                         else
                                           "—"
                                         end %>
-                    <span data-agreement-field="time<%= index %>"><%= formatted_time %></span>
+                    <span data-agreement-field="time<%= index %>" title="Time and AM/PM"><%= formatted_time %></span>
                   </td>
                 </tr>
               <% end %>
@@ -455,53 +463,60 @@
           </table>
 
           <div data-agreement-payment-anchor></div>
+          <% if @agreement_editor_preview %><p>[Add payments as needed.]</p><% end %>
         </div>
       <% end %>
     </div>
 
-    <p><strong>Payment Method (Select all that apply):</strong></p>
+    <p><strong>Payment Method – Select All Agreed Methods</strong><%= " *" if @agreement_editor_preview %></p>
     <div class="checkbox-group">
       <div class="checkbox-item" data-agreement-choice="payment_method" data-agreement-value="online_portal">
         <div class="checkbox<%= @payment_method.to_s.split(',').include?('online_portal') ? ' checked' : '' %>"></div>
-        <span>Online portal (Note: Some portals do <strong>not</strong> accept partial payments. Tenant and Landlord must confirm in advance
-        that this payment plan can be processed through the portal.)</span>
+        <span>Online portal:
+          <span class="field field-medium" data-agreement-field="payment_portal_name" title="Name or address"
+                data-agreement-conditional="payment_method" data-agreement-conditional-value="online_portal"
+                <%= 'hidden' unless @agreement_editor_preview || @payment_method.to_s.split(',').include?('online_portal') %>><%= @payment_portal_name.presence || '___________' %></span>.
+          The parties have confirmed that the portal accepts the agreed payments.</span>
       </div>
       <div class="checkbox-item" data-agreement-choice="payment_method" data-agreement-value="money_order">
         <div class="checkbox<%= @payment_method.to_s.split(',').include?('money_order') ? ' checked' : '' %>"></div>
-        <span>Money order</span>
+        <span>Money order.</span>
       </div>
       <div class="checkbox-item" data-agreement-choice="payment_method" data-agreement-value="cashiers_check">
         <div class="checkbox<%= @payment_method.to_s.split(',').include?('cashiers_check') ? ' checked' : '' %>"></div>
-        <span>Cashier's check</span>
+        <span>Cashier’s check.</span>
       </div>
       <div class="checkbox-item"
           data-agreement-choice="payment_method"
           data-agreement-value="personal_check">
         <div class="checkbox<%= @payment_method.to_s.split(',').include?('personal_check') ? ' checked' : '' %>"></div>
-        <span>Personal check</span>
+        <span>Personal check.</span>
       </div>
       <div class="checkbox-item"
           data-agreement-choice="payment_method"
           data-agreement-value="cash">
         <div class="checkbox<%= @payment_method.to_s.split(',').include?('cash') ? ' checked' : '' %>"></div>
-        <span>Cash</span>
+        <span>Cash.</span>
       </div>
       <div class="checkbox-item" data-agreement-choice="payment_method" data-agreement-value="other">
         <div class="checkbox<%= @payment_method.to_s.split(',').include?('other') ? ' checked' : '' %>"></div>
-        <span>Other (describe): <span class="field field-long" data-agreement-field="payment_method_other_description"><%= @payment_method.to_s.split(',').include?('other') && @payment_method_other_description.present? ? @payment_method_other_description : '___________' %></span></span>
+        <span>Other: <span class="field field-long" data-agreement-field="payment_method_other_description" title="Describe"
+          data-agreement-conditional="payment_method" data-agreement-conditional-value="other"
+          <%= "hidden" unless @agreement_editor_preview || @payment_method.to_s.split(",").include?("other") %>><%= @payment_method.to_s.split(',').include?('other') && @payment_method_other_description.present? ? @payment_method_other_description : '___________' %></span>.</span>
       </div>
     </div>
 
     <p>
-      <strong>Payments will be made to:</strong>
-      <span class="field field-long" data-agreement-field="payment_recipient_instructions"><%= @payment_recipient_instructions.present? ? ERB::Util.html_escape(@payment_recipient_instructions) : '___________' %></span>
+      <strong>Payments will be made to:</strong><%= " *" if @agreement_editor_preview %>
+      <span class="field field-long" data-agreement-field="payment_recipient_instructions" title="Recipient and payment location or instructions"><%= @payment_recipient_instructions.present? ? ERB::Util.html_escape(@payment_recipient_instructions) : '___________' %></span>.
     </p>
 
     <p>
       Landlord will provide or make available a receipt or payment confirmation for each payment.
     </p>
 
-    <p><strong>How Payments Will Be Applied (Select one):</strong></p>
+    <p><strong>How Payments Will Be Applied</strong><%= " *" if @agreement_editor_preview %></p>
+    <p><strong>Select one.</strong><%= " *" if @agreement_editor_preview %></p>
 
     <div class="checkbox-group">
       <div class="checkbox-item"
@@ -521,12 +536,14 @@
         <span>
           Payments will be applied differently:
           <span class="field field-long"
-                data-agreement-field="payment_application_instructions"><%= @payment_application_instructions.present? ? ERB::Util.html_escape(@payment_application_instructions) : '___________' %></span>
+                data-agreement-field="payment_application_instructions" data-agreement-conditional="payment_application" data-agreement-conditional-value="different"
+          <%= "hidden" unless @agreement_editor_preview || @payment_application == "different" %> title="Specific instructions"><%= @payment_application_instructions.present? ? ERB::Util.html_escape(@payment_application_instructions) : '___________' %></span>.
         </span>
       </div>
     </div>
 
-    <p><strong>Conditional Reduction or Forgiveness (Select one):</strong></p>
+    <p><strong>Conditional Reduction or Forgiveness</strong><%= " *" if @agreement_editor_preview %></p>
+    <p><strong>Select one.</strong><%= " *" if @agreement_editor_preview %></p>
 
     <div class="checkbox-group">
       <div class="checkbox-item"
@@ -542,15 +559,20 @@
         <div class="checkbox<%= @conditional_reduction == 'conditional' ? ' checked' : '' %>"></div>
         <span>
           Landlord agrees not to collect
-          $<span class="field field-short" data-agreement-field="forgiveness_amount"><%= ERB::Util.html_escape(@forgiveness_amount.to_s.presence || '___________') %></span>
+          $<span class="field field-short" data-agreement-field="forgiveness_amount" data-agreement-conditional="conditional_reduction" data-agreement-conditional-value="conditional"
+          <%= "hidden" unless @agreement_editor_preview || @conditional_reduction == "conditional" %>><%= ERB::Util.html_escape(@forgiveness_amount.to_s.presence || '___________') %></span>
           of the payment amount identified in Section 2 if Tenant completes
           the following payments or conditions by
-          <span class="field field-medium" data-agreement-field="forgiveness_deadline" data-agreement-format="long-date"><%= @forgiveness_deadline.present? ? Date.iso8601(@forgiveness_deadline).strftime('%B %-d, %Y') : '___________' %></span>:
-          <span class="field field-long" data-agreement-field="forgiveness_conditions"><%= ERB::Util.html_escape(@forgiveness_conditions.to_s.presence || '___________') %></span>.
+          <span class="field field-medium" data-agreement-field="forgiveness_deadline" data-agreement-conditional="conditional_reduction" data-agreement-conditional-value="conditional"
+          <%= "hidden" unless @agreement_editor_preview || @conditional_reduction == "conditional" %> data-agreement-format="long-date"><%= (@agreement_editor_preview ? @forgiveness_deadline.presence : (Date.iso8601(@forgiveness_deadline).strftime("%B %-d, %Y") if @forgiveness_deadline.present?)) || "___________" %></span>:
+          <span class="field field-long" data-agreement-field="forgiveness_conditions" data-agreement-conditional="conditional_reduction" data-agreement-conditional-value="conditional"
+          <%= "hidden" unless @agreement_editor_preview || @conditional_reduction == "conditional" %> title="Specific details"><%= ERB::Util.html_escape(@forgiveness_conditions.to_s.presence || '___________') %></span>.
         </span>
       </div>
     </div>
 
+    <% if @agreement_editor_preview || @conditional_reduction == "conditional" %>
+    <div data-agreement-conditional="conditional_reduction" data-agreement-conditional-value="conditional">
     <p>
       Total additional payments required if these conditions are completed:
       $<span class="field field-medium" data-agreement-field="forgiveness_remaining_amount"><%= ERB::Util.html_escape(@forgiveness_remaining_amount.to_s.presence || '___________') %></span>.
@@ -558,181 +580,268 @@
 
     <p>
       If the conditions are not completed:
-      <span class="field field-long" data-agreement-field="forgiveness_failure_result"><%= ERB::Util.html_escape(@forgiveness_failure_result.to_s.presence || '___________') %></span>.
+      <span class="field field-long" data-agreement-field="forgiveness_failure_result" title="Specify the agreed result"><%= ERB::Util.html_escape(@forgiveness_failure_result.to_s.presence || '___________') %></span>.
     </p>
 
     <p>
       The schedule above reflects this arrangement. Payments and reductions
       will not be counted twice.
     </p>
+    </div>
+    <% end %>
 
   </div>
 
-  <!-- PAGE 3 -->
   <div class="page">
-    <p>
-      Payments must be made using a method accepted by both parties unless they agree otherwise in writing.
-    </p>
-
-    <hr style="border: 1px solid #000; margin: 15px 0;">
-
     <h3>4. Rental Assistance, If Applicable</h3>
-
-    <p><strong>Select one:</strong></p>
-
+    <p><strong>Select one.</strong><%= " *" if @agreement_editor_preview %></p>
     <div class="checkbox-group">
-      <div class="checkbox-item"
-          data-agreement-choice="rental_assistance"
-          data-agreement-value="none">
-        <div class="checkbox<%= @rental_assistance == 'none' ? ' checked' : '' %>"></div>
+      <div class="checkbox-item" data-agreement-choice="rental_assistance" data-agreement-value="none">
+        <div class="checkbox<%= ' checked' if @rental_assistance == 'none' %>"></div>
         <span>No rental assistance arrangement is included.</span>
       </div>
-
-      <div class="checkbox-item"
-          data-agreement-choice="rental_assistance"
-          data-agreement-value="arrangement">
-        <div class="checkbox<%= @rental_assistance == 'arrangement' ? ' checked' : '' %>"></div>
+      <div class="checkbox-item" data-agreement-choice="rental_assistance" data-agreement-value="arrangement">
+        <div class="checkbox<%= ' checked' if @rental_assistance == 'arrangement' %>"></div>
         <span>The parties agree to the following arrangement:</span>
       </div>
     </div>
 
-    <div data-agreement-conditional="rental_assistance"
-        data-agreement-conditional-value="arrangement">
-
-      <p>
-        <strong>Program / provider:</strong>
-        <span class="field field-long"
-              data-agreement-field="assistance_provider"><%= ERB::Util.html_escape(@assistance_provider.to_s.presence || '___________') %></span>
-      </p>
-
+    <div data-agreement-conditional="rental_assistance" data-agreement-conditional-value="arrangement"
+         <%= "hidden" unless @agreement_editor_preview || @rental_assistance == "arrangement" %>>
+      <% if @agreement_editor_preview || @rental_assistance == "arrangement" %>
+      <p><strong>Program / provider:</strong> <span class="field field-medium" data-agreement-field="assistance_provider" title="Name"><%= @assistance_provider.presence || "___________" %></span></p>
       <p><strong>Application status:</strong></p>
-
       <div class="checkbox-group">
-        <div class="checkbox-item"
-            data-agreement-choice="assistance_status"
-            data-agreement-value="not_submitted">
-          <div class="checkbox<%= @assistance_status == 'not_submitted' ? ' checked' : '' %>"></div>
+        <div class="checkbox-item" data-agreement-choice="assistance_status" data-agreement-value="not_submitted">
+          <div class="checkbox<%= ' checked' if @assistance_status == 'not_submitted' %>"></div>
           <span>Not submitted</span>
         </div>
-
-        <div class="checkbox-item"
-            data-agreement-choice="assistance_status"
-            data-agreement-value="pending">
-          <div class="checkbox<%= @assistance_status == 'pending' ? ' checked' : '' %>"></div>
+        <div class="checkbox-item" data-agreement-choice="assistance_status" data-agreement-value="pending">
+          <div class="checkbox<%= ' checked' if @assistance_status == 'pending' %>"></div>
           <span>Pending</span>
         </div>
-
-        <div class="checkbox-item"
-            data-agreement-choice="assistance_status"
-            data-agreement-value="approved">
-          <div class="checkbox<%= @assistance_status == 'approved' ? ' checked' : '' %>"></div>
+        <div class="checkbox-item" data-agreement-choice="assistance_status" data-agreement-value="approved">
+          <div class="checkbox<%= ' checked' if @assistance_status == 'approved' %>"></div>
           <span>Approved</span>
         </div>
       </div>
-
       <p><strong>Expected or approved amount:</strong></p>
-
       <div class="checkbox-group">
-        <div class="checkbox-item"
-            data-agreement-choice="assistance_amount_status"
-            data-agreement-value="specified">
-          <div class="checkbox<%= @assistance_amount_status == 'specified' ? ' checked' : '' %>"></div>
-          <span>
-            $<span class="field field-medium"
-                  data-agreement-field="assistance_amount"><%= ERB::Util.html_escape(@assistance_amount.to_s.presence || '___________') %></span>
-          </span>
+        <div class="checkbox-item" data-agreement-choice="assistance_amount_status" data-agreement-value="specified">
+          <div class="checkbox<%= ' checked' if @assistance_amount_status == 'specified' %>"></div>
+          <span>$<span data-agreement-conditional="assistance_amount_status" data-agreement-conditional-value="specified"
+            <%= "hidden" unless @agreement_editor_preview || @assistance_amount_status == "specified" %>>
+          <% if @agreement_editor_preview || @assistance_amount_status == "specified" %>
+          <span class="field field-medium" data-agreement-field="assistance_amount" data-agreement-input="number"><%= @assistance_amount.presence || "___________" %></span><% end %></span></span>
         </div>
-
-        <div class="checkbox-item"
-            data-agreement-choice="assistance_amount_status"
-            data-agreement-value="unknown">
-          <div class="checkbox<%= @assistance_amount_status == 'unknown' ? ' checked' : '' %>"></div>
+        <div class="checkbox-item" data-agreement-choice="assistance_amount_status" data-agreement-value="unknown">
+          <div class="checkbox<%= ' checked' if @assistance_amount_status == 'unknown' %>"></div>
           <span>Not yet known.</span>
         </div>
       </div>
 
-      <p>
-        <strong>If the amount is entered, is it confirmed?</strong>
-        <span class="field field-short"
-              data-agreement-field="assistance_confirmed"><%= ERB::Util.html_escape(@assistance_confirmed.to_s.presence || '___________') %></span>
-      </p>
-
-      <p>
-        Landlord agrees to accept payments from the identified program on the
-        agreed terms, consistent with applicable law and program requirements.
-      </p>
-
+      <div data-agreement-conditional="assistance_amount_status" data-agreement-conditional-value="specified"
+           <%= "hidden" unless @agreement_editor_preview || @assistance_amount_status == "specified" %>>
+        <% if @agreement_editor_preview || @assistance_amount_status == "specified" %>
+        <p><strong>If the amount is entered, is it confirmed?</strong></p>
+        <div class="checkbox-group">
+          <div class="checkbox-item" data-agreement-choice="assistance_confirmed" data-agreement-value="yes" data-agreement-select-one>
+            <div class="checkbox<%= ' checked' if @assistance_confirmed == 'yes' %>"></div>
+            <span>Yes</span>
+          </div>
+          <div class="checkbox-item" data-agreement-choice="assistance_confirmed" data-agreement-value="no" data-agreement-select-one>
+            <div class="checkbox<%= ' checked' if @assistance_confirmed == 'no' %>"></div>
+            <span>No</span>
+          </div>
+        </div>
+        <% end %>
+      </div>
+      <p>Landlord agrees to accept payments from the identified program on the agreed terms, consistent with applicable law and program requirements.</p>
+      <p>Tenant will complete: <span class="field field-medium" data-agreement-field="assistance_tenant_steps" title="Steps and deadlines / No additional steps agreed"><%= @assistance_tenant_steps.presence || "___________" %></span>.</p>
+      <p>Landlord will provide or complete: <span class="field field-medium" data-agreement-field="assistance_landlord_steps" title="Documents, cooperation, and deadlines / No additional steps agreed"><%= @assistance_landlord_steps.presence || "___________" %></span>.</p>
+      <p><strong>While assistance is pending, Tenant’s additional payments are:</strong></p>
+      <p>Select one.</p>
+      <div class="checkbox-group">
+        <div class="checkbox-item" data-agreement-choice="assistance_pending" data-agreement-value="unchanged" data-agreement-select-one>
+          <div class="checkbox<%= ' checked' if @assistance_pending == 'unchanged' %>"></div>
+          <span>Unchanged.</span>
+        </div>
+        <div class="checkbox-item" data-agreement-choice="assistance_pending" data-agreement-value="deferred" data-agreement-select-one>
+          <div class="checkbox<%= ' checked' if @assistance_pending == 'deferred' %>"></div>
+          <span>Deferred until <span data-agreement-conditional="assistance_pending" data-agreement-conditional-value="deferred"
+            <%= "hidden" unless @agreement_editor_preview || @assistance_pending == "deferred" %>>
+          <% if @agreement_editor_preview || @assistance_pending == "deferred" %>
+          <span class="field field-medium" data-agreement-field="assistance_deferral_date" data-agreement-input="date" data-agreement-format="long-date"><%= (@agreement_editor_preview ? @assistance_deferral_date.presence : (@assistance_deferral_date.to_date.strftime("%B %-d, %Y") if @assistance_deferral_date.present?)) || "___________" %></span><% end %></span>.</span>
+        </div>
+        <div class="checkbox-item" data-agreement-choice="assistance_pending" data-agreement-value="reduced" data-agreement-select-one>
+          <div class="checkbox<%= ' checked' if @assistance_pending == 'reduced' %>"></div>
+          <span>Reduced to $<span data-agreement-conditional="assistance_pending" data-agreement-conditional-value="reduced"
+            <%= "hidden" unless @agreement_editor_preview || @assistance_pending == "reduced" %>>
+          <% if @agreement_editor_preview || @assistance_pending == "reduced" %>
+          <span class="field field-medium" data-agreement-field="assistance_reduced_amount" data-agreement-input="number"><%= @assistance_reduced_amount.presence || "___________" %></span> on <span class="field field-medium" data-agreement-field="assistance_reduced_dates" title="Dates"><%= @assistance_reduced_dates.presence || "___________" %></span><% end %></span>.</span>
+        </div>
+        <div class="checkbox-item" data-agreement-choice="assistance_pending" data-agreement-value="other" data-agreement-select-one>
+          <div class="checkbox<%= ' checked' if @assistance_pending == 'other' %>"></div>
+          <span>Otherwise changed as follows: <span data-agreement-conditional="assistance_pending" data-agreement-conditional-value="other"
+            <%= "hidden" unless @agreement_editor_preview || @assistance_pending == "other" %>>
+          <% if @agreement_editor_preview || @assistance_pending == "other" %>
+          <span class="field field-medium" data-agreement-field="assistance_pending_details" title="Details"><%= @assistance_pending_details.presence || "___________" %></span><% end %></span>.</span>
+        </div>
+      </div>
+      <p><strong>If assistance is delayed, denied, or less than expected:</strong></p>
+      <div class="checkbox-group">
+        <div class="checkbox-item" data-agreement-choice="assistance_keep_schedule" data-agreement-value="1" data-agreement-toggle>
+          <div class="checkbox<%= ' checked' if @assistance_keep_schedule == '1' %>"></div>
+          <span>The schedule in Section 3 remains unchanged.</span>
+        </div>
+        <div class="checkbox-item" data-agreement-choice="assistance_alternative_schedule" data-agreement-value="1" data-agreement-toggle>
+          <div class="checkbox<%= ' checked' if @assistance_alternative_schedule == '1' %>"></div>
+          <span>The following alternative schedule applies: <span data-agreement-conditional="assistance_alternative_schedule" data-agreement-conditional-value="1"
+            <%= "hidden" unless @agreement_editor_preview || @assistance_alternative_schedule == "1" %>>
+          <% if @agreement_editor_preview || @assistance_alternative_schedule == "1" %>
+          <span class="field field-medium" data-agreement-field="assistance_alternative_details" title="Amounts and dates"><%= @assistance_alternative_details.presence || "___________" %></span><% end %></span>.</span>
+        </div>
+        <div class="checkbox-item" data-agreement-choice="assistance_review" data-agreement-value="1" data-agreement-toggle>
+          <div class="checkbox<%= ' checked' if @assistance_review == '1' %>"></div>
+          <span>The parties will review the arrangement by <span data-agreement-conditional="assistance_review" data-agreement-conditional-value="1"
+            <%= "hidden" unless @agreement_editor_preview || @assistance_review == "1" %>>
+          <% if @agreement_editor_preview || @assistance_review == "1" %>
+          <span class="field field-medium" data-agreement-field="assistance_review_date" data-agreement-input="date" data-agreement-format="long-date"><%= (@agreement_editor_preview ? @assistance_review_date.presence : (@assistance_review_date.to_date.strftime("%B %-d, %Y") if @assistance_review_date.present?)) || "___________" %></span><% end %></span>. Until a written change is agreed, Tenant will pay <span data-agreement-conditional="assistance_review" data-agreement-conditional-value="1"
+            <%= "hidden" unless @agreement_editor_preview || @assistance_review == "1" %>>
+          <% if @agreement_editor_preview || @assistance_review == "1" %>
+          <span class="field field-medium" data-agreement-field="assistance_review_schedule" title="Amounts and dates"><%= @assistance_review_schedule.presence || "___________" %></span><% end %></span>.</span>
+        </div>
+      </div>
+      <p>Assistance will be credited to the months or charges it covers, consistent with program requirements. Assistance applied to the agreed payment amount in Section 2 will reduce that amount. Tenant will not be charged twice for the same payment.</p>
+      <p>An application does not guarantee that assistance will be paid.</p>
+      <% end %>
     </div>
 
-    <hr style="border: 1px solid #000; margin: 15px 0;">
-
-    <h3>5. Mediation and Communication</h3>
-
-    <p>
-      A mediator may review and support communication between the parties. Mediators do not give legal advice and
-      cannot make decisions for the parties.
-    </p>
-
-    <hr style="border: 1px solid #000; margin: 15px 0;">
-
-    <h3>6. If the Tenant Pays as Agreed</h3>
-
-    <p>If the tenant makes <strong>all payments</strong> listed in Sections 3 and 4:</p>
-
-    <ul>
-      <li>The landlord will <strong>not</strong> file an eviction case based on the balance covered by this agreement.</li>
-      <li>The tenant may <strong>remain in the property</strong>.</li>
-      <li>Any pending eviction case will be dismissed by the next court date.</li>
-    </ul>
-
-    <hr style="border: 1px solid #000; margin: 15px 0;">
-
-    <h3>7. If the Tenant Does Not Pay as Agreed</h3>
-
-    <p>
-      If the Tenant(s) fail to make any payment as agreed, the landlord may proceed with an eviction action under <strong>ORC
-      Chapter 1923</strong>.
-    </p>
-
-    <hr style="border: 1px solid #000; margin: 15px 0;">
-
-    <h3>8. Additional Terms</h3>
-
-    <p>Any additional terms agreed to by both parties are listed here:</p>
-
-    <% if @additional_terms.present? %>
-      <p data-agreement-field="additional_terms"><%= @additional_terms %></p>
-    <% else %>
-      <p class="field field-full" data-agreement-field="additional_terms">___________</p>
-      <p class="field field-full">___________</p>
-      <p class="field field-full">___________</p>
-      <p class="field field-full">___________</p>
-    <% end %>
-
-    <hr style="border: 1px solid #000; margin: 15px 0;">
-
-    <h3>9. Signatures and Final Agreement</h3>
-
-    <p>
-      Both parties agree that this Agreement may be executed in one or more counterparts, each of which may be signed
-      by a party individually. Upon execution by all parties, their respective signed copies of this Agreement shall be
-      combined into a single, integrated document. The integrated agreement shall be deemed the final, complete, and
-      enforceable version of this Agreement.
-    </p>
-
-    <div class="signature-section" style="margin-top: 20px;">
-      <p>
-        <strong>Landlord:</strong>
-        <span class="signature-line">___________</span>
-        <span style="margin-left: 50px;"><strong>Date:</strong> <span class="date-line">___________</span></span>
-      </p>
-      <p>
-        <strong>Tenant:</strong>
-        <span class="signature-line">___________</span>
-        <span style="margin-left: 50px;"><strong>Date:</strong> <span class="date-line">___________</span></span>
-      </p>
+    <h3>5. If the Tenant Pays as Agreed</h3>
+    <p>While Tenant makes payments as required by Sections 3 and 4, including any applicable correction period in Section 6, Landlord agrees not to file or pursue eviction based on the payment issue covered by this Agreement.</p>
+    <p>Tenant may remain in the property subject to this Agreement, the rental agreement, and applicable law. This Agreement does not itself extend the lease or promise renewal.</p>
+    <p>Once Tenant completes all required payments, accounting for agreed credits or forgiveness, Landlord will treat the payment obligation identified in this Agreement as satisfied and will not seek payment of it again.</p>
+    <p>Within <span class="field field-medium" data-agreement-field="satisfaction_business_days" data-agreement-input="positive-integer"><%= @satisfaction_business_days.presence || "___________" %></span> business days after completion, Landlord will provide Tenant written confirmation that this payment obligation has been satisfied.<%= " *" if @agreement_editor_preview %></p>
+    <p><strong>Existing Eviction Case – Select One</strong><%= " *" if @agreement_editor_preview %></p>
+    <div class="checkbox-group">
+      <div class="checkbox-item" data-agreement-choice="existing_eviction_case" data-agreement-value="none" data-agreement-select-one>
+        <div class="checkbox<%= ' checked' if @existing_eviction_case == 'none' %>"></div>
+        <span>No eviction case concerning this dispute has been filed.</span>
+      </div>
+      <div class="checkbox-item" data-agreement-choice="existing_eviction_case" data-agreement-value="filed" data-agreement-select-one>
+        <div class="checkbox<%= ' checked' if @existing_eviction_case == 'filed' %>"></div>
+        <span>An eviction case has been filed:</span>
+      </div>
     </div>
+    <div data-agreement-conditional="existing_eviction_case" data-agreement-conditional-value="filed"
+         <%= "hidden" unless @agreement_editor_preview || @existing_eviction_case == "filed" %>>
+      <% if @agreement_editor_preview || @existing_eviction_case == "filed" %>
+      <p>Court: <span class="field field-medium" data-agreement-field="eviction_court" title="Name"><%= @eviction_court.presence || "___________" %></span></p>
+      <p>Case number: <span class="field field-medium" data-agreement-field="eviction_case_number" title="Number"><%= @eviction_case_number.presence || "___________" %></span></p>
+      <p>Landlord agrees to file dismissal of — select one:</p>
+      <div class="checkbox-group">
+        <div class="checkbox-item" data-agreement-choice="dismissal_scope" data-agreement-value="possession" data-agreement-select-one>
+          <div class="checkbox<%= ' checked' if @dismissal_scope == 'possession' %>"></div>
+          <span>The request to remove Tenant from the property. Any money claim in this case is not dismissed.</span>
+        </div>
+        <div class="checkbox-item" data-agreement-choice="dismissal_scope" data-agreement-value="entire_case" data-agreement-select-one>
+          <div class="checkbox<%= ' checked' if @dismissal_scope == 'entire_case' %>"></div>
+          <span>The entire case, including any request for money.</span>
+        </div>
+      </div>
+      <p>Dismissal filing deadline: <span class="field field-medium" data-agreement-field="dismissal_deadline" title="Specific date or clearly defined event and number of business days"><%= @dismissal_deadline.presence || "___________" %></span>.</p>
+      <p>Landlord will provide Tenant a copy of the filed dismissal.</p>
+      <% end %>
+    </div>
+    <p>Signing this Agreement does not itself cancel a hearing, dismiss a case, or change a court order. The parties must follow court requirements unless the court changes them.</p>
 
+    <h3>6. If the Tenant Does Not Pay as Agreed</h3>
+    <p>If Tenant fails to make a payment as agreed, Landlord may seek relief available under applicable law, including an eviction action under Ohio Revised Code Chapter 1923, where legally permitted.</p>
+    <p>Landlord must follow applicable notice requirements, court procedures, and any additional terms selected below.</p>
+    <p><strong>Additional Time to Correct a Missed Payment</strong></p>
+    <p><strong>Select One</strong><%= " *" if @agreement_editor_preview %></p>
+    <div class="checkbox-group">
+      <div class="checkbox-item" data-agreement-choice="correction_period" data-agreement-value="none" data-agreement-select-one>
+        <div class="checkbox<%= ' checked' if @correction_period == 'none' %>"></div>
+        <span>No additional contractual period is agreed. Any legally required notice or procedures still apply.</span>
+      </div>
+      <div class="checkbox-item" data-agreement-choice="correction_period" data-agreement-value="notice" data-agreement-select-one>
+        <div class="checkbox<%= ' checked' if @correction_period == 'notice' %>"></div>
+        <span>Before seeking relief for a missed payment, Landlord will give Tenant notice by <span data-agreement-conditional="correction_period" data-agreement-conditional-value="notice"
+          <%= "hidden" unless @agreement_editor_preview || @correction_period == "notice" %>>
+        <% if @agreement_editor_preview || @correction_period == "notice" %>
+        <span class="field field-medium" data-agreement-field="correction_notice_method" title="Method"><%= @correction_notice_method.presence || "___________" %></span><% end %></span>.</span>
+      </div>
+    </div>
+    <div data-agreement-conditional="correction_period" data-agreement-conditional-value="notice"
+         <%= "hidden" unless @agreement_editor_preview || @correction_period == "notice" %>>
+      <% if @agreement_editor_preview || @correction_period == "notice" %>
+      <p>Tenant will have <span class="field field-medium" data-agreement-field="correction_days" data-agreement-input="positive-integer"><%= @correction_days.presence || "___________" %></span> days after <span class="field field-medium" data-agreement-field="correction_start" title="Clearly defined starting point"><%= @correction_start.presence || "___________" %></span> to pay the missed amount.</p>
+      <p>Landlord will not seek relief based on that missed payment during this period. If Tenant pays the missed amount within that period, Landlord will not seek eviction based on that missed payment.</p>
+      <% end %>
+    </div>
+    <p>This Agreement does not authorize automatic eviction or removal without the required legal process.</p>
+
+    <h3>7. Additional Terms, If Any</h3>
+    <p><strong>Select “No additional terms,” or select the applicable terms below.</strong><%= " *" if @agreement_editor_preview %></p>
+    <div class="checkbox-group">
+      <div class="checkbox-item" data-agreement-choice="additional_terms_selection" data-agreement-value="none">
+        <div class="checkbox<%= ' checked' if @additional_terms_selection == 'none' %>"></div>
+        <span>No additional terms.</span>
+      </div>
+      <div class="checkbox-item" data-agreement-choice="review_payment_arrangement" data-agreement-value="1" data-agreement-toggle data-additional-term-option>
+        <div class="checkbox<%= ' checked' if @review_payment_arrangement == '1' %>"></div>
+        <span>The parties will review the payment arrangement on <span data-agreement-conditional="review_payment_arrangement" data-agreement-conditional-value="1"
+          <%= "hidden" unless @agreement_editor_preview || @review_payment_arrangement == "1" %>>
+        <% if @agreement_editor_preview || @review_payment_arrangement == "1" %>
+        <span class="field field-medium" data-agreement-field="payment_review_date" data-agreement-input="date" data-agreement-format="long-date"><%= (@agreement_editor_preview ? @payment_review_date.presence : (@payment_review_date.to_date.strftime("%B %-d, %Y") if @payment_review_date.present?)) || "___________" %></span><% end %></span>. A review does not change the payment schedule unless the parties agree to a change in writing.</span>
+      </div>
+      <div class="checkbox-item" data-agreement-choice="other_additional_terms" data-agreement-value="1" data-agreement-toggle data-additional-term-option>
+        <div class="checkbox<%= ' checked' if @other_additional_terms == '1' %>"></div>
+        <span>Other specific terms agreed to by both parties: <span data-agreement-conditional="other_additional_terms" data-agreement-conditional-value="1"
+          <%= "hidden" unless @agreement_editor_preview || @other_additional_terms == "1" %>>
+        <% if @agreement_editor_preview || @other_additional_terms == "1" %>
+        <span class="field field-medium" data-agreement-field="additional_terms" title="Short description. Include only terms both parties agree to. Do not include terms that take away rights or protections that cannot legally be waived"><%= @additional_terms.presence || "___________" %></span><% end %></span>.</span>
+      </div>
+    </div>
+    <p>Except as expressly changed here, lawful obligations under the rental agreement remain in effect.</p>
+    <p>This Agreement does not take away legal protections that cannot legally be given up.</p>
+    <p>[SIGNATURE PAGE FOLLOWS]</p>
+  </div>
+
+  <div class="page">
+    <h3>8. Acknowledgement and Signatures</h3>
+    <p>This Agreement takes effect when all required parties have signed.</p>
+    <p>This Agreement may be signed in separate copies. Each signed copy must contain the same terms. Together, the signed copies form one Agreement.</p>
+    <p>Each party confirms that they have read the completed terms, had an opportunity to ask questions and seek legal advice, and voluntarily agree.</p>
+    <p>Each party will receive a complete signed copy. Keep that copy for your records.</p>
+
+    <div class="signature-section">
+      <% [["Landlord", "Landlord / Authorized Representative", @landlord_signer_capacity],
+           ["Tenant", "Tenant(s) / Authorized Representative", @tenant_signer_capacity]].each do |role, heading, capacity| %>
+        <div class="signature-block" data-signature-role="<%= role %>">
+          <h4><%= heading %></h4>
+          <p>Signature: <span class="signature-line" data-signature-slot="<%= role %>-signature">___________</span></p>
+          <p>Printed name: <span class="field" data-signature-slot="<%= role %>-name">___________</span></p>
+          <p>Title / capacity: <span class="field" data-agreement-field="<%= role.downcase %>_signer_capacity"><%= capacity.presence || "___________" %></span></p>
+          <p>Date: <span class="date-line" data-signature-slot="<%= role %>-date">___________</span></p>
+        </div>
+      <% end %>
+      <% additional_signers = PayAndStayTerms.additional_signer_names(@additional_signature_parties) %>
+      <% if @agreement_editor_preview && additional_signers.empty? %>
+        <p>The application supports electronic signatures from the landlord and tenant.</p>
+      <% else %>
+        <% additional_signers.each do |name| %>
+          <div class="signature-block">
+            <p>Signature: <span class="signature-line">___________</span></p>
+            <p>Printed name: <span class="field"><%= name %></span></p>
+            <p>Title / capacity: <span class="field">___________</span></p>
+            <p>Date: <span class="date-line">___________</span></p>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+    <p>Attachments: <span class="field field-medium" data-agreement-field="attachments" title="List or “None”" data-agreement-input="textarea"><%= @attachments.presence || "___________" %></span>.</p>
   </div>
 
 </body>

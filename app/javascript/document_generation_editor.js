@@ -23,7 +23,11 @@ function startDocumentGenerationEditor() {
     'negotiation_date',
     'reason',
     'money_owed',
-    ...(template === 'a' ? ['vacate_date'] : [])
+    ...(template === 'a' ? ['vacate_date'] : []),
+    ...(template === 'b' ? [
+      'monthly_rent', 'regular_rent_due_day', 'payment_recipient_instructions',
+      'satisfaction_business_days', 'attachments'
+    ] : [])
   ];
   let activeEdit = null;
   let movedToPreview = false;
@@ -54,6 +58,12 @@ function startDocumentGenerationEditor() {
       if (/^time[1-6]$/.test(field)) return '—';
       return field === 'additional_terms' ? '___________' :
         (node.dataset.agreementFormat === 'long-date' ? 'TBD' : '___________');
+    }
+    if (['regular_rent_due_day', 'monthly_payment_day'].includes(field) && /^\d{1,2}$/.test(value)) {
+      const day = Number(value);
+      const suffix = [11, 12, 13].includes(day) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[day % 10] || 'th');
+      const ordinal = `${day}${suffix}`;
+      return field === 'monthly_payment_day' ? ordinal : `the ${ordinal} day of each month`;
     }
     if (/^time[1-6]$/.test(field) && /^\d{2}:\d{2}$/.test(value)) {
       const [hours, minutes] = value.split(':').map(Number);
@@ -86,7 +96,7 @@ function startDocumentGenerationEditor() {
     });
 
     rows.forEach((row, index) => {
-      row.querySelector('td').textContent = index + 1;
+      if (template !== 'b') row.querySelector('td').textContent = index + 1;
       tbody.append(row);
     });
   }
@@ -115,12 +125,17 @@ function startDocumentGenerationEditor() {
   function editField(doc, node) {
     if (activeEdit) activeEdit.finish(true);
     const field = node.dataset.agreementField;
-    const type = inputType(field);
-    const editor = doc.createElement(field === 'additional_terms' || field === 'reason' ? 'textarea' : 'input');
+    const type = node.dataset.agreementInput || inputType(field);
+    const editor = doc.createElement(type === 'textarea' || field === 'additional_terms' || field === 'reason' ? 'textarea' : 'input');
     if (editor.tagName === 'INPUT') editor.type = type;
-    if (type === 'number') { editor.min = '0'; editor.step = '0.01'; }
+    if (type === 'number' || type === 'positive-integer') {
+      editor.type = 'number';
+      editor.min = type === 'number' ? '0' : '1';
+      editor.step = type === 'number' ? '0.01' : '1';
+    }
     editor.value = inputs.get(field)?.value || '';
     editor.className = 'agreement-inline-input';
+    if (node.title) editor.placeholder = node.title;
     editor.setAttribute('aria-label', `Edit ${field.replaceAll('_', ' ')}`);
     node.textContent = '';
     node.append(editor);
@@ -141,7 +156,7 @@ function startDocumentGenerationEditor() {
       if (event.key === 'Enter' && editor.tagName !== 'TEXTAREA') { event.preventDefault(); finish(true); }
     });
     editor.focus();
-    if (type !== 'date' && type !== 'time') editor.select();
+    if (editor.tagName === 'TEXTAREA' || editor.type === 'text') editor.select();
   }
 
   function updateConditionalSections(doc) {
@@ -149,7 +164,8 @@ function startDocumentGenerationEditor() {
       const field = section.dataset.agreementConditional;
       const expectedValue = section.dataset.agreementConditionalValue;
 
-      const selected = inputs.get(field)?.value === expectedValue;
+      const value = inputs.get(field)?.value || '';
+      const selected = field === 'payment_method' ? value.split(',').includes(expectedValue) : value === expectedValue;
 
       section.hidden = !selected;
     });
@@ -175,7 +191,7 @@ function startDocumentGenerationEditor() {
       node.tabIndex = 0;
       node.setAttribute('role', 'button');
       node.setAttribute('aria-label', node.dataset.agreementField ?
-        `Edit ${node.dataset.agreementField.replaceAll('_', ' ')}` :
+        `Edit ${(node.title || node.dataset.agreementField.replaceAll('_', ' '))}` :
         `Choose ${node.dataset.agreementChoice.replaceAll('_', ' ')}: ${node.dataset.agreementValue.replaceAll('_', ' ')}`);
     });
   }
@@ -234,7 +250,7 @@ function startDocumentGenerationEditor() {
           <td>${number}</td>
           <td>$<span data-agreement-field="amount${number}">___________</span></td>
           <td><span data-agreement-field="date${number}" data-agreement-format="long-date">TBD</span></td>
-          <td><span data-agreement-field="time${number}">—</span></td>
+          <td><span data-agreement-field="time${number}" title="Time and AM/PM">—</span></td>
         `;
         table.querySelector('tbody').append(row);
 
@@ -252,7 +268,7 @@ function startDocumentGenerationEditor() {
         });
 
         rows.forEach((paymentRow, index) => {
-          paymentRow.querySelector('td').textContent = index + 1;
+          if (template !== 'b') paymentRow.querySelector('td').textContent = index + 1;
           tbody.append(paymentRow);
         });
       }
@@ -296,7 +312,7 @@ function startDocumentGenerationEditor() {
       report('The document preview could not be edited. Reload the page and try again.');
       return;
     }
-    report('');
+    if (!frame.hasAttribute('srcdoc')) report('');
     if (doc.body.dataset.agreementEditing) return;
     doc.body.dataset.agreementEditing = 'true';
     const style = doc.createElement('style');
@@ -329,8 +345,9 @@ function startDocumentGenerationEditor() {
       }
     });
     doc.addEventListener('click', event => {
+      if (event.target.closest('.agreement-inline-input')) return;
       const field = event.target.closest('[data-agreement-field]');
-      if (field && !event.target.closest('.agreement-inline-input')) { editField(doc, field); return; }
+      if (field) { editField(doc, field); return; }
       const choice = event.target.closest('[data-agreement-choice]');
       if (!choice || !inputs.has(choice.dataset.agreementChoice)) return;
       const choiceField = choice.dataset.agreementChoice;
@@ -346,7 +363,18 @@ function startDocumentGenerationEditor() {
         }
 
         input.value = Array.from(selectedMethods).join(',');
-      } else if ([
+      } else if (choice.hasAttribute('data-agreement-toggle')) {
+        input.value = input.value === '1' ? (original.get(choiceField) === '' ? '' : '0') : '1';
+        if (choice.hasAttribute('data-additional-term-option')) {
+          const hasTerms = ['review_payment_arrangement', 'other_additional_terms'].some(field => inputs.get(field).value === '1');
+          inputs.get('additional_terms_selection').value = hasTerms ? 'included' : 'none';
+        }
+      } else if (choiceField === 'additional_terms_selection') {
+        input.value = 'none';
+        ['review_payment_arrangement', 'other_additional_terms'].forEach(field => {
+          inputs.get(field).value = original.get(field) === '1' ? '0' : original.get(field);
+        });
+      } else if (choice.hasAttribute('data-agreement-select-one') || [
         'unresolved_payment_issues',
         'regular_rent_arrangement',
         'payment_application',
@@ -396,11 +424,10 @@ function startDocumentGenerationEditor() {
       const rentDueDay = value('regular_rent_due_day');
       const rentArrangement = value('regular_rent_arrangement');
 
-      if (!/^\d+$/.test(rentDueDay) ||
-          Number(rentDueDay) < 1 ||
-          Number(rentDueDay) > 31) {
+      const validDay = /^\d{1,2}$/.test(rentDueDay) && Number(rentDueDay) >= 1 && Number(rentDueDay) <= 31;
+      if (!validDay && !/^\d{4}-\d{2}-\d{2}$/.test(rentDueDay)) {
         event.preventDefault();
-        report('Please enter a valid regular rent due day (1–31).');
+        report('Please enter a day of the month (1–31) or a date (YYYY-MM-DD).');
         guide.scrollIntoView({ block: 'start', behavior: 'auto' });
         return;
       }
@@ -486,7 +513,7 @@ function startDocumentGenerationEditor() {
         return;
       }
 
-      if (value('payment_method') === 'other' && !value('payment_method_other_description')) {
+      if (value('payment_method').split(',').includes('other') && !value('payment_method_other_description')) {
         event.preventDefault();
         report('Please describe the other payment method.');
         guide.scrollIntoView({ block: 'start', behavior: 'auto' });

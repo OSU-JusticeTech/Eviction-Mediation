@@ -14,7 +14,18 @@ class AgreementSignature
     signed_date = signed_at.strftime("%B %d, %Y")
     escaped_signature_name = ERB::Util.html_escape(name)
 
-    if html_content =~ /<strong>#{role}:<\/strong>\s*<span class="signature-line">/
+    if file.revised_pay_and_stay?
+      slots = {
+        "signature" => ["signature-line", "/s/ #{escaped_signature_name}"],
+        "name" => ["field", escaped_signature_name],
+        "date" => ["date-line", signed_date]
+      }
+      slots.each do |slot, (css_class, value)|
+        replace_once!(html_content, /(<span class="#{css_class}" data-signature-slot="#{role}-#{slot}">)___________(<\/span>)/) do |match|
+          "#{match[1]}#{value}#{match[2]}"
+        end
+      end
+    elsif html_content =~ /<strong>#{role}:<\/strong>\s*<span class="signature-line">/
       # Pay and Stay format
       replace_once!(html_content, /(<strong>#{role}:<\/strong>\s*<span class="signature-line">)___________(<\/span>)/m) do |match|
         "#{match[1]}/s/ #{escaped_signature_name}#{match[2]}"

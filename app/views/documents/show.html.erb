@@ -41,6 +41,10 @@
     </div>
   </div>
 
+  <% if @file.additional_pay_and_stay_signers? %>
+    <p role="status"><%= PayAndStayTerms::ADDITIONAL_SIGNERS_NOTICE %></p>
+  <% end %>
+
   <% if @conversation && @landlord && @tenant && @file.FileTypes == "html" && params[:view_mode] != 'simple' %>
     <% if @file.agreement_editable? && @can_suggest_agreement %>
       <div class="signature-status-card">
@@ -86,7 +90,7 @@
         </div>
       </div>
 
-      <% if @file.LandlordSignature && @file.TenantSignature %>
+      <% if @file.agreement_fully_executed? %>
         <div class="completion-banner">
           <i class="fa-solid fa-check-circle"></i>
           <strong>Document Fully Executed</strong> - Both parties have signed this agreement.
@@ -106,22 +110,26 @@
         <%= hidden_field_tag :agreement_version, @file.AgreementVersion %>
         <% @editable_agreement_fields.each do |field| %>
           <% value = @file.agreement_terms[field] %>
-          <%= hidden_field_tag field, value, data: { agreement_term: field } %>
+          <%= hidden_field_tag field, @submitted_agreement_terms ? @submitted_agreement_terms[field] : value,
+                               data: { agreement_term: field, agreement_original: value.to_s } %>
         <% end %>
         <div class="form-actions">
           <%= submit_tag "Finish & Send Suggested Changes", class: "agreement-action", disabled: true, data: { agreement_finish: true } %>
           <%= link_to "Cancel", view_file_path(@file.FileID), class: "agreement-cancel" %>
         </div>
       <% end %>
-      <p class="agreement-editor-error" data-agreement-editor-error role="alert" hidden></p>
+      <p class="agreement-editor-error" data-agreement-editor-error role="alert" <%= "hidden" unless @agreement_editor_error %>><%= @agreement_editor_error %></p>
     </div>
   <% end %>
 
   <div class="document-preview-card">
-    <iframe src="<%= view_inline_document_path(@file.FileID, editable_preview: @editing_agreement ? 1 : nil) %>" class="document-iframe" title="Agreement document preview">
+    <%= tag.iframe src: view_inline_document_path(@file.FileID, editable_preview: @editing_agreement ? 1 : nil),
+          srcdoc: (@agreement_retry_preview && String.new(@agreement_retry_preview)),
+          sandbox: ("allow-same-origin" if @agreement_retry_preview),
+          class: "document-iframe", title: "Agreement document preview" do %>
       Your browser does not support iframes.
       <%= link_to "View Document", view_inline_document_path(@file.FileID), target: "_blank", class: "fallback-link" %>
-    </iframe>
+    <% end %>
   </div>
 
   <% if @conversation && @landlord && @tenant && @file.FileTypes == "html" && params[:view_mode] != 'simple' %>
@@ -192,6 +200,16 @@
                       <strong>Due date: <%= agreement_field_value("date#{field.delete_prefix('payment')}", change['to_date']) %></strong>
                     <% end %>
                   </div>
+                <% elsif item[:terms_group] %>
+                  <% %w[from to].zip([before_label, offered_label]).each do |side, heading| %>
+                    <div><span><%= heading %></span>
+                      <% item[:fields].each do |term_field| %>
+                        <% term_change = @agreement_proposal["changes"].fetch(term_field) %>
+                        <% next if term_change["from"] == term_change["to"] %>
+                        <strong><%= agreement_field_label(term_field) %>: <%= agreement_field_value(term_field, term_change[side]) %></strong>
+                      <% end %>
+                    </div>
+                  <% end %>
                 <% else %>
                   <div><span><%= before_label %></span><strong><%= agreement_field_value(field, change['from']) %></strong></div>
                   <div><span><%= offered_label %></span><strong><%= agreement_field_value(field, change['to']) %></strong></div>
@@ -251,31 +269,54 @@
                       params: { decision: "rejected" }, aria: { label: "Reject #{label}" },
                       class: "suggestion-reject #{'selected' if change['decision'] == 'rejected'}" %>
                   <% if change['decision'] == 'pending' %>
-                    <button type="button" class="suggestion-counteroffer-toggle" aria-expanded="<%= params[:counteroffer_error] == field %>" aria-controls="counteroffer-<%= field %>">Counteroffer</button>
+                    <button type="button" class="suggestion-counteroffer-toggle" aria-expanded="<%= (params[:counteroffer_error] == field || @counteroffer_error_field == field) %>" aria-controls="counteroffer-<%= field %>">Counteroffer</button>
                   <% end %>
                 </div>
                 <% if change['decision'] == 'pending' %>
-                  <div class="suggestion-counteroffer-panel" id="counteroffer-<%= field %>" <%= 'hidden' unless params[:counteroffer_error] == field %>>
+                  <div class="suggestion-counteroffer-panel" id="counteroffer-<%= field %>" <%= 'hidden' unless (params[:counteroffer_error] == field || @counteroffer_error_field == field) %>>
                   <%= form_with url: counteroffer_document_suggestion_path(@file.FileID, field), method: :patch,
                                 local: true, class: "suggestion-counteroffer-form" do %>
                     <p>Type or select your counteroffer.</p>
-                    <% if params[:counteroffer_error] == field %>
-                      <p class="suggestion-save-error" role="alert"><%= params[:counteroffer_reason] == 'payment' ? 'A payment date needs a payment amount.' : 'Enter a different value for this counteroffer.' %></p>
+                    <% if (params[:counteroffer_error] == field || @counteroffer_error_field == field) %>
+                      <p class="suggestion-save-error" role="alert"><%= @agreement_editor_error || (params[:counteroffer_reason] == 'payment' ? (@file.AgreementTemplate == 'b' ? 'Complete the details required by your selections.' : 'A payment date needs a payment amount.') : 'Enter a different value for this counteroffer.') %></p>
                     <% end %>
                     <div class="suggestion-counteroffer-fields">
                       <% item[:fields].each do |counter_field| %>
-                        <% offered_value = staged ? staged[counter_field] : @agreement_proposal["changes"][counter_field]["to"] %>
+                        <% offered_value = if @counteroffer_error_field == field
+                             @submitted_counteroffer[counter_field]
+                           elsif staged
+                             staged[counter_field]
+                           else
+                             @agreement_proposal["changes"][counter_field]["to"]
+                           end %>
                         <div class="form-group">
                           <%= label_tag "counteroffer_#{counter_field}", "Your proposed #{agreement_field_label(counter_field).downcase}", class: "form-label" %>
-                          <% if counter_field.match?(/\Adate[1-6]\z/) || %w[negotiation_date vacate_date lump_sum_date monthly_payment_start final_payment_date].include?(counter_field) %>
+                          <% if @file.revised_pay_and_stay? && (choices = pay_and_stay_counteroffer_choices(counter_field)) %>
+                            <%= select_tag "counteroffer[#{counter_field}]", options_for_select(choices, offered_value),
+                                  include_blank: true, id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% elsif @file.AgreementTemplate == "b" && PayAndStayTerms::COUNTS.include?(counter_field) %>
+                            <%= number_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", min: 1, step: 1, class: "form-input" %>
+                          <% elsif counter_field.match?(/\Adate[1-6]\z/) || %w[negotiation_date vacate_date lump_sum_date monthly_payment_start final_payment_date forgiveness_deadline].include?(counter_field) ||
+                                (@file.AgreementTemplate == "b" && PayAndStayTerms::DATES.include?(counter_field)) %>
                             <%= date_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input" %>
-                          <% elsif counter_field.match?(/\Aamount[1-6]\z/) || %w[money_owed monthly_rent rent_owed late_fees utilities other_charges lump_sum_amount monthly_payment_amount final_payment_amount].include?(counter_field) %>
+                          <% elsif counter_field.match?(/\Aamount[1-6]\z/) || %w[money_owed monthly_rent rent_owed late_fees utilities other_charges lump_sum_amount monthly_payment_amount final_payment_amount credits_amount reductions_amount forgiveness_amount forgiveness_remaining_amount].include?(counter_field) ||
+                                (@file.AgreementTemplate == "b" && PayAndStayTerms::AMOUNTS.include?(counter_field)) %>
                             <%= number_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", step: 0.01, min: 0, class: "form-input" %>
-                          <% elsif %w[payment_lump_sum payment_monthly payment_final].include?(counter_field) %>
-                            <%= select_tag "counteroffer[#{counter_field}]", options_for_select([["Selected", "1"], ["Not selected", "0"]], offered_value), id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% elsif PayAndStayTerms::PAYMENT_OPTIONS.key?(counter_field) %>
+                            <%= select_tag "counteroffer[#{counter_field}]", options_for_select([["Selected", "1"], ["Not selected", "0"]], offered_value), include_blank: true, id: "counteroffer_#{counter_field}", class: "form-input" %>
                           <% elsif counter_field == "payment_method" %>
-                            <%= select_tag "counteroffer[#{counter_field}]", options_for_select([["Online portal", "online_portal"], ["Money order", "money_order"], ["Cashier's check", "cashiers_check"], ["Other", "other"]], offered_value), id: "counteroffer_#{counter_field}", class: "form-input" %>
-                          <% elsif counter_field == "additional_terms" %>
+                            <% if @file.revised_pay_and_stay? %>
+                              <%= hidden_field_tag "counteroffer[payment_method][]", "", id: nil %>
+                              <%= select_tag "counteroffer[payment_method][]",
+                                    options_for_select(PayAndStayTerms::PAYMENT_METHODS.invert.to_a, PayAndStayTerms.payment_methods(offered_value)),
+                                    multiple: true, id: "counteroffer_payment_method", class: "form-input" %>
+                            <% else %>
+                              <%= select_tag "counteroffer[#{counter_field}]", options_for_select(PayAndStayTerms::PAYMENT_METHODS.invert.to_a, offered_value), id: "counteroffer_#{counter_field}", class: "form-input" %>
+                            <% end %>
+                          <% elsif counter_field.match?(/\Atime[1-6]\z/) %>
+                            <%= time_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input" %>
+                          <% elsif counter_field == "additional_terms" ||
+                                (@file.AgreementTemplate == "b" && PayAndStayTerms::MULTILINE.include?(counter_field)) %>
                             <%= text_area_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input", rows: 3 %>
                           <% else %>
                             <%= text_field_tag "counteroffer[#{counter_field}]", offered_value, id: "counteroffer_#{counter_field}", class: "form-input" %>

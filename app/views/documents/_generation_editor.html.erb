@@ -9,7 +9,7 @@
   </p>
 
   <p data-agreement-edit-count role="status">No information entered yet</p>
-  <p data-agreement-editor-error role="alert" hidden></p>
+  <p data-agreement-editor-error role="alert" <%= "hidden" unless @agreement_editor_error %>><%= @agreement_editor_error %></p>
 
   <%= form_with url: generate_from_intake_path(template: @template),
                 method: :post,
@@ -75,10 +75,10 @@
     <% end %>
 
   <div class="document-preview-card">
-    <iframe src="<%= template_preview_path(template: @template) %>"
-            class="document-iframe"
-            title="Editable agreement preview"
-            style="width: 100%; height: 850px; border: 1px solid #ddd;">
-    </iframe>
+    <%= tag.iframe src: template_preview_path(template: @template),
+          srcdoc: (@agreement_retry_preview && String.new(@agreement_retry_preview)),
+          sandbox: ("allow-same-origin" if @agreement_retry_preview),
+          class: "document-iframe", title: "Editable agreement preview",
+          style: "width: 100%; height: 850px; border: 1px solid #ddd;" %>
   </div>
 </div>

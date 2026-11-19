@@ -65,7 +65,8 @@ class FileDraft < ApplicationRecord
 
   def agreement_terms
     return {} unless has_attribute?(:AgreementTerms)
-    JSON.parse(self[:AgreementTerms].presence || "{}")
+    terms = JSON.parse(self[:AgreementTerms].presence || "{}")
+    terms.is_a?(Hash) ? terms : {}
   rescue JSON::ParserError
     {}
   end
@@ -97,6 +98,8 @@ class FileDraft < ApplicationRecord
       date_key = "date#{number}"
       amount = changes[amount_key]
       date = changes[date_key]
+      next if self[:AgreementTemplate] == "b" && amount.is_a?(Hash) && PayAndStayTerms::REVIEW_GROUPS.key?(amount["group_key"])
+
       grouped_payment = amount.is_a?(Hash) && amount["group_key"] == "payment#{number}"
       added_payment = amount.is_a?(Hash) && amount["from"].blank? && amount["to"].present?
       removed_payment = amount.is_a?(Hash) && amount["from"].present? && amount["to"].blank? &&
@@ -121,6 +124,19 @@ class FileDraft < ApplicationRecord
       grouped[date_key] = :skip if date
     end
 
+    if self[:AgreementTemplate] == "b"
+      PayAndStayTerms::REVIEW_GROUPS.each_key do |key|
+        fields = changes.keys.select { |field| changes[field]["group_key"] == key }
+        next if fields.empty?
+
+        first, *rest = fields
+        change = changes.fetch(first)
+        grouped[first] = { key: key, fields: fields, terms_group: true,
+                           offered_by_id: change["offered_by_id"] || proposal["proposer_id"], change: change }
+        rest.each { |field| grouped[field] = :skip }
+      end
+    end
+
     changes.filter_map do |field, change|
       item = grouped[field]
       next if item == :skip
@@ -133,6 +149,19 @@ class FileDraft < ApplicationRecord
     has_attribute?(:AgreementTemplate) && self[:AgreementTemplate].present? &&
       has_attribute?(:AgreementVersion) && self[:AgreementVersion].present? &&
       agreement_conversation_id.present?
+  end
+
+  def revised_pay_and_stay?
+    has_attribute?(:AgreementTemplate) && self[:AgreementTemplate] == "b" &&
+      PayAndStayTerms.revised?(agreement_terms)
+  end
+
+  def additional_pay_and_stay_signers?
+    revised_pay_and_stay? && PayAndStayTerms.additional_signer_names(agreement_terms["additional_signature_parties"]).any?
+  end
+
+  def agreement_fully_executed?
+    self[:LandlordSignature] && self[:TenantSignature] && !additional_pay_and_stay_signers?
   end
 
   def agreement_signable?
@@ -164,7 +193,7 @@ class FileDraft < ApplicationRecord
     return unless conversation && !conversation.past?
 
     actor = tenant_signed ? conversation.tenant : conversation.landlord
-    completed = self.TenantSignature && self.LandlordSignature
+    completed = agreement_fully_executed?
     # Completion is a useful receipt for everyone; do not also send a signed email.
     recipients = if completed
       conversation.notification_participants

@@ -381,7 +381,7 @@ class MessagesController < ApplicationController
         messages: { ConversationID: conversation_ids }
       )
       .where(TenantSignature: true, LandlordSignature: true)
-      .distinct
+      .distinct.select(&:agreement_fully_executed?)
 
     # Fetch Intake Responses
     @intake_question = IntakeQuestion.find_by(IntakeID: @mediation.IntakeID) if @mediation.IntakeID.present?
