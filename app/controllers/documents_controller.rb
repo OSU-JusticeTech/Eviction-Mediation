@@ -29,6 +29,7 @@ class DocumentsController < ApplicationController
     @template = new_agreement_template(params[:template])
     @generation_fields = agreement_fields_for_template(@template) - ["additional_signature_parties"]
     @template_name = case @template
+    when CustomResolutionTerms::TEMPLATE then "Custom Resolution Agreement"
     when MoveOutTerms::TEMPLATE then "Move-Out Agreement"
     when "b" then "Pay and Stay Agreement"
     when "c" then "Mediation Agreement"
@@ -59,6 +60,9 @@ class DocumentsController < ApplicationController
       "negotiation_date" => Date.today.iso8601,
       "best_option" => @default_resolution
     }
+    if @template == CustomResolutionTerms::TEMPLATE
+      @generation_values["cr_action_#{SecureRandom.uuid}_present"] = "yes"
+    end
   end
 
   def template_preview
@@ -79,7 +83,7 @@ class DocumentsController < ApplicationController
 
     @schedule = []
 
-    @template = MoveOutTerms::TEMPLATE unless %w[b c].include?(@template)
+    @template = MoveOutTerms::TEMPLATE unless [*%w[b c], CustomResolutionTerms::TEMPLATE].include?(@template)
     @move_out_terms = {} if @template == MoveOutTerms::TEMPLATE
     template_file = agreement_template_file(@template)
 
@@ -88,7 +92,7 @@ class DocumentsController < ApplicationController
 
   def generate_from_intake
     template = new_agreement_template(params[:template])
-    return head :not_found unless [MoveOutTerms::TEMPLATE, "b", "c"].include?(template)
+    return head :not_found unless [MoveOutTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE, "b", "c"].include?(template)
     @conversation_id = params[:conversation_id]
     conversation = PrimaryMessageGroup.find_by(ConversationID: @conversation_id) if @conversation_id.present?
 
@@ -97,7 +101,18 @@ class DocumentsController < ApplicationController
     end
 
     terms = agreement_terms_from_params(template)
-    if template == "b"
+    if template == CustomResolutionTerms::TEMPLATE
+      @template_conversation = conversation
+      submitted_terms = terms
+      terms = CustomResolutionTerms.normalize(terms)
+      error = CustomResolutionTerms.error(terms)
+      if params[:custom_preview] == "1" || error
+        template_intake
+        @generation_values = submitted_terms
+        @agreement_editor_error = error
+        return render :template_intake, status: error ? :unprocessable_entity : :ok
+      end
+    elsif template == "b"
       normalize_pay_and_stay_terms!(terms)
       error = pay_and_stay_terms_error(terms, complete: true) || PayAndStayTerms.release_error(terms)
       if error
@@ -320,9 +335,14 @@ class DocumentsController < ApplicationController
     return render plain: "Unauthorized", status: :forbidden unless agreement_suggester?(conversation)
     return redirect_to view_file_path(file.FileID), alert: "This agreement can no longer be changed." unless file.agreement_editable?
 
-    terms = params.permit(*agreement_editable_fields(file)).to_h
+    terms = if file.custom_resolution?
+      custom_resolution_params
+    else
+      params.permit(*agreement_editable_fields(file)).to_h
+    end
     result = nil
     validation_error = nil
+    submitted_custom_terms = nil
     file.with_lock do
       if !file.agreement_editable? || file.agreement_suggestions_pending? || params[:agreement_version].to_i != file.AgreementVersion
         result = :stale
@@ -331,17 +351,31 @@ class DocumentsController < ApplicationController
         if file.AgreementTemplate == "b"
           normalize_pay_and_stay_terms!(terms)
           terms = current.merge(terms)
+        elsif file.custom_resolution?
+          submitted_custom_terms = params[:custom_full_form] == "1" ? terms : current.merge(terms)
+          terms = CustomResolutionTerms.normalize(submitted_custom_terms)
         elsif file.revised_move_out?
           terms = current.merge(terms.transform_values { |value| value.to_s.strip })
           terms = terms.except(*MoveOutTerms.inactive_fields(terms))
         end
-        changes = agreement_editable_fields(file).each_with_object({}) do |field, list|
+        review_fields = if file.custom_resolution?
+          CustomResolutionTerms.groups(current.keys | terms.keys).values.flatten
+        else
+          agreement_editable_fields(file)
+        end
+        changes = review_fields.each_with_object({}) do |field, list|
           old_value = current[field].to_s
           new_value = terms[field].to_s
           list[field] = { "from" => old_value, "to" => new_value, "decision" => "pending" } unless old_value == new_value
         end
-        if file.revised_pay_and_stay? || file.revised_move_out?
-          groups = file.revised_move_out? ? MoveOutTerms::GROUPS : PayAndStayTerms::REVIEW_GROUPS
+        if file.revised_pay_and_stay? || file.revised_move_out? || file.custom_resolution?
+          groups = if file.custom_resolution?
+            CustomResolutionTerms.review_groups(current, terms)
+          elsif file.revised_move_out?
+            MoveOutTerms::GROUPS
+          else
+            PayAndStayTerms::REVIEW_GROUPS
+          end
           groups.each do |group, fields|
             next if file.revised_pay_and_stay? && PayAndStayTerms::PAYMENT_REVIEW_GROUPS.include?(group)
             next unless fields.any? { |field| changes.key?(field) }
@@ -431,23 +465,25 @@ class DocumentsController < ApplicationController
     when :unchanged
       redirect_to view_file_path(file.FileID), notice: "No terms were changed."
     when :invalid, :invalid_payment
-      if file.AgreementTemplate == "b" || file.revised_move_out?
+      if file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution?
         if file.AgreementTemplate == "b"
           terms = terms.merge("additional_signature_parties" => file.agreement_terms["additional_signature_parties"])
         end
-        @agreement_editor_preview = true
-        assign_agreement_template_variables(file.AgreementTemplate, terms)
-        if file.AgreementTemplate == "b" && !file.revised_pay_and_stay? &&
-           !valid_agreement_counteroffer?("forgiveness_deadline", @forgiveness_deadline)
-          @forgiveness_deadline = ""
+        unless file.custom_resolution?
+          @agreement_editor_preview = true
+          assign_agreement_template_variables(file.AgreementTemplate, terms)
+          if file.AgreementTemplate == "b" && !file.revised_pay_and_stay? &&
+             !valid_agreement_counteroffer?("forgiveness_deadline", @forgiveness_deadline)
+            @forgiveness_deadline = ""
+          end
+          @agreement_retry_preview = render_to_string(template: stored_agreement_template(file), formats: [:html], layout: false)
         end
-        @agreement_retry_preview = render_to_string(template: stored_agreement_template(file), formats: [:html], layout: false)
 
         params[:edit] = "1"
         show
         return if performed?
 
-        @submitted_agreement_terms = terms
+        @submitted_agreement_terms = file.custom_resolution? ? submitted_custom_terms : terms
         @agreement_editor_error = validation_error
         render :show, status: :unprocessable_entity
       else
@@ -508,6 +544,7 @@ class DocumentsController < ApplicationController
             end
           end
           accepted_terms = accepted_terms.except(*MoveOutTerms.inactive_fields(accepted_terms)) if file.revised_move_out?
+          accepted_terms = CustomResolutionTerms.normalize(accepted_terms) if file.custom_resolution?
           if !(validation_error = agreement_terms_error(accepted_terms, file: file))
             accepted_changes = item[:fields].filter_map do |field|
               change = changes.fetch(field)
@@ -656,7 +693,7 @@ class DocumentsController < ApplicationController
     if request.format.json?
       render json: result == :countered ? { status: "countered", field: params[:field], round_complete: completed_round.present? } : { error: message },
              status: result == :countered ? :ok : :unprocessable_entity
-    elsif (file.AgreementTemplate == "b" || file.revised_move_out?) && [:invalid, :invalid_payment].include?(result)
+    elsif (file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution?) && [:invalid, :invalid_payment].include?(result)
       render_counteroffer_error(values, message)
     elsif [:invalid, :invalid_payment].include?(result)
       redirect_to view_file_path(file.FileID, counteroffer_error: params[:field],
@@ -680,7 +717,12 @@ class DocumentsController < ApplicationController
         return render plain: "File not found", status: :not_found
       end
       unless @file.agreement_signable?
-        return redirect_to view_file_path(@file.FileID), alert: "This agreement must be shared in a conversation before signing."
+        message = if @file.custom_resolution? && @file.agreement_terms["cr_additional_signers"] != "no"
+          CustomResolutionTerms::SIGNER_ERROR
+        else
+          "This agreement must be shared in a conversation before signing."
+        end
+        return redirect_to view_file_path(@file.FileID), alert: message
       end
 
       # Load conversation to verify authorization
@@ -711,7 +753,7 @@ class DocumentsController < ApplicationController
         return redirect_to view_file_path(@file.FileID)
       end
 
-      signature_name = if @file.revised_move_out?
+      signature_name = if @file.revised_move_out? || @file.custom_resolution?
         [@user.FName, @user.LName].filter_map(&:presence).join(" ").squish
       else
         params[:signature_name]&.strip
@@ -727,7 +769,7 @@ class DocumentsController < ApplicationController
         signature_result = :stale
       elsif (is_landlord && @file.LandlordSignature) || (is_tenant && @file.TenantSignature)
         signature_result = :already_signed
-      elsif (@file.revised_pay_and_stay? || @file.revised_move_out?) && (error = agreement_terms_error(@file.agreement_terms, file: @file))
+      elsif (@file.revised_pay_and_stay? || @file.revised_move_out? || @file.custom_resolution?) && (error = agreement_terms_error(@file.agreement_terms, file: @file))
         return redirect_to view_file_path(@file.FileID), alert: "This agreement cannot be signed. #{error} Correct the agreement before signing."
       else
         signed_at = Time.current
@@ -844,7 +886,7 @@ class DocumentsController < ApplicationController
 
   def generate_filled_template
     template = new_agreement_template(params[:template])
-    if ["b", MoveOutTerms::TEMPLATE].include?(template)
+    if ["b", MoveOutTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE].include?(template)
       return redirect_to template_intake_path(template: template, conversation_id: params[:conversation_id],
                                              return_to: url_from(params[:return_to])), status: :see_other
     end
@@ -1068,6 +1110,7 @@ class DocumentsController < ApplicationController
             end
 
             accepted_terms = accepted_terms.except(*MoveOutTerms.inactive_fields(accepted_terms)) if file.revised_move_out?
+            accepted_terms = CustomResolutionTerms.normalize(accepted_terms) if file.custom_resolution?
             if !(validation_error = agreement_terms_error(accepted_terms, file: file))
               accepted_changes = fields.filter_map do |field|
                 change = changes[field]
@@ -1257,7 +1300,7 @@ class DocumentsController < ApplicationController
         result == :countered ? :ok :
         result == :unavailable ? :conflict : :unprocessable_entity
       )
-    elsif (file.AgreementTemplate == "b" || file.revised_move_out?) && [:invalid, :invalid_payment].include?(result)
+    elsif (file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution?) && [:invalid, :invalid_payment].include?(result)
       render_counteroffer_error(values, message)
     else
       redirect_to focus_path,
@@ -1276,7 +1319,13 @@ class DocumentsController < ApplicationController
     render :show, status: :unprocessable_entity
   end
 
+  def custom_resolution_params
+    fields = CustomResolutionTerms.groups(params.keys).values.flatten
+    params.permit(*fields).to_h
+  end
+
   def agreement_terms_from_params(template)
+    return custom_resolution_params if template == CustomResolutionTerms::TEMPLATE
     terms = params.permit(*agreement_fields_for_template(template)).to_h
     terms.transform_values! { |value| value.to_s.strip } if template == MoveOutTerms::TEMPLATE
     terms
@@ -1295,6 +1344,8 @@ class DocumentsController < ApplicationController
     payment_fields = (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
 
     case template
+    when CustomResolutionTerms::TEMPLATE
+      CustomResolutionTerms::FIELDS
     when MoveOutTerms::TEMPLATE
       MoveOutTerms::FIELDS
     when "a"
@@ -1317,11 +1368,17 @@ class DocumentsController < ApplicationController
 
   def agreement_counteroffer_values(item, file)
     submitted = params.fetch(:counteroffer, ActionController::Parameters.new)
+    return {} unless submitted.is_a?(ActionController::Parameters)
+
     values = submitted.permit(*item[:fields]).to_h
     if file.revised_pay_and_stay? && item[:fields].include?("payment_method") && submitted[:payment_method].is_a?(Array)
       values["payment_method"] = submitted.permit(payment_method: [])[:payment_method].to_a.join(",")
     end
     normalize_pay_and_stay_terms!(values) if file.AgreementTemplate == "b"
+    if file.custom_resolution? && item[:fields].all? { |field| values.key?(field) }
+      normalized = CustomResolutionTerms.normalize(values)
+      values = values.keys.index_with { |field| normalized.fetch(field, "") }
+    end
     values.transform_values! { |value| value.to_s.strip } if file.revised_move_out?
     values
   end
@@ -1466,6 +1523,7 @@ class DocumentsController < ApplicationController
   end
 
   def agreement_terms_error(terms, file:)
+    return CustomResolutionTerms.error(CustomResolutionTerms.normalize(terms)) if file.custom_resolution?
     return MoveOutTerms.error(terms) if file.revised_move_out?
 
     if file.AgreementTemplate == "b"
@@ -1603,6 +1661,10 @@ class DocumentsController < ApplicationController
 
   def valid_agreement_counteroffer?(field, raw_value, file: nil)
     value = raw_value.to_s.strip
+    if file&.custom_resolution?
+      spec = CustomResolutionTerms.definition(field)
+      return spec && (value.blank? || CustomResolutionTerms.valid_value?(value, spec[1]))
+    end
     return MoveOutTerms.value_valid?(field, value) if file&.revised_move_out?
 
     if field.match?(/\Atime[1-6]\z/)
@@ -1642,6 +1704,7 @@ class DocumentsController < ApplicationController
 
   def agreement_template_file(template)
     {
+      CustomResolutionTerms::TEMPLATE => "documents/templates/custom_resolution_v1",
       MoveOutTerms::TEMPLATE => "documents/templates/move_out_v1",
       "a" => "documents/templates/agree_to_vacate",
       "b" => "documents/templates/pay_and_stay",
@@ -1653,6 +1716,7 @@ class DocumentsController < ApplicationController
 
   def agreement_template_name(template)
     {
+      CustomResolutionTerms::TEMPLATE => "Custom Resolution Agreement",
       MoveOutTerms::TEMPLATE => "Move-Out Agreement",
       "a" => "Move-Out Agreement",
       "b" => "Pay-and-Stay Agreement",
@@ -1661,6 +1725,7 @@ class DocumentsController < ApplicationController
   end
 
   def assign_agreement_template_variables(template, terms)
+    return @custom_resolution_terms = terms if template == CustomResolutionTerms::TEMPLATE
     return @move_out_terms = terms if template == MoveOutTerms::TEMPLATE
 
     @landlord_representative = terms["landlord_representative"].to_s
@@ -1814,6 +1879,7 @@ class DocumentsController < ApplicationController
       params[field].to_s.gsub(/[^\w\- ]/, "").squeeze(" ").strip.presence
     end
     document_type = {
+      CustomResolutionTerms::TEMPLATE => "Custom Resolution Agreement",
       MoveOutTerms::TEMPLATE => "Move-Out Agreement",
       "b" => "Pay and Stay Agreement",
       "c" => "Mediation Agreement"

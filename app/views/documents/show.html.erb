@@ -41,7 +41,9 @@
     </div>
   </div>
 
-  <% if @file.additional_pay_and_stay_signers? %>
+  <% if @file.custom_resolution? && @file.agreement_terms["cr_additional_signers"] != "no" %>
+    <p role="status"><%= CustomResolutionTerms::SIGNER_ERROR %></p>
+  <% elsif @file.additional_pay_and_stay_signers? %>
     <p role="status"><%= PayAndStayTerms::ADDITIONAL_SIGNERS_NOTICE %></p>
   <% end %>
 
@@ -100,7 +102,9 @@
 
   <% end %>
 
-  <% if @editing_agreement %>
+  <% if @editing_agreement && @file.custom_resolution? %>
+    <%= render "documents/generation_editor", review_file: @file %>
+  <% elsif @editing_agreement %>
     <div class="signature-status-card agreement-editor-guide" data-agreement-editor data-agreement-template="<%= @file.AgreementTemplate %>">
       <h3>Suggest Changes</h3>
       <p>Click a highlighted value in the document to edit it. Your edits are only a preview until you send them.</p>
@@ -122,15 +126,17 @@
     </div>
   <% end %>
 
-  <div class="document-preview-card">
-    <%= tag.iframe src: view_inline_document_path(@file.FileID, editable_preview: @editing_agreement ? 1 : nil),
-          srcdoc: (@agreement_retry_preview && String.new(@agreement_retry_preview)),
-          sandbox: ("allow-same-origin" if @agreement_retry_preview),
-          class: "document-iframe", title: "Agreement document preview" do %>
-      Your browser does not support iframes.
-      <%= link_to "View Document", view_inline_document_path(@file.FileID), target: "_blank", class: "fallback-link" %>
-    <% end %>
-  </div>
+  <% unless @editing_agreement && @file.custom_resolution? %>
+    <div class="document-preview-card">
+      <%= tag.iframe src: view_inline_document_path(@file.FileID, editable_preview: @editing_agreement ? 1 : nil),
+            srcdoc: (@agreement_retry_preview && String.new(@agreement_retry_preview)),
+            sandbox: ("allow-same-origin" if @agreement_retry_preview),
+            class: "document-iframe", title: "Agreement document preview" do %>
+        Your browser does not support iframes.
+        <%= link_to "View Document", view_inline_document_path(@file.FileID), target: "_blank", class: "fallback-link" %>
+      <% end %>
+    </div>
+  <% end %>
 
   <% if @conversation && @landlord && @tenant && @file.FileTypes == "html" && params[:view_mode] != 'simple' %>
     <% if @agreement_proposal.present? && @agreement_proposal.fetch("changes", {}).present? %>
@@ -175,7 +181,13 @@
                                 else
                                   can_decide
                                 end %>
-            <% label = item[:payment_group] ? "Payment #{field.delete_prefix('payment')}#{item[:removed_payment] ? ' removed' : (item[:added_payment] ? ' added' : '')}" : agreement_field_label(field) %>
+            <% label = if @file.custom_resolution?
+                         custom_resolution_group_label(field)
+                       elsif item[:payment_group]
+                         "Payment #{field.delete_prefix('payment')}#{item[:removed_payment] ? ' removed' : (item[:added_payment] ? ' added' : '')}"
+                       else
+                         agreement_field_label(field)
+                       end %>
             <% offerer = @offer_authors&.dig(item[:offered_by_id].to_i) %>
             <% staged = @agreement_proposal.fetch('draft_counteroffers', {})[field] if can_decide %>
             <% before_label = change['decision'] == 'accepted' ? 'Before acceptance' : 'In document' %>
@@ -289,6 +301,18 @@
                            @agreement_proposal.dig("changes", "case_status", "to")
                          end
                        end %>
+                    <% if @file.custom_resolution? %>
+                      <% changes = @agreement_proposal.fetch("changes")
+                         values = if @counteroffer_error_field == field
+                           @submitted_counteroffer
+                         else
+                           staged || item[:fields].index_with { |key| changes.dig(key, "to") }
+                         end %>
+                      <div class="suggestion-counteroffer-fields" data-custom-resolution-fields>
+                        <%= render "documents/custom_resolution_fields", fields: item[:fields].index_with { |key| CustomResolutionTerms.definition(key) },
+                              values: values, prefix: "counteroffer", id_prefix: "counteroffer" %>
+                      </div>
+                    <% else %>
                     <div class="suggestion-counteroffer-fields">
                       <% item[:fields].each do |counter_field| %>
                         <% offered_value = if @counteroffer_error_field == field
@@ -345,6 +369,7 @@
                         </div>
                       <% end %>
                     </div>
+                    <% end %>
                     <%= submit_tag "Save Counteroffer", class: "agreement-action" %>
                   <% end %>
                   </div>
@@ -386,7 +411,7 @@
         <p class="signing-description">Sign only if you agree to the version shown above. If suggested changes are later accepted, both parties will need to sign the updated document.</p>
         <%= form_with url: apply_signature_document_path(@file.FileID), method: :post, local: true, class: "signature-form" do |form| %>
           <%= hidden_field_tag :agreement_version, @file.AgreementVersion if @file.agreement_document? %>
-          <% if @file.revised_move_out? %>
+          <% if @file.revised_move_out? || @file.custom_resolution? %>
             <p>Your signature will be recorded as <strong>/s/ <%= [signer.FName, signer.LName].compact.join(" ").squish %></strong>.</p>
           <% else %>
             <div class="form-group">

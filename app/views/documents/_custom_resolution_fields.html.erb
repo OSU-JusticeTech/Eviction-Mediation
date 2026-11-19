@@ -1,0 +1,35 @@
+<% fields.each do |field, (label, type, rule)| %>
+  <% field = field.to_s
+     name = prefix ? "#{prefix}[#{field}]" : field
+     value = values[field]
+     id = "#{id_prefix}_#{field}"
+     display_rule = rule.is_a?(Hash) ? rule : {}
+     action = CustomResolutionTerms::ACTION_FIELD.match(field)
+     if prefix && action && action[2] != "present"
+       display_rule = display_rule.merge("#{action[1]}_present" => "yes")
+     end %>
+  <div class="form-group" data-custom-field
+       data-custom-rule="<%= display_rule.to_json %>"
+       <%= "hidden" unless CustomResolutionTerms.active?(display_rule, values) %>>
+    <% if type == :checkbox %>
+      <%= hidden_field_tag name, "", id: nil %>
+      <%= check_box_tag name, "yes", value == "yes", id: id %>
+      <%= label_tag id, label %>
+    <% else %>
+      <%= label_tag id, label, class: "form-label" %>
+      <% if type.is_a?(Hash) %>
+        <%= select_tag name, options_for_select(type.invert.to_a, value), include_blank: !type.key?(""), id: id, class: "form-control" %>
+      <% elsif type == :area %>
+        <%= text_area_tag name, value, id: id, class: "form-control", rows: 3, maxlength: 4000 %>
+      <% elsif type == :date %>
+        <%= date_field_tag name, value, id: id, class: "form-control" %>
+      <% elsif type == :time %>
+        <%= time_field_tag name, value, id: id, class: "form-control" %>
+      <% elsif type == :days || type == :money %>
+        <%= number_field_tag name, value, id: id, class: "form-control", min: type == :days ? 1 : 0, step: type == :days ? 1 : 0.01 %>
+      <% else %>
+        <%= text_field_tag name, value, id: id, class: "form-control", maxlength: 4000 %>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>

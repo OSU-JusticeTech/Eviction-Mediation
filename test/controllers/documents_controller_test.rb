@@ -1957,6 +1957,278 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_select 'input[name="move_out_time"][value="16:30"]'
   end
 
+  test "Custom Resolution appears fourth, previews saved terms, and shares through chat" do
+    activate_mediation(@mediation)
+    log_in_as(@tenant)
+    template = CustomResolutionTerms::TEMPLATE
+    get generate_file_path(conversation_id: @mediation.ConversationID)
+    assert_response :success
+    assert_select ".template-card", count: 4
+    assert_select "a[href*='custom_resolution_v1']", text: "Select Template D"
+    get template_preview_path(template: template)
+    assert_response :success
+    assert_select "h1", "CUSTOM RESOLUTION AGREEMENT"
+    get template_intake_path(template: template, conversation_id: @mediation.ConversationID)
+    assert_response :success
+    assert_select "[data-document-generation-editor] #document-generation-form"
+    assert_select "iframe[sandbox='allow-same-origin']" do |frames|
+      preview = Nokogiri::HTML(frames.first["srcdoc"])
+      assert_equal (1..7).to_a, preview.css("h2").filter_map { |heading| heading.text[/^([1-7])\./, 1]&.to_i }
+      assert_equal 1, preview.css("[data-custom-inline-actions] > [data-action-id]").size
+      assert preview.at_css("[data-agreement-field='landlord_name']")
+      assert preview.at_css("[data-custom-inline-action-template]")
+    end
+    assert_select "input[name='tenant_name'][value='John Doe']"
+
+    terms = custom_resolution_params
+    assert_no_difference("FileDraft.count") do
+      post generate_from_intake_path(template: template), params: terms.merge(custom_preview: "1")
+    end
+    assert_response :success
+    preview = Nokogiri::HTML(Nokogiri::HTML(response.body).at_css("iframe")["srcdoc"])
+    row = CustomResolutionTerms.action_groups(terms.keys).first
+    assert_equal "Repair the kitchen tap", preview.at_css("[data-agreement-field='#{row}_details']").text
+    assert preview.css("[data-custom-clause]:not([hidden])").any? { |clause| clause.text.include?("No entry arrangements are included.") }
+
+    assert_difference("FileDraft.count", 1) do
+      post generate_from_intake_path(template: template), params: terms.merge(conversation_id: @mediation.ConversationID)
+    end
+    assert_response :redirect
+    file = FileDraft.where(AgreementTemplate: template, CreatorID: @tenant.UserID).sole
+    generated = DocumentStorage.configured.resolve(file.FileURLPath).binread
+    assert_includes generated, "Repair the kitchen tap"
+    assert_includes generated, "No entry arrangements are included."
+    refute_includes generated, "Purpose and people entering:"
+    refute_includes generated, "data-agreement-field"
+    assert_nil file.agreement_conversation_id
+    assert_includes file.FileName, "Custom Resolution Agreement"
+    post messages_path, params: { ConversationID: @mediation.ConversationID, Contents: "", file_id: file.FileID }
+    assert_redirected_to message_path(@mediation.ConversationID)
+    assert FileAttachment.exists?(FileID: file.FileID)
+    assert_equal @mediation.ConversationID, file.reload.agreement_conversation_id
+  end
+
+  test "Custom Resolution validates required and conditional terms and retains invalid form values" do
+    log_in_as(@tenant)
+    template = CustomResolutionTerms::TEMPLATE
+    terms = custom_resolution_params
+    row = CustomResolutionTerms.action_groups(terms.keys).first
+    missing = [
+      [terms.except("landlord_name"), "Complete landlord"],
+      [terms.except("cr_issue_repairs"), "Select at least one issue"],
+      [terms.merge("cr_issue_other" => "yes"), "Complete describe the other issue"],
+      [terms.merge("cr_entry" => "yes"), "Complete purpose and people entering"],
+      [terms.merge("cr_eviction" => "yes"), "Complete landlord promise while"],
+      [terms.merge("cr_correction" => "yes"), "Complete correction notice method"],
+      [terms.merge("cr_case" => "yes"), "Complete court or agency"],
+      [terms.merge("cr_has_other_terms" => "yes"), "Complete specific terms"],
+      [terms.merge("#{row}_actor" => "both"), "Complete identify each person"],
+      [terms.merge("#{row}_assistance" => "yes"), "Complete what is needed"],
+      [terms.merge("#{row}_compensation" => "credit"), "Complete who will provide it"],
+      [terms.merge("#{row}_confirmation" => "review"), "Complete walkthrough or review date"],
+      [terms.merge("#{row}_confirmation" => "documents"), "Complete details, arrangements"],
+      [terms.merge("#{row}_confirmation" => "other"), "Complete details, arrangements"],
+      [terms.merge("#{row}_deadline" => "2026-02-30"), "Enter a valid value for completion date"],
+      [terms.merge("#{row}_time" => "24:00"), "Enter a valid value for completion time"],
+      [terms.merge("#{row}_present" => ""), "Add at least one agreed action"],
+      [terms.merge("cr_additional_signers" => "yes"), CustomResolutionTerms::SIGNER_ERROR]
+    ]
+    missing.each do |invalid, error|
+      assert_no_difference("FileDraft.count") do
+        post generate_from_intake_path(template: template), params: invalid
+      end
+      assert_response :unprocessable_entity
+      assert_select "[role='alert']", text: /#{Regexp.escape(error)}/
+    end
+    assert_select "input[data-agreement-term='cr_additional_signers'][value='yes']"
+  end
+
+  test "Custom Resolution renders conditional clauses and clears inactive branch values" do
+    terms = custom_resolution_params
+    row = CustomResolutionTerms.action_groups(terms.keys).first
+    terms.merge!(
+      "cr_issue_other" => "yes", "cr_other_issue" => "Shared property use",
+      "cr_entry" => "yes", "cr_entry_people" => "Plumber for tap repair",
+      "cr_entry_schedule" => "Tuesday afternoon", "cr_entry_notice" => "Email tenant",
+      "cr_eviction" => "yes", "cr_during" => "Pause action through the deadline",
+      "cr_after" => "Confirm resolution within two days",
+      "cr_correction" => "yes", "cr_correction_notice" => "Email",
+      "cr_correction_days" => "4", "cr_correction_start" => "receipt", "cr_correction_action" => "repairs",
+      "cr_case" => "yes", "cr_court" => "Municipal Court",
+      "cr_case_number" => "42", "cr_case_requirements" => "Keep hearing date",
+      "cr_case_action" => "None", "cr_has_other_terms" => "yes", "cr_other_terms" => "Communicate by email",
+      "cr_additional_parties" => "Witness: Alex Lee", "cr_attachments" => "Inspection notes.pdf",
+      "#{row}_actor" => "both", "#{row}_tasks" => "Landlord books plumber. Tenant provides access.",
+      "#{row}_assistance" => "yes", "#{row}_help_details" => "Tenant clears the sink by Tuesday",
+      "#{row}_time" => "16:30", "#{row}_compensation" => "credit", "#{row}_provider" => "Landlord",
+      "#{row}_amount" => "40.50", "#{row}_recipient" => "Tenant", "#{row}_due" => "2026-05-01",
+      "#{row}_method" => "Rent ledger", "#{row}_conditions" => "None", "#{row}_confirmation" => "review",
+      "#{row}_confirmation_date" => "2026-05-02", "#{row}_confirmation_details" => "Meet at unit"
+    )
+    file = create_agreement_draft(template: CustomResolutionTerms::TEMPLATE, terms: terms)
+    html = DocumentStorage.configured.resolve(file.FileURLPath).binread
+    ["Plumber for tap repair", "Pause action through the deadline", "Confirm resolution within two days",
+     "Municipal Court", "Keep hearing date", "Communicate by email", "a rent credit", "40.50", "Meet at unit",
+     "Witness: Alex Lee", "Inspection notes.pdf", "files to be shared separately"].each { |value| assert_includes html, value }
+
+    log_in_as(@landlord)
+    patch update_review_document_path(file.FileID), params: { agreement_version: 1, cr_entry: "no", cr_case: "no" }
+    assert_redirected_to view_file_path(file.FileID)
+    log_in_as(@tenant)
+    %w[cr_entry cr_case].each do |item|
+      patch decide_document_suggestion_path(file.FileID, item), params: { decision: "accepted" }, as: :json
+      assert_response :success
+    end
+    assert_equal 3, file.reload.AgreementVersion
+    assert_empty file.agreement_terms.keys & %w[cr_entry_people cr_entry_schedule cr_entry_notice cr_court cr_case_number cr_case_requirements cr_case_action]
+    html = DocumentStorage.configured.resolve(file.FileURLPath).binread
+    assert_includes html, "No entry arrangements are included."
+    refute_includes html, "Plumber for tap repair"
+    refute_includes html, "Municipal Court"
+  end
+
+  test "Custom Resolution actions can be added, countered, edited, removed, and signed" do
+    terms = custom_resolution_params
+    first = CustomResolutionTerms.action_groups(terms.keys).first
+    second = "cr_action_12345678-1234-1234-1234-123456789012"
+    file = create_agreement_draft(template: CustomResolutionTerms::TEMPLATE, terms: terms)
+
+    log_in_as(@landlord)
+    get view_file_path(file.FileID, edit: 1)
+    assert_response :success
+    assert_select "input[name='#{first}_present'][value='yes']"
+    patch update_review_document_path(file.FileID), params: custom_action_params(second, "Check <access>").merge(agreement_version: 1)
+    assert_redirected_to view_file_path(file.FileID)
+    assert_equal [second], file.reload.agreement_suggestion_items.pluck(:key)
+
+    log_in_as(@tenant)
+    get view_file_path(file.FileID)
+    assert_response :success
+    assert_select "select[name='counteroffer[#{second}_present]']"
+    counter = CustomResolutionTerms.action_fields(second).keys.index_with { "" }.merge(custom_action_params(second, "Confirm <access>"))
+    patch counteroffer_document_suggestion_path(file.FileID, second), params: { counteroffer: counter }, as: :json
+    assert_response :success
+
+    log_in_as(@landlord)
+    patch decide_document_suggestion_path(file.FileID, second), params: { decision: "accepted" }, as: :json
+    assert_response :success
+    assert_equal [first, second], CustomResolutionTerms.action_groups(file.reload.agreement_terms.keys)
+    assert_equal "Confirm <access>", file.agreement_terms["#{second}_details"]
+    html = DocumentStorage.configured.resolve(file.FileURLPath).binread
+    assert_includes html, "Confirm &lt;access&gt;"
+    assert_equal 2, Nokogiri::HTML(html).css("[data-action-id]").size
+
+    patch update_review_document_path(file.FileID), params: {
+      agreement_version: 2, "#{first}_present" => "", "#{second}_details" => "Confirm access by text",
+      "cr_entry" => "yes", "cr_entry_people" => "Landlord with tenant", "cr_entry_schedule" => "Monday", "cr_entry_notice" => "Text"
+    }
+    assert_redirected_to view_file_path(file.FileID)
+    assert_equal [first, second, "cr_entry"].sort, file.reload.agreement_suggestion_items.pluck(:key).sort
+
+    log_in_as(@tenant)
+    entry_offer = { cr_entry: "yes", cr_entry_people: "Landlord with tenant", cr_entry_schedule: "Tuesday", cr_entry_notice: "Text" }
+    patch counteroffer_document_suggestion_path(file.FileID, "cr_entry"), params: { counteroffer: entry_offer }, as: :json
+    assert_response :success
+    [first, second].each do |item|
+      patch decide_document_suggestion_path(file.FileID, item), params: { decision: "accepted" }, as: :json
+      assert_response :success
+    end
+
+    log_in_as(@landlord)
+    patch decide_document_suggestion_path(file.FileID, "cr_entry"), params: { decision: "accepted" }, as: :json
+    assert_response :success
+    assert_equal [second], CustomResolutionTerms.action_groups(file.reload.agreement_terms.keys)
+    assert_equal "Tuesday", file.agreement_terms["cr_entry_schedule"]
+    assert_equal "Confirm access by text", file.agreement_terms["#{second}_details"]
+
+    version = file.AgreementVersion
+    post apply_signature_document_path(file.FileID), params: { agreement_version: version - 1 }
+    refute file.reload.LandlordSignature
+    post apply_signature_document_path(file.FileID), params: { agreement_version: version }
+    assert file.reload.LandlordSignature
+    refute file.agreement_fully_executed?
+
+    log_in_as(@tenant)
+    post apply_signature_document_path(file.FileID), params: { agreement_version: version }
+    assert file.reload.agreement_fully_executed?
+    html = DocumentStorage.configured.resolve(file.FileURLPath).binread
+    page = Nokogiri::HTML(html)
+    assert_equal [second.delete_prefix("cr_action_")], page.css("[data-action-id]").map { |node| node["data-action-id"] }
+    assert_equal "/s/ Jane Doe", page.at_css('[data-signature-slot="Landlord-signature"]').text
+    assert_equal "/s/ John Doe", page.at_css('[data-signature-slot="Tenant-signature"]').text
+    assert_includes html, "Confirm access by text"
+    assert_includes html, "Tuesday"
+  end
+
+  test "both Custom Resolution parties can submit the inline editor with all agreement terms" do
+    terms = custom_resolution_params.merge(
+      "landlord_representative" => "None", "cr_landlord_capacity" => "Landlord",
+      "tenant_representative" => "None", "cr_tenant_capacity" => "Tenant"
+    )
+    first = CustomResolutionTerms.action_groups(terms.keys).first
+    second = "cr_action_12345678-1234-1234-1234-123456789012"
+    file = create_agreement_draft(template: CustomResolutionTerms::TEMPLATE, terms: terms)
+
+    [[@landlord, @tenant, first, second], [@tenant, @landlord, second, first]].each do |proposer, reviewer, existing, replacement|
+      file.reload
+      original = file.agreement_terms
+      previous_proposal = file.agreement_proposal
+      log_in_as(proposer)
+      get review_document_path(file.FileID)
+      assert_redirected_to view_file_path(file.FileID, edit: 1)
+      follow_redirect!
+      assert_response :success
+      page = Nokogiri::HTML(response.body)
+      assert_equal 1, page.css("iframe.document-iframe").size
+      preview = Nokogiri::HTML(page.at_css("iframe.document-iframe")["srcdoc"])
+      assert_equal (1..7).to_a, preview.css("h2").filter_map { |heading| heading.text[/^([1-7])\./, 1]&.to_i }
+      assert_equal original["#{existing}_details"], preview.at_css("[data-agreement-field='#{existing}_details']").text
+
+      form = page.at_css("#document-generation-form")
+      assert_equal update_review_document_path(file.FileID), form["action"]
+      submitted = form.css("input[data-agreement-term], input[name='agreement_version'], input[name='custom_full_form']")
+                      .to_h { |input| [input["name"], input["value"]] }
+      assert_equal "1", submitted["custom_full_form"]
+      submitted["#{existing}_details"] = "Updated existing action"
+      submitted.merge!(custom_action_params(replacement, "Replacement action"))
+      patch update_review_document_path(file.FileID), params: submitted.merge("cr_entry" => "yes")
+      assert_response :unprocessable_entity
+      assert_select "[data-agreement-editor-error]", text: /Complete purpose and people entering/
+      retry_preview = Nokogiri::HTML(Nokogiri::HTML(response.body).at_css("iframe.document-iframe")["srcdoc"])
+      assert_equal "Updated existing action", retry_preview.at_css("[data-agreement-field='#{existing}_details']").text
+      assert_equal "Replacement action", retry_preview.at_css("[data-agreement-field='#{replacement}_details']").text
+      assert_equal previous_proposal, file.reload.agreement_proposal
+
+      submitted.reject! { |field, _| field.start_with?("#{existing}_") }
+      patch update_review_document_path(file.FileID), params: submitted
+      assert_redirected_to view_file_path(file.FileID)
+      log_in_as(reviewer)
+      assert_equal ["cr_actions"], file.reload.agreement_suggestion_items.pluck(:key)
+      patch decide_document_suggestion_path(file.FileID, "cr_actions"), params: { decision: "accepted" }, as: :json
+      assert_response :success
+      expected = original.reject { |field, _| field.start_with?("#{existing}_") }.merge(custom_action_params(replacement, "Replacement action"))
+      assert_equal expected, file.reload.agreement_terms
+      html = DocumentStorage.configured.resolve(file.FileURLPath).binread
+      assert_includes html, "Replacement action"
+      refute_match(/None, (Landlord|Tenant)/, html)
+    end
+    assert_equal 3, file.AgreementVersion
+  end
+
+  test "Custom Resolution blocks signing and completion when additional signers are required" do
+    terms = custom_resolution_params
+    file = create_agreement_draft(template: CustomResolutionTerms::TEMPLATE, terms: terms)
+    file.update!(AgreementTerms: JSON.generate(terms.merge("cr_additional_signers" => "yes")))
+    refute file.agreement_signable?
+    log_in_as(@landlord)
+    post apply_signature_document_path(file.FileID), params: { agreement_version: 1 }
+    assert_redirected_to view_file_path(file.FileID)
+    assert_equal CustomResolutionTerms::SIGNER_ERROR, flash[:alert]
+    refute file.reload.LandlordSignature
+    file.assign_attributes(LandlordSignature: true, TenantSignature: true)
+    refute file.agreement_fully_executed?
+  end
+
   test "Move-Out groups deadline changes through counteroffer acceptance and signs the accepted version" do
     terms = move_out_params.merge(
       landlord_representative: "Jane Doe", landlord_capacity: "Property manager",
@@ -3264,6 +3536,26 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
       negotiation_date: "2026-03-20", reason: "Failure to Pay Rent", money_owed: "900",
       best_option: "Move Out", vacate_date: "2026-05-01",
       amount1: "500", date1: "2026-03-30", amount2: "400", date2: "2026-04-30" }
+  end
+
+  def custom_resolution_params
+    row = "cr_action_abcdef12-1234-1234-1234-123456789012"
+    custom_action_params(row, "Repair the kitchen tap").merge(
+      "landlord_name" => "Jane Doe", "tenant_name" => "John Doe",
+      "address" => "42 Main St, Columbus, Ohio 43215", "negotiation_date" => "2026-04-01",
+      "cr_issue_repairs" => "yes", "cr_issue_details" => "Leaking kitchen tap",
+      "cr_disposal" => "No disposal authorized", "cr_entry" => "no",
+      "cr_resolution" => "Repair of leaking kitchen tap", "cr_eviction" => "no",
+      "cr_delay_method" => "Email", "cr_correction" => "no", "cr_case" => "no",
+      "cr_has_other_terms" => "no", "cr_additional_signers" => "no", "cr_attachments" => "None"
+    )
+  end
+
+  def custom_action_params(row, details)
+    {
+      present: "yes", actor: "landlord", kind: "repair", details: details, deadline: "2026-04-30",
+      assistance: "no", compensation: "none", confirmation: "written"
+    }.transform_keys { |key| "#{row}_#{key}" }
   end
 
   def move_out_params

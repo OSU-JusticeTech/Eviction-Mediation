@@ -16,6 +16,9 @@ function startDocumentGenerationEditor() {
   const original = new Map(Array.from(inputs, ([key, input]) => [key, input.value]));
   const template = guide.dataset.agreementTemplate;
 
+  const customResolution = template === 'custom_resolution_v1';
+  const customFields = new Map();
+  let customIssues = [];
   const requiredFields = guide.dataset.requiredAgreementFields?.split(' ') ?? [
     'landlord_name',
     'tenant_name',
@@ -97,7 +100,125 @@ function startDocumentGenerationEditor() {
     return signers && signers !== moveOutRules.noAdditionalSigners ? moveOutRules.additionalSignersError : '';
   }
 
+  function matchesConditions(conditions) {
+    return Object.entries(conditions).every(([field, options]) => [options].flat().includes(value(field)));
+  }
+
+  function customChecks({ includeOptional = false } = {}) {
+    const checks = [
+      [...inputs.keys()].some(field => /^cr_action_.*_present$/.test(field) && value(field) === 'yes') ?
+        '' : 'Add at least one agreed action.',
+      customIssues.some(field => value(field) === 'yes') ? '' : 'Select at least one issue being resolved.'
+    ];
+    const representativePairs = ['landlord', 'tenant'].map(role =>
+      [`${role}_representative`, `cr_${role}_capacity`]);
+    const required = new Set(representativePairs.filter(pair => pair.some(field => value(field))).flat());
+
+    customFields.forEach(({ agreementInput, agreementOptions, customRequired, customRule, label }, field) => {
+      if (!matchesConditions(customRule)) return;
+
+      const current = value(field);
+      const isRequired = customRequired || required.has(field);
+      if (!isRequired && (!includeOptional || !current)) return;
+      if (!current) {
+        checks.push(`Complete ${label.toLowerCase()}.`);
+        return;
+      }
+      const valid = {
+        select: () => Object.hasOwn(agreementOptions, current),
+        date: () => /^\d{4}-\d{2}-\d{2}$/.test(current) && !current.startsWith('0000') &&
+          new Date(`${current}T00:00:00Z`).toJSON()?.startsWith(current),
+        time: () => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(current),
+        number: () => /^\d{1,9}(?:\.\d{1,2})?$/.test(current),
+        'positive-integer': () => /^[1-9]\d{0,5}$/.test(current)
+      };
+      checks.push((valid[agreementInput]?.() ?? current.length <= 4000) ? '' : `Enter a valid value for ${label.toLowerCase()}.`);
+    });
+    return checks;
+  }
+
+  function registerCustomFields(container) {
+    container.querySelectorAll('[data-agreement-field]').forEach(node => {
+      const { agreementField, agreementInput, agreementOptions, customRequired, customRule } = node.dataset;
+      if (!inputs.has(agreementField)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = agreementField;
+        input.dataset.agreementTerm = agreementField;
+        form.append(input);
+        inputs.set(agreementField, input);
+        original.set(agreementField, '');
+      }
+      customFields.set(agreementField, {
+        agreementInput, agreementOptions: JSON.parse(agreementOptions || 'null'),
+        customRequired: customRequired === 'true', customRule: JSON.parse(customRule), label: node.title
+      });
+    });
+  }
+
+  function addCustomActionControls(doc) {
+    const rows = doc.querySelector('[data-custom-inline-actions]');
+    const template = doc.querySelector('[data-custom-inline-action-template]');
+    const status = doc.querySelector('[data-custom-inline-status]');
+    const add = doc.querySelector('[data-custom-inline-add]');
+    rows.addEventListener('click', event => {
+      const remove = event.target.closest('[data-custom-inline-remove]');
+      if (!remove) return;
+
+      if (activeEdit) activeEdit.finish(true);
+      const row = remove.closest('[data-action-id]');
+      const prefix = `cr_action_${row.dataset.actionId}_`;
+      inputs.forEach((input, field) => {
+        if (!field.startsWith(prefix)) return;
+        input.remove();
+        inputs.delete(field);
+        original.delete(field);
+        customFields.delete(field);
+      });
+      const next = row.nextElementSibling || row.previousElementSibling;
+      row.remove();
+      Array.from(rows.children).forEach((action, index) => {
+        action.querySelector('h3 span').textContent = index + 1;
+      });
+      (next?.querySelector('[data-custom-inline-remove]') || add).focus();
+      status.textContent = 'Action removed.';
+      report('');
+      refreshCount();
+    });
+    add.addEventListener('click', () => {
+      const id = crypto.randomUUID();
+      const row = template.content.firstElementChild.cloneNode(true);
+      [row, ...row.querySelectorAll('[data-agreement-field], [data-custom-clause]')].forEach(node => {
+        Object.entries(node.dataset).forEach(([key, data]) => {
+          node.dataset[key] = data.replaceAll('00000000-0000-0000-0000-000000000000', id);
+        });
+      });
+      row.querySelector('h3 span').textContent = rows.children.length + 1;
+      rows.append(row);
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = `cr_action_${id}_present`;
+      input.dataset.agreementTerm = input.name;
+      input.value = 'yes';
+      form.append(input);
+      inputs.set(input.name, input);
+      registerCustomFields(row);
+      makeEditable(row);
+      updateConditionalSections(doc);
+      const field = row.querySelector('[data-agreement-field]');
+      field.focus();
+      status.textContent = 'Action added.';
+      report('');
+      refreshCount();
+    });
+  }
+
   function refreshCount() {
+    if (customResolution) {
+      const checks = customChecks();
+      count.textContent = `${checks.filter(message => !message).length} of ${checks.length} required fields completed`;
+      return;
+    }
     if (moveOutRules) {
       const checks = moveOutChecks();
       count.textContent = `${checks.filter(message => !message).length} of ${checks.length} required fields completed`;
@@ -144,7 +265,8 @@ function startDocumentGenerationEditor() {
       const date = new Date(`${value}T12:00:00`);
       if (!Number.isNaN(date.getTime())) return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(date);
     }
-    return value;
+    const choices = customFields.get(field)?.agreementOptions;
+    return choices && Object.hasOwn(choices, value) ? choices[value] : value;
   }
 
   function sortPaymentRows(doc) {
@@ -181,6 +303,10 @@ function startDocumentGenerationEditor() {
     if (/^date[1-6]$/.test(field)) {
       sortPaymentRows(doc);
     }
+    if (customResolution) {
+      updateConditionalSections(doc);
+      report('');
+    }
     refreshCount();
   }
 
@@ -195,17 +321,24 @@ function startDocumentGenerationEditor() {
     if (activeEdit) activeEdit.finish(true);
     const field = node.dataset.agreementField;
     const type = node.dataset.agreementInput || inputType(field);
-    const editor = doc.createElement(type === 'textarea' || field === 'additional_terms' || field === 'reason' ? 'textarea' : 'input');
+    const editor = doc.createElement(type === 'select' ? 'select' : type === 'textarea' || field === 'additional_terms' || field === 'reason' ? 'textarea' : 'input');
     if (editor.tagName === 'INPUT') editor.type = type;
     if (type === 'number' || type === 'positive-integer') {
       editor.type = 'number';
       editor.min = type === 'number' ? '0' : '1';
       editor.step = type === 'number' ? '0.01' : '1';
     }
+    if (type === 'select') {
+      const options = { '': 'Select an option', ...customFields.get(field).agreementOptions };
+      Object.entries(options).forEach(([optionValue, label]) => {
+        editor.add(new doc.defaultView.Option(label, optionValue));
+      });
+    }
+    if (customResolution && ['text', 'textarea'].includes(type)) editor.maxLength = 4000;
     editor.value = inputs.get(field)?.value || '';
     editor.className = 'agreement-inline-input';
     if (node.title) editor.placeholder = node.title;
-    editor.setAttribute('aria-label', `Edit ${field.replaceAll('_', ' ')}`);
+    editor.setAttribute('aria-label', `Edit ${node.title || field.replaceAll('_', ' ')}`);
     node.textContent = '';
     node.append(editor);
     const finish = save => {
@@ -220,15 +353,31 @@ function startDocumentGenerationEditor() {
     if (type === 'time') {
       editor.addEventListener('change', () => finish(true), { once: true });
     }
+    if (type === 'select') {
+      editor.addEventListener('change', () => {
+        finish(true);
+        node.focus();
+      }, { once: true });
+    }
     editor.addEventListener('keydown', event => {
       if (event.key === 'Escape') { event.preventDefault(); finish(false); }
-      if (event.key === 'Enter' && editor.tagName !== 'TEXTAREA') { event.preventDefault(); finish(true); }
+      if (event.key === 'Enter' && editor.tagName === 'INPUT') { event.preventDefault(); finish(true); }
     });
     editor.focus();
     if (editor.tagName === 'TEXTAREA' || editor.type === 'text') editor.select();
   }
 
   function updateConditionalSections(doc) {
+    if (customResolution) {
+      customFields.forEach(({ customRule }, field) => {
+        inputs.get(field).disabled = !matchesConditions(customRule);
+      });
+      doc.querySelectorAll('[data-custom-clause]').forEach(section => {
+        section.hidden = !matchesConditions(JSON.parse(section.dataset.customClause));
+      });
+      const attachments = value('cr_attachments');
+      doc.querySelector('[data-custom-attachments]').hidden = !attachments || attachments.toLowerCase() === 'none';
+    }
     doc.querySelectorAll('[data-agreement-conditional]').forEach(section => {
       const field = section.dataset.agreementConditional;
       const expectedValue = section.dataset.agreementConditionalValue;
@@ -251,6 +400,9 @@ function startDocumentGenerationEditor() {
         : currentValue === node.dataset.agreementValue;
       node.querySelector('.checkbox')?.classList.toggle('checked', selected);
       node.classList.toggle('agreement-changed', inputs.get(field)?.value !== original.get(field));
+      if (node.hasAttribute('data-custom-checkbox')) {
+        node.setAttribute('aria-checked', selected);
+      }
     });
 
     updateConditionalSections(doc);
@@ -259,6 +411,10 @@ function startDocumentGenerationEditor() {
   function makeEditable(container) {
     container.querySelectorAll('[data-agreement-field], [data-agreement-choice]').forEach(node => {
       node.tabIndex = 0;
+      if (node.hasAttribute('data-custom-checkbox')) {
+        node.setAttribute('role', 'checkbox');
+        return;
+      }
       node.setAttribute('role', 'button');
       node.setAttribute('aria-label', node.dataset.agreementField ?
         `Edit ${(node.title || node.dataset.agreementField.replaceAll('_', ' '))}` :
@@ -366,16 +522,24 @@ function startDocumentGenerationEditor() {
       textarea.agreement-inline-input { min-width: 220px; min-height: 50px; }
       .agreement-add-payment, .agreement-remove-payment { cursor: pointer; color: #164c82; background: #f2f7fd; border: 1px solid #9ebbd8; border-radius: 5px; padding: 4px 8px; margin: 5px; font: 13px Arial, sans-serif; }
       .agreement-new-payment { margin: 8px 0; }
+      [data-custom-checkbox]::before { content: '☐ '; }
+      [data-custom-checkbox][aria-checked="true"]::before { content: '☑ '; }
       @media print { .agreement-add-payment, .agreement-remove-payment { display: none; } }
     `;
     doc.head.append(style);
+    if (customResolution) {
+      customIssues = Array.from(doc.querySelectorAll('[data-custom-checkbox]'), node => node.dataset.agreementChoice);
+      registerCustomFields(doc);
+      addCustomActionControls(doc);
+      finish.disabled = false;
+    }
     makeEditable(doc);
 
     // Display prefilled information in the agreement.
     inputs.forEach((input, field) => {
       doc.querySelectorAll('[data-agreement-field]').forEach(node => {
         if (node.dataset.agreementField === field) {
-          node.textContent = displayValue(field, input.value, node);
+          node.textContent = displayValue(field, customResolution ? value(field) : input.value, node);
         }
       });
     });
@@ -394,7 +558,10 @@ function startDocumentGenerationEditor() {
       if (!choice || !inputs.has(choice.dataset.agreementChoice)) return;
       const choiceField = choice.dataset.agreementChoice;
       const input = inputs.get(choiceField);
-      if (choiceField.startsWith('move_out_method_')) {
+      if (choice.hasAttribute('data-custom-checkbox')) {
+        input.value = input.value === 'yes' ? '' : 'yes';
+        report('');
+      } else if (choiceField.startsWith('move_out_method_')) {
         input.value = input.value === 'yes' ? '' : 'yes';
       } else if (choiceField === 'payment_method' && guide.dataset.agreementTemplate === 'b') {
         const selectedMethods = new Set(input.value.split(',').filter(Boolean));
@@ -454,6 +621,16 @@ function startDocumentGenerationEditor() {
   if (frame.contentDocument?.readyState === 'complete') initializeFrame();
   form.addEventListener('submit', event => {
     if (activeEdit) activeEdit.finish(true);
+    if (customResolution) {
+      const message = value('cr_additional_signers') === 'yes'
+        ? guide.dataset.customSignerError : customChecks({ includeOptional: true }).find(Boolean);
+      if (message) {
+        event.preventDefault();
+        report(message);
+        guide.scrollIntoView({ block: 'start', behavior: 'auto' });
+      }
+      return;
+    }
     if (moveOutRules) {
       const message = moveOutChecks().find(Boolean) || moveOutSignerError();
       if (message) {

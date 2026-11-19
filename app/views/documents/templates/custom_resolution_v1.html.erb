@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Custom Resolution Agreement</title>
+  <style>
+    body { color: #222; background: white; font: 16px/1.5 Georgia, serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
+    header { text-align: center; }
+    h1 { margin-bottom: 0; }
+    h2 { font-size: 1.25rem; margin-top: 1.5rem; }
+    h3 { font-size: 1rem; }
+    p { overflow-wrap: anywhere; }
+    .value { white-space: pre-wrap; }
+    .action, .signature-block { padding: .75rem 1rem; border: 1px solid #aaa; margin: 1rem 0; }
+    @media print {
+      body { margin: 0; padding: 0; max-width: none; }
+      h2, h3 { break-after: avoid; }
+      .signatures { break-before: page; }
+      .signature-block { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<% editor = local_assigns[:inline_editor]
+   terms = (editor ? local_assigns[:editor_values] : @custom_resolution_terms) || {}
+   preview = !editor && @agreement_editor_preview
+   value = ->(key) { editor ? custom_resolution_inline_field(key, terms) : tag.span(terms[key].presence || "___________", class: "value") }
+   clause = ->(conditions, &block) { custom_resolution_clause(terms, editor, conditions, &block) }
+   positive_clause = ->(field, &block) do
+     conditions = preview && terms[field] != "no" ? {} : { field => "yes" }
+     clause.call(conditions, &block)
+   end
+   rows = CustomResolutionTerms.action_groups(terms.keys)
+   rows = ["cr_action_preview"] if preview && rows.empty? %>
+<header>
+  <h1>CUSTOM RESOLUTION AGREEMENT</h1>
+  <p>Ohio Rental Dispute</p>
+</header>
+<p>Use this Agreement for rental issues that do not fit the Pay-and-Stay or Move-Out Agreement. The parties may complete it with or without a mediator.</p>
+<p>Signing is voluntary and may create legally enforceable obligations. Read the completed terms and ask questions before signing.</p>
+
+<h2>Party Information</h2>
+<p>Landlord / legal entity: <%= value.call("landlord_name") %></p>
+<% if editor || preview || (terms["landlord_representative"].present? && !terms["landlord_representative"].casecmp?("None")) %>
+  <p>Landlord’s authorized representative, if applicable: <%= value.call("landlord_representative") %>, <%= value.call("cr_landlord_capacity") %></p>
+<% end %>
+<p>Tenant(s): <%= value.call("tenant_name") %></p>
+<% if editor || preview || (terms["tenant_representative"].present? && !terms["tenant_representative"].casecmp?("None")) %>
+  <p>Tenant’s authorized representative, if applicable: <%= value.call("tenant_representative") %>, <%= value.call("cr_tenant_capacity") %></p>
+<% end %>
+<p>Rental property: <%= value.call("address") %></p>
+<p>Agreement Date: <%= value.call("negotiation_date") %></p>
+
+<h2>1. Issue Being Resolved</h2>
+<ul>
+  <% CustomResolutionTerms::ISSUES.each do |key, label| %>
+    <% field = "cr_issue_#{key}" %>
+    <% next unless editor || preview || terms[field] == "yes" %>
+    <li>
+      <% if editor %>
+        <%= tag.span(label, data: { agreement_choice: field, agreement_value: "yes", custom_checkbox: true }) %>
+        <% if key == :other %>
+          <%= custom_resolution_clause(terms, editor, { field => "yes" }, element: :span) do %>
+            : <%= value.call("cr_other_issue") %>
+          <% end %>
+        <% end %>
+      <% else %>
+        <%= label %><% if key == :other %>: <%= value.call("cr_other_issue") %><% end %>.
+      <% end %>
+    </li>
+  <% end %>
+</ul>
+<p>Specific issue and location: <%= value.call("cr_issue_details") %></p>
+<p>This Agreement resolves only the matters identified here. It does not settle other claims or disagreements.</p>
+
+<h2>2. Agreed Actions</h2>
+<div<%= " data-custom-inline-actions" if editor %>>
+  <% rows.each_with_index do |row, index| %>
+    <%= render "documents/custom_resolution_document_action", row: row, number: index + 1, terms: terms, editor: editor %>
+  <% end %>
+</div>
+<% if editor %>
+  <template data-custom-inline-action-template>
+    <%= render "documents/custom_resolution_document_action", row: "cr_action_00000000-0000-0000-0000-000000000000", number: nil, terms: {}, editor: true %>
+  </template>
+  <button type="button" class="agreement-add-payment" data-custom-inline-add>Add action</button>
+  <p data-custom-inline-status role="status"></p>
+<% end %>
+<p>Payments and credits will be documented and not counted twice. These actions do not transfer legal responsibilities that cannot legally be transferred.</p>
+<p>No belongings may be discarded under this Agreement unless the items and the owner’s permission are specifically identified: <%= value.call("cr_disposal") %>.</p>
+
+<h2>3. Entry, If Needed</h2>
+<% if editor %><p>Entry arrangements: <%= value.call("cr_entry") %></p><% end %>
+<%= clause.call({ "cr_entry" => "no" }) do %>
+  <p>No entry arrangements are included.</p>
+<% end %>
+<%= positive_clause.call("cr_entry") do %>
+  <p>Entry is needed:</p>
+  <p>Purpose and people entering: <%= value.call("cr_entry_people") %></p>
+  <p>Date/time or scheduling process: <%= value.call("cr_entry_schedule") %></p>
+  <p>Notice and contact method: <%= value.call("cr_entry_notice") %></p>
+<% end %>
+<p>Entry must comply with applicable Ohio law. This Agreement does not grant unrestricted access or waive legally required notice.</p>
+
+<h2>4. Resolving the Identified Issue</h2>
+<p>The parties agree that completing the actions in Section 2 will resolve the following issue: <%= value.call("cr_resolution") %>.</p>
+<% if editor %><p>Does this dispute involve possible eviction or termination? <%= value.call("cr_eviction") %></p><% end %>
+<%= clause.call(preview ? {} : { "cr_eviction" => "yes" }) do %>
+  <% if editor || preview %><p>If this dispute involves possible eviction or termination, both fields below must be complete before signing:</p><% end %>
+  <p>While the agreed actions are being completed, Landlord agrees to: <%= value.call("cr_during") %></p>
+  <p>After the agreed actions are completed, Landlord agrees to: <%= value.call("cr_after") %></p>
+  <p>These promises apply only to the identified issue. This Agreement does not itself extend the lease or promise renewal.</p>
+<% end %>
+<% unless preview %>
+  <% no_eviction_clause = editor ? ["no", ""] : [terms["cr_eviction"]] - ["yes"] %>
+  <%= clause.call({ "cr_eviction" => no_eviction_clause }) do %>
+    <p>This Agreement does not itself extend the lease or promise renewal.</p>
+  <% end %>
+<% end %>
+
+<h2>5. Delays and Missed Commitments</h2>
+<p>A party expecting a delay will notify the other through <%= value.call("cr_delay_method") %> and propose next steps. Deadlines change only by written agreement, subject to law and court orders.</p>
+<% if editor %><p>Additional time to correct a missed commitment: <%= value.call("cr_correction") %></p><% end %>
+<%= clause.call({ "cr_correction" => "no" }) do %>
+  <p>No additional period is agreed. Legally required notices and protections still apply.</p>
+<% end %>
+<%= positive_clause.call("cr_correction") do %>
+  <p>Before seeking relief for a missed commitment, the affected party will give notice by <%= value.call("cr_correction_notice") %>. The other party will have <%= value.call("cr_correction_days") %> days after <%= value.call("cr_correction_start") %> to complete <%= value.call("cr_correction_action") %>.</p>
+  <p>If an additional correction period is selected, a commitment corrected within that period will not be used as a basis for eviction under this Agreement.</p>
+<% end %>
+<p>Either party may seek relief allowed by law, subject to this Agreement. This Agreement does not authorize automatic eviction, lockouts, utility shutoffs, or unlawful removal of belongings.</p>
+
+<h2>6. Existing Cases and Other Terms</h2>
+<% if editor %><p>Related court case, order, or agency notice: <%= value.call("cr_case") %></p><% end %>
+<%= clause.call({ "cr_case" => "no" }) do %>
+  <p>Related court case, order, or agency notice: None identified.</p>
+<% end %>
+<%= positive_clause.call("cr_case") do %>
+  <p>Related court case, order, or agency notice: <%= value.call("cr_court") %>, <%= value.call("cr_case_number") %>, <%= value.call("cr_case_requirements") %>.</p>
+  <p>Agreed action concerning it: <%= value.call("cr_case_action") %></p>
+<% end %>
+<p>Signing does not itself dismiss a case, cancel a hearing, change an order, or extend a legal deadline. This Agreement does not change lawful rent-escrow arrangements.</p>
+<% if editor %>
+  <p>Additional terms: <%= value.call("cr_has_other_terms") %></p>
+  <%= clause.call({ "cr_has_other_terms" => "yes" }) do %>
+    <p>Additional terms: <%= value.call("cr_other_terms") %></p>
+  <% end %>
+<% else %>
+  <p>Additional terms: <% if terms["cr_has_other_terms"] == "no" %>None.<% else %><%= value.call("cr_other_terms") %><% end %></p>
+<% end %>
+<p>Except as expressly changed here, lawful lease obligations remain in effect. Neither party gives up legal protections that cannot legally be given up.</p>
+
+<p>[SIGNATURE PAGE FOLLOWS]</p>
+<section class="signatures">
+  <h2>7. Acknowledgement and Signatures</h2>
+  <p>This Agreement takes effect when all required parties have signed.</p>
+  <p>This Agreement may be signed in separate copies. Each signed copy must contain the same terms. Together, the signed copies form one Agreement.</p>
+  <p>Each party confirms that they have read the completed terms, had an opportunity to ask questions and seek legal advice, and voluntarily agree.</p>
+  <p>Each party will receive a complete signed copy and any attachments.</p>
+  <% { "Landlord" => "Landlord / authorized representatives:", "Tenant" => "Tenant(s) / authorized representatives:" }.each do |role, label| %>
+    <div class="signature-block">
+      <h3><%= label %></h3>
+      <p>Signature: <span class="signature-line" data-signature-slot="<%= role %>-signature">___________</span></p>
+      <p>Printed name: <span class="field" data-signature-slot="<%= role %>-name">___________</span></p>
+      <p>Title / capacity: <%= editor ? value.call("cr_#{role.downcase}_capacity") : terms["cr_#{role.downcase}_capacity"].presence || role %></p>
+      <p>Date: <span class="date-line" data-signature-slot="<%= role %>-date">___________</span></p>
+    </div>
+  <% end %>
+  <% if editor %>
+    <p>Does this agreement require additional signers? <%= value.call("cr_additional_signers") %></p>
+  <% end %>
+  <% if editor || terms["cr_additional_parties"].present? %>
+    <p>Additional parties and roles: <%= value.call("cr_additional_parties") %></p>
+  <% end %>
+  <p>Attachments: <%= value.call("cr_attachments") %></p>
+  <% attachments_listed = terms["cr_attachments"].present? && !terms["cr_attachments"].casecmp?("None") %>
+  <% if editor || attachments_listed %>
+    <p <%= "data-custom-attachments" if editor %> <%= "hidden" unless attachments_listed %>>The attachment list identifies files to be shared separately.</p>
+  <% end %>
+</section>
+</body>
+</html>

@@ -131,24 +131,24 @@ class FileDraft < ApplicationRecord
       grouped[date_key] = :skip if date
     end
 
-    review_groups = if revised_move_out?
-      MoveOutTerms::GROUPS
+    group_keys = if custom_resolution?
+      changes.values.pluck("group_key").compact.uniq
+    elsif revised_move_out?
+      MoveOutTerms::GROUPS.keys
     elsif self[:AgreementTemplate] == "b"
-      PayAndStayTerms::REVIEW_GROUPS
+      PayAndStayTerms::REVIEW_GROUPS.keys
     else
-      {}
+      []
     end
-    unless review_groups.empty?
-      review_groups.each_key do |key|
-        fields = changes.keys.select { |field| changes[field]["group_key"] == key }
-        next if fields.empty?
+    group_keys.each do |key|
+      fields = changes.keys.select { |field| changes[field]["group_key"] == key }
+      next if fields.empty?
 
-        first, *rest = fields
-        change = changes.fetch(first)
-        grouped[first] = { key: key, fields: fields, terms_group: true,
-                           offered_by_id: change["offered_by_id"] || proposal["proposer_id"], change: change }
-        rest.each { |field| grouped[field] = :skip }
-      end
+      first, *rest = fields
+      change = changes.fetch(first)
+      grouped[first] = { key: key, fields: fields, terms_group: true,
+                         offered_by_id: change["offered_by_id"] || proposal["proposer_id"], change: change }
+      rest.each { |field| grouped[field] = :skip }
     end
 
     changes.filter_map do |field, change|
@@ -165,6 +165,10 @@ class FileDraft < ApplicationRecord
       agreement_conversation_id.present?
   end
 
+  def custom_resolution?
+    has_attribute?(:AgreementTemplate) && self[:AgreementTemplate] == CustomResolutionTerms::TEMPLATE
+  end
+
   def revised_move_out?
     has_attribute?(:AgreementTemplate) && self[:AgreementTemplate] == MoveOutTerms::TEMPLATE
   end
@@ -179,10 +183,13 @@ class FileDraft < ApplicationRecord
   end
 
   def agreement_fully_executed?
-    self[:LandlordSignature] && self[:TenantSignature] && !additional_pay_and_stay_signers?
+    self[:LandlordSignature] && self[:TenantSignature] && !additional_pay_and_stay_signers? &&
+      (!custom_resolution? || agreement_terms["cr_additional_signers"] == "no")
   end
 
   def agreement_signable?
+    return false if custom_resolution? && agreement_terms["cr_additional_signers"] != "no"
+
     !has_attribute?(:AgreementTemplate) || self[:AgreementTemplate].blank? || agreement_document?
   end
 
