@@ -176,6 +176,14 @@ html, body {
     background: #e0e0e0;
 }
 
+.accordion-header::after {
+    content: "▸";
+}
+
+.accordion-toggle:checked + .accordion-header::after {
+    content: "▾";
+}
+
 /* Accordion Content */
 .accordion-content {
     max-height: 0;
