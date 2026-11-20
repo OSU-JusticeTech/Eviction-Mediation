@@ -7,7 +7,7 @@ class ResourcesLandingTest < ApplicationSystemTestCase
     visit root_path
 
     assert_text "Resolve rental disputes"
-    assert_text "A text-based mediation tool for tenants and landlords."
+    assert_text "A chat-based mediation tool for tenants and landlords."
     assert_link "Log In"
     assert_link "Create a Free Account"
   end
