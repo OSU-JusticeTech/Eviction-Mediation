@@ -15,6 +15,28 @@ class UsersTest < ApplicationSystemTestCase
     assert_button "Sign Up"
   end
 
+  test "signup password visibility toggles both fields without changing their values" do
+    visit signup_path
+
+    assert_unchecked_field "Show Password"
+    assert_selector "#user_password[type='password']"
+    assert_selector "#user_password_confirmation[type='password']"
+    fill_in "user_password", with: "SecurePassword123!"
+    fill_in "user_password_confirmation", with: "SecurePassword123!"
+
+    check "Show Password"
+    assert_selector "#user_password[type='text']"
+    assert_selector "#user_password_confirmation[type='text']"
+    assert_field "user_password", with: "SecurePassword123!"
+    assert_field "user_password_confirmation", with: "SecurePassword123!"
+
+    uncheck "Show Password"
+    assert_selector "#user_password[type='password']"
+    assert_selector "#user_password_confirmation[type='password']"
+    assert_field "user_password", with: "SecurePassword123!"
+    assert_field "user_password_confirmation", with: "SecurePassword123!"
+  end
+
   test "signing up as a tenant with valid data" do
     visit signup_path
 
@@ -24,6 +46,7 @@ class UsersTest < ApplicationSystemTestCase
       find("#user_Email").set("alice.tenant.#{Time.now.to_i}@example.com")
       find("#user_password").set("SecurePassword123!")
       find("#user_password_confirmation").set("SecurePassword123!")
+      check "Show Password"
       choose "role_tenant"
       assert_selector "#address-line-1", visible: true
       find("#address-line-1").set("123 Main St")
