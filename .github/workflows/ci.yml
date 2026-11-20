@@ -9,7 +9,7 @@ on:
 jobs:
   # Security Scan: Ruby
   scan_ruby:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       
@@ -36,7 +36,7 @@ jobs:
 
   # Security Scan: JavaScript (Importmap audit)
   scan_js:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       
