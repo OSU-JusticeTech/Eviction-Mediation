@@ -5,11 +5,11 @@
   <div class="template-grid">
     <div class="template-card">
       <div class="template-header">
-        <h3 class="template-title">Move-Out Agreement</h3>
+        <h2 class="template-title">Move-Out Agreement</h2>
         <span class="template-badge">Template A</span>
       </div>
       <div class="template-preview">
-        <iframe src="<%= template_preview_path(template: MoveOutTerms::TEMPLATE) %>" width="100%" height="400" frameborder="0">
+        <iframe src="<%= template_preview_path(template: MoveOutTerms::TEMPLATE) %>" title="Move-Out Agreement preview" width="100%" height="400" frameborder="0">
           Your browser does not support embedded previews.
         </iframe>
       </div>
@@ -20,11 +20,11 @@
 
     <div class="template-card">
       <div class="template-header">
-        <h3 class="template-title">Pay and Stay Agreement</h3>
+        <h2 class="template-title">Pay and Stay Agreement</h2>
         <span class="template-badge">Template B</span>
       </div>
       <div class="template-preview">
-        <iframe src="<%= template_preview_path(template: 'b') %>" width="100%" height="400" frameborder="0">
+        <iframe src="<%= template_preview_path(template: 'b') %>" title="Pay and Stay Agreement preview" width="100%" height="400" frameborder="0">
           Your browser does not support embedded previews.
         </iframe>
       </div>
@@ -36,11 +36,11 @@
     <% if @show_mediation_template %>
       <div class="template-card">
         <div class="template-header">
-          <h3 class="template-title">Agreement to Mediate</h3>
+          <h2 class="template-title">Agreement to Mediate</h2>
           <span class="template-badge">Template C</span>
         </div>
         <div class="template-preview">
-          <iframe src="<%= template_preview_path(template: AgreementToMediateTerms::TEMPLATE, conversation_id: params[:conversation_id]) %>" width="100%" height="400" frameborder="0">
+          <iframe src="<%= template_preview_path(template: AgreementToMediateTerms::TEMPLATE, conversation_id: params[:conversation_id]) %>" title="Agreement to Mediate preview" width="100%" height="400" frameborder="0">
             Your browser does not support embedded previews.
           </iframe>
         </div>
@@ -51,7 +51,7 @@
     <% end %>
     <div class="template-card">
       <div class="template-header">
-        <h3 class="template-title">Custom Resolution Agreement</h3>
+        <h2 class="template-title">Custom Resolution Agreement</h2>
         <span class="template-badge">Template D</span>
       </div>
       <div class="template-preview">

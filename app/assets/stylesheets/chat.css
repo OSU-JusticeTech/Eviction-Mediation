@@ -217,7 +217,7 @@
     border-bottom: 1px solid rgba(16, 42, 77, 0.06);
   }
 
-  .conversation-info-card__header h3 {
+  .conversation-info-card__header h2 {
     margin: 0;
     font-size: 1.15rem;
     color: #102a4d;
@@ -276,7 +276,7 @@
     margin-bottom: 1.25rem;
   }
 
-  .info-box h4 {
+  .info-box h3 {
     margin: 0 0 0.5rem;
     font-size: 0.95rem;
     color: #102a4d;
@@ -295,7 +295,7 @@
     border-color: #bbf7d0;
   }
 
-  .info-box--mediator h4 {
+  .info-box--mediator h3 {
     color: #166534;
   }
 
@@ -308,7 +308,7 @@
     border-color: #bfdbfe;
   }
 
-  .info-box--info h4 {
+  .info-box--info h3 {
     color: #1e40af;
   }
 
@@ -321,7 +321,7 @@
     border-color: #dee2e6;
   }
 
-  .info-box--disclaimer h4 {
+  .info-box--disclaimer h3 {
     color: #495057;
   }
 
@@ -1971,7 +1971,7 @@
       padding: 0.9rem 1rem 0.75rem;
     }
 
-    .conversation-info-card__header h3 {
+    .conversation-info-card__header h2 {
       font-size: 1rem;
     }
 

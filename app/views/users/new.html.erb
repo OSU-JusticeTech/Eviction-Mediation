@@ -25,7 +25,7 @@
       <% end %>
       <!-- First Name -->
       <div class="input-group">
-        <label for="FName">First Name</label>
+        <label for="user_FName">First Name</label>
         <div class="input-field">
           <i class="fa-solid fa-user"></i>
           <%= f.text_field :FName, placeholder: "Enter your first name", required: true, class: "signup-input" %>
@@ -34,7 +34,7 @@
 
       <!-- Last Name -->
       <div class="input-group">
-        <label for="LName">Last Name</label>
+        <label for="user_LName">Last Name</label>
         <div class="input-field">
           <i class="fa-solid fa-user"></i>
           <%= f.text_field :LName, placeholder: "Enter your last name", required: true, class: "signup-input" %>
@@ -43,7 +43,7 @@
 
       <!-- Email -->
       <div class="input-group">
-        <label for="Email">Email</label>
+        <label for="user_Email">Email</label>
         <div class="input-field">
           <i class="fa-solid fa-envelope"></i>
           <%= f.email_field :Email, placeholder: "youremail@example.com", required: true, class: "signup-input" %>
@@ -55,7 +55,7 @@
 
       <!-- Password -->
       <div class="input-group">
-        <label for="Password">Password</label>
+        <label for="user_password">Password</label>
         <div class="input-field">
           <i class="fa-solid fa-lock"></i>
           <%= f.password_field :password, placeholder: "Create a password", required: true, class: "signup-input" %>
@@ -67,7 +67,7 @@
 
       <!-- Password Confirmation -->
       <div class="input-group">
-        <label for="PasswordConfirmation">Confirm Password</label>
+        <label for="user_password_confirmation">Confirm Password</label>
         <div class="input-field">
           <i class="fa-solid fa-lock"></i>
           <%= f.password_field :password_confirmation, placeholder: "Confirm your password", required: true, class: "signup-input" %>
@@ -98,7 +98,7 @@
       <!-- Address Fields (Tenant) -->
       <div id="address-field" class="conditional-field">
         <div class="input-group">
-          <label for="AddressLine1">Address Line 1</label>
+          <label for="address-line-1">Address Line 1</label>
           <div class="input-field">
             <i class="fa-solid fa-map-marker-alt"></i>
             <%= f.text_field :AddressLine1, placeholder: "Street address", class: "signup-input", id: "address-line-1", autocomplete: "address-line1" %>
@@ -106,7 +106,7 @@
         </div>
 
         <div class="input-group">
-          <label for="AddressLine2">Address Line 2 (Optional)</label>
+          <label for="address-line-2">Address Line 2 (Optional)</label>
           <div class="input-field">
             <i class="fa-solid fa-map-pin"></i>
             <%= f.text_field :AddressLine2, placeholder: "Apartment, suite, unit, etc.", class: "signup-input", id: "address-line-2", autocomplete: "address-line2" %>
@@ -114,7 +114,7 @@
         </div>
 
         <div class="input-group">
-          <label for="City">City</label>
+          <label for="city">City</label>
           <div class="input-field">
             <i class="fa-solid fa-city"></i>
             <%= f.text_field :City, placeholder: "City", class: "signup-input", id: "city", autocomplete: "address-level2" %>
@@ -122,7 +122,7 @@
         </div>
 
         <div class="input-group">
-          <label for="State">State</label>
+          <label for="state">State</label>
           <div class="input-field">
             <i class="fa-solid fa-flag-usa"></i>
             <%= f.select :State, options_for_select([
@@ -182,7 +182,7 @@
         </div>
 
         <div class="input-group">
-          <label for="ZipCode">ZIP Code</label>
+          <label for="zip-code">ZIP Code</label>
           <div class="input-field">
             <i class="fa-solid fa-mail-bulk"></i>
             <%= f.text_field :ZipCode, placeholder: "12345 or 12345-6789", class: "signup-input", id: "zip-code", inputmode: "numeric", pattern: "\\d{5}(-\\d{4})?", title: "Use 5 digits or ZIP+4 (12345-6789)", autocomplete: "postal-code" %>
@@ -193,7 +193,7 @@
       <!-- Company Name Field -->
       <div id="company-field" class="conditional-field">
         <div class="input-group">
-          <label for="CompanyName">Company Name</label>
+          <label for="user_CompanyName">Company Name</label>
           <div class="input-field">
             <i class="fa-solid fa-building"></i>
             <%= f.text_field :CompanyName, placeholder: "Enter your company name", class: "signup-input" %>

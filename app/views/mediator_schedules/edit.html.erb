@@ -145,10 +145,10 @@
 </div>
 
 <%# --- Reschedule Modal --- %>
-<dialog id="rescheduleMeetingModal" style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); max-width: 450px; width: 100%;">
+<dialog id="rescheduleMeetingModal" aria-labelledby="reschedule-meeting-title" style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); max-width: 450px; width: 100%;">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-    <h3 style="margin: 0; color: #0b2b4b; font-size: 1.2rem;">Reschedule Session</h3>
-    <button type="button" onclick="this.closest('dialog').close()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">&times;</button>
+    <h2 id="reschedule-meeting-title" style="margin: 0; color: #0b2b4b; font-size: 1.2rem;">Reschedule Session</h2>
+    <button type="button" aria-label="Close rescheduling dialog" onclick="this.closest('dialog').close()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">&times;</button>
   </div>
 
   <div style="display: flex; flex-direction: column; gap: 16px;">

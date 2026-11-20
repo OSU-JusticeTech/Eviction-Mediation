@@ -440,7 +440,7 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-composer-enabled='false']"
     assert_select ".composer-disabled"
     # Admin-only banner replaces participant-facing copy
-    assert_select "h4", text: "Administrator View"
+    assert_select "[aria-labelledby='conversation-info-title'] h3", text: "Administrator View"
     # No end-mediation / request-mediator actions are offered to admins
     assert_select ".conversation-cta--danger", count: 0
   end
