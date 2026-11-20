@@ -7,7 +7,7 @@ class MediationMailer < ApplicationMailer
     "agreement_revised" => [ "Agreement preview revised", "%{actor} accepted suggestions and revised the agreement. The changes are listed below." ],
     "agreement_ready" => [ "Agreement ready for signing", "%{actor} finished reviewing the suggestions. No suggestions remain pending; the agreement is ready for signing." ],
     "agreement_signed" => [ "%{actor} signed the agreement", "%{actor} signed the agreement. Review the current terms and sign when you are ready." ],
-    "agreement_completed" => [ "Agreement signatures completed", "%{actor} added the final signature. Both parties have now signed the agreement." ]
+    "agreement_completed" => [ "Agreement signatures completed", "%{actor} added the final signature. All required signers have now signed the agreement." ]
   }.freeze
 
   SESSION_EVENTS = {

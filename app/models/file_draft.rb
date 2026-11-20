@@ -65,7 +65,15 @@ class FileDraft < ApplicationRecord
 
   def agreement_terms
     return {} unless has_attribute?(:AgreementTerms)
-    JSON.parse(self[:AgreementTerms].presence || "{}")
+    terms = JSON.parse(self[:AgreementTerms].presence || "{}")
+    return {} unless terms.is_a?(Hash)
+    return terms unless revised_move_out? && terms["move_out_schedule"].present?
+
+    # Pending proposals created against the old schedule must still apply to that field.
+    if agreement_suggestions_pending? && agreement_proposal.fetch("changes").key?("move_out_schedule")
+      return terms
+    end
+    MoveOutTerms.structured_schedule(terms)
   rescue JSON::ParserError
     {}
   end
@@ -92,11 +100,13 @@ class FileDraft < ApplicationRecord
 
     terms = agreement_terms
     grouped = {}
-    (1..6).each do |number|
+    (revised_move_out? ? [] : (1..6)).each do |number|
       amount_key = "amount#{number}"
       date_key = "date#{number}"
       amount = changes[amount_key]
       date = changes[date_key]
+      next if self[:AgreementTemplate] == "b" && amount.is_a?(Hash) && PayAndStayTerms::REVIEW_GROUPS.key?(amount["group_key"])
+
       grouped_payment = amount.is_a?(Hash) && amount["group_key"] == "payment#{number}"
       added_payment = amount.is_a?(Hash) && amount["from"].blank? && amount["to"].present?
       removed_payment = amount.is_a?(Hash) && amount["from"].present? && amount["to"].blank? &&
@@ -121,6 +131,26 @@ class FileDraft < ApplicationRecord
       grouped[date_key] = :skip if date
     end
 
+    group_keys = if custom_resolution?
+      changes.values.pluck("group_key").compact.uniq
+    elsif revised_move_out?
+      MoveOutTerms::GROUPS.keys
+    elsif self[:AgreementTemplate] == "b"
+      PayAndStayTerms::REVIEW_GROUPS.keys
+    else
+      []
+    end
+    group_keys.each do |key|
+      fields = changes.keys.select { |field| changes[field]["group_key"] == key }
+      next if fields.empty?
+
+      first, *rest = fields
+      change = changes.fetch(first)
+      grouped[first] = { key: key, fields: fields, terms_group: true,
+                         offered_by_id: change["offered_by_id"] || proposal["proposer_id"], change: change }
+      rest.each { |field| grouped[field] = :skip }
+    end
+
     changes.filter_map do |field, change|
       item = grouped[field]
       next if item == :skip
@@ -135,12 +165,74 @@ class FileDraft < ApplicationRecord
       agreement_conversation_id.present?
   end
 
+  def agreement_to_mediate?
+    has_attribute?(:AgreementTemplate) && self[:AgreementTemplate] == AgreementToMediateTerms::TEMPLATE
+  end
+
+  def agreement_signer_role(user, conversation)
+    return if user.Role == "Admin"
+    if user.mediator?
+      return "Mediator" if agreement_to_mediate? && conversation.MediatorAssigned? && conversation.MediatorID == user.UserID
+      return
+    end
+
+    return "Landlord" if conversation.LandlordID == user.UserID
+    return "Tenant" if conversation.TenantID == user.UserID
+  end
+
+  def mediator_signing_error(conversation)
+    return "An assigned mediator is required before signing." unless conversation.MediatorAssigned? && conversation.mediator&.mediator?
+    if self.MediatorSignature && self.MediatorSignatureUserID != conversation.MediatorID
+      return "The mediator assignment changed. Start a revised signing round before signing."
+    end
+    unless agreement_terms["mediator_name"].to_s.squish.casecmp?(AgreementToMediateTerms.account_name(conversation.mediator))
+      "The agreement must name the assigned mediator before signing."
+    end
+  end
+
+  def clear_agreement_signatures
+    roles = %w[Landlord Tenant]
+    roles << "Mediator" if agreement_to_mediate?
+    roles.each do |role|
+      public_send("#{role}Signature=", false)
+      public_send("#{role}SignedAt=", nil)
+      public_send("#{role}SignatureName=", nil)
+    end
+    self.MediatorSignatureUserID = nil if agreement_to_mediate?
+  end
+
+  def custom_resolution?
+    has_attribute?(:AgreementTemplate) && self[:AgreementTemplate] == CustomResolutionTerms::TEMPLATE
+  end
+
+  def revised_move_out?
+    has_attribute?(:AgreementTemplate) && self[:AgreementTemplate] == MoveOutTerms::TEMPLATE
+  end
+
+  def revised_pay_and_stay?
+    has_attribute?(:AgreementTemplate) && self[:AgreementTemplate] == "b" &&
+      PayAndStayTerms.revised?(agreement_terms)
+  end
+
+  def additional_pay_and_stay_signers?
+    revised_pay_and_stay? && PayAndStayTerms.additional_signer_names(agreement_terms["additional_signature_parties"]).any?
+  end
+
+  def agreement_fully_executed?
+    self[:LandlordSignature] && self[:TenantSignature] && !additional_pay_and_stay_signers? &&
+      (!agreement_to_mediate? || self.MediatorSignature) &&
+      (!custom_resolution? || agreement_terms["cr_additional_signers"] == "no")
+  end
+
   def agreement_signable?
+    return false if custom_resolution? && agreement_terms["cr_additional_signers"] != "no"
+
     !has_attribute?(:AgreementTemplate) || self[:AgreementTemplate].blank? || agreement_document?
   end
 
   def agreement_editable?
-    agreement_document? && !(self[:TenantSignature] && self[:LandlordSignature])
+    agreement_document? && !(self[:TenantSignature] && self[:LandlordSignature] &&
+      (!agreement_to_mediate? || self.MediatorSignature))
   end
 
   def agreement_conversation_id
@@ -158,16 +250,22 @@ class FileDraft < ApplicationRecord
 
     tenant_signed = saved_change_to_TenantSignature? && self.TenantSignature
     landlord_signed = saved_change_to_LandlordSignature? && self.LandlordSignature
-    return unless tenant_signed || landlord_signed
+    mediator_signed = agreement_to_mediate? && saved_change_to_MediatorSignature? && self.MediatorSignature
+    return unless tenant_signed || landlord_signed || mediator_signed
 
     conversation = PrimaryMessageGroup.find_by(ConversationID: agreement_conversation_id)
     return unless conversation && !conversation.past?
 
-    actor = tenant_signed ? conversation.tenant : conversation.landlord
-    completed = self.TenantSignature && self.LandlordSignature
+    actor = if mediator_signed
+      User.find_by(UserID: self.MediatorSignatureUserID)
+    else
+      tenant_signed ? conversation.tenant : conversation.landlord
+    end
+    return unless actor
+    completed = agreement_fully_executed?
     # Completion is a useful receipt for everyone; do not also send a signed email.
-    recipients = if completed
-      conversation.notification_participants
+    recipients = if completed || agreement_to_mediate?
+      conversation.notification_participants.reject { |user| !completed && user.UserID == actor.UserID }
     else
       [ conversation.tenant, conversation.landlord ].reject { |user| user.UserID == actor.UserID }
     end

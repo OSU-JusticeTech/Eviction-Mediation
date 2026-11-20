@@ -7,6 +7,10 @@ require "prawn"
 require "prawn/table"
 
 class DocumentsController < ApplicationController
+  class LegacyAgreementFormatError < StandardError; end
+
+  rescue_from LegacyAgreementFormatError, with: :render_legacy_agreement_format_error
+
   before_action :require_login
   before_action :set_user
   before_action :authorize_template_conversation, only: [ :template_intake, :intake_template_view ]
@@ -15,27 +19,32 @@ class DocumentsController < ApplicationController
     :template_preview, :intake_template_view, :generate_filled_template,
     :apply_signature, :review, :update_review, :decide_suggestion, :counteroffer_suggestion
   ]
+  before_action :authorize_mediation_template, only: [
+    :template_intake, :template_preview, :generate_from_intake, :generate_filled_template
+  ]
   before_action :set_conversation_context, only: [ :intake_template_view ]
 
+  def generate
+    @show_mediation_template = assigned_mediator_for_generation?
+  end
 
   def intake_template_view
   end
 
   def template_intake
-    @template = params[:template]
-    @generation_fields = agreement_fields_for_template(@template)
+    @template = new_agreement_template(params[:template])
+    @generation_fields = agreement_fields_for_template(@template) - ["additional_signature_parties"]
     @template_name = case @template
-    when "a" then "Agree to Vacate"
+    when CustomResolutionTerms::TEMPLATE then "Custom Resolution Agreement"
+    when MoveOutTerms::TEMPLATE then "Move-Out Agreement"
     when "b" then "Pay and Stay Agreement"
-    when "c" then "Mediation Agreement"
+    when AgreementToMediateTerms::TEMPLATE then "Agreement to Mediate"
     else "Unknown Template"
     end
 
     # Set default resolution type based on template
     @default_resolution = case @template
-    when "a" then "Move Out"
     when "b" then "Payment Plan"
-    when "c" then "Payment Plan"
     else ""
     end
 
@@ -56,10 +65,17 @@ class DocumentsController < ApplicationController
       "negotiation_date" => Date.today.iso8601,
       "best_option" => @default_resolution
     }
+    if @template == AgreementToMediateTerms::TEMPLATE
+      @generation_values["mediator_name"] = assigned_agreement_mediator_name(@conversation)
+    end
+    if @template == CustomResolutionTerms::TEMPLATE
+      @generation_values["cr_action_#{SecureRandom.uuid}_present"] = "yes"
+    end
   end
 
   def template_preview
-    @template = params[:template]
+    @template = new_agreement_template(params[:template])
+    @agreement_editor_preview = true
 
 
     @landlord = ""
@@ -75,18 +91,16 @@ class DocumentsController < ApplicationController
 
     @schedule = []
 
-    template_file = case @template
-    when "a" then "documents/templates/agree_to_vacate"
-    when "b" then "documents/templates/pay_and_stay"
-    when "c" then "documents/templates/mediation_agreement"
-    else "documents/templates/agree_to_vacate"
-    end
+    @template = MoveOutTerms::TEMPLATE unless ["b", AgreementToMediateTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE].include?(@template)
+    @move_out_terms = {} if @template == MoveOutTerms::TEMPLATE
+    template_file = agreement_template_file(@template)
 
     render template: template_file, layout: false
   end
 
   def generate_from_intake
-    template = %w[a b c].include?(params[:template]) ? params[:template] : "a"
+    template = new_agreement_template(params[:template])
+    return head :not_found unless [MoveOutTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE, AgreementToMediateTerms::TEMPLATE, "b"].include?(template)
     @conversation_id = params[:conversation_id]
     conversation = PrimaryMessageGroup.find_by(ConversationID: @conversation_id) if @conversation_id.present?
 
@@ -94,7 +108,62 @@ class DocumentsController < ApplicationController
       return render plain: "Unauthorized", status: :forbidden
     end
 
-    terms = agreement_terms_from_params
+    terms = agreement_terms_from_params(template)
+    if template == CustomResolutionTerms::TEMPLATE
+      @template_conversation = conversation
+      submitted_terms = terms
+      terms = CustomResolutionTerms.normalize(terms)
+      error = CustomResolutionTerms.error(terms)
+      if params[:custom_preview] == "1" || error
+        template_intake
+        @generation_values = submitted_terms
+        @agreement_editor_error = error
+        return render :template_intake, status: error ? :unprocessable_entity : :ok
+      end
+    elsif template == AgreementToMediateTerms::TEMPLATE
+      mediator_name = assigned_agreement_mediator_name(conversation)
+      terms["mediator_name"] = mediator_name if terms["mediator_name"].blank?
+      error = if conversation && mediator_name.blank?
+        "Assign a mediator with a name before generating this agreement."
+      else
+        AgreementToMediateTerms.error(terms.merge("additional_signature_parties" => params[:additional_signature_parties]))
+      end
+      if error
+        @template_conversation = conversation
+        template_intake
+        @generation_values.merge!(terms)
+        @agreement_editor_error = error
+        return render :template_intake, status: :unprocessable_entity
+      end
+    elsif template == "b"
+      normalize_pay_and_stay_terms!(terms)
+      error = pay_and_stay_terms_error(terms, complete: true) || PayAndStayTerms.release_error(terms)
+      if error
+        template_intake
+        @generation_values.merge!(terms)
+        @agreement_editor_error = error
+        @agreement_editor_preview = true
+        assign_agreement_template_variables(template, terms.except("additional_signature_parties"))
+        @agreement_retry_preview = render_to_string(template: agreement_template_file(template), layout: false)
+        return render :template_intake, status: :unprocessable_entity
+      end
+
+      terms["pay_and_stay_draft_version"] = "1"
+    elsif template == MoveOutTerms::TEMPLATE
+      terms = MoveOutTerms.structured_schedule(terms)
+      terms = terms.except(*MoveOutTerms.inactive_fields(terms))
+    end
+
+    if template == MoveOutTerms::TEMPLATE && (error = MoveOutTerms.error(terms))
+      template_intake
+      @generation_values.merge!(terms)
+      @agreement_editor_error = error
+      @agreement_editor_preview = true
+      assign_agreement_template_variables(template, terms)
+      @agreement_retry_preview = render_to_string(template: agreement_template_file(template), layout: false)
+      return render :template_intake, status: :unprocessable_entity
+    end
+
     assign_agreement_template_variables(template, terms)
     @template_name = agreement_template_name(template)
     template_file = agreement_template_file(template)
@@ -239,14 +308,10 @@ class DocumentsController < ApplicationController
       @landlord = User.find_by(UserID: @conversation.LandlordID)
       @tenant = User.find_by(UserID: @conversation.TenantID)
 
+      @mediator = @conversation.mediator if @file.agreement_to_mediate? && @conversation.MediatorAssigned?
+
       # Determine if current user can sign
-      @user_role_in_conversation = if @user.UserID == @conversation.LandlordID
-        "landlord"
-      elsif @user.UserID == @conversation.TenantID
-        "tenant"
-      else
-        nil
-      end
+      @user_role_in_conversation = @file.agreement_signer_role(@user, @conversation)&.downcase
     end
     if @agreement_proposal.present?
       offerer_ids = @file.agreement_suggestion_items.map { |item| item[:offered_by_id].to_i }.uniq
@@ -263,7 +328,7 @@ class DocumentsController < ApplicationController
                         @can_suggest_agreement &&
                         !@file.agreement_suggestions_pending? &&
                         params[:view_mode] != "simple"
-    @editable_agreement_fields = agreement_fields_for_template(@file.AgreementTemplate) if @editing_agreement
+    @editable_agreement_fields = agreement_editable_fields(@file) if @editing_agreement
     if params[:edit].present? && !@editing_agreement
       return redirect_to view_file_path(@file.FileID), alert: "This agreement is not available for editing."
     end
@@ -289,33 +354,82 @@ class DocumentsController < ApplicationController
     return render plain: "Unauthorized", status: :forbidden unless agreement_suggester?(conversation)
     return redirect_to view_file_path(file.FileID), alert: "This agreement can no longer be changed." unless file.agreement_editable?
 
-    terms = agreement_terms_from_params
+    terms = if file.custom_resolution?
+      custom_resolution_params
+    else
+      params.permit(*agreement_editable_fields(file)).to_h
+    end
     result = nil
+    validation_error = nil
+    submitted_custom_terms = nil
     file.with_lock do
       if !file.agreement_editable? || file.agreement_suggestions_pending? || params[:agreement_version].to_i != file.AgreementVersion
         result = :stale
       else
         current = file.agreement_terms
-        changes = agreement_fields_for_template(file.AgreementTemplate).each_with_object({}) do |field, list|
+        if file.AgreementTemplate == "b"
+          normalize_pay_and_stay_terms!(terms)
+          terms = current.merge(terms)
+        elsif file.custom_resolution?
+          submitted_custom_terms = params[:custom_full_form] == "1" ? terms : current.merge(terms)
+          terms = CustomResolutionTerms.normalize(submitted_custom_terms)
+        elsif file.agreement_to_mediate?
+          terms = current.merge(terms.transform_values { |value| value.to_s.strip })
+          terms["additional_signature_parties"] = params[:additional_signature_parties] if params[:additional_signature_parties].present?
+        elsif file.revised_move_out?
+          terms = current.merge(terms.transform_values { |value| value.to_s.strip })
+          terms = terms.except(*MoveOutTerms.inactive_fields(terms))
+        end
+        review_fields = if file.custom_resolution?
+          CustomResolutionTerms.groups(current.keys | terms.keys).values.flatten
+        else
+          agreement_editable_fields(file)
+        end
+        changes = review_fields.each_with_object({}) do |field, list|
           old_value = current[field].to_s
           new_value = terms[field].to_s
           list[field] = { "from" => old_value, "to" => new_value, "decision" => "pending" } unless old_value == new_value
         end
-        (1..6).each do |number|
-          amount = changes["amount#{number}"]
-          date = changes["date#{number}"]
-          next unless amount
-          adding = amount["from"].blank? && amount["to"].present?
-          removing = amount["from"].present? && amount["to"].blank? &&
-                     (date ? date["to"] : current["date#{number}"]).blank?
-          next unless adding || removing
+        if file.revised_pay_and_stay? || file.revised_move_out? || file.custom_resolution?
+          groups = if file.custom_resolution?
+            CustomResolutionTerms.review_groups(current, terms)
+          elsif file.revised_move_out?
+            MoveOutTerms::GROUPS
+          else
+            PayAndStayTerms::REVIEW_GROUPS
+          end
+          groups.each do |group, fields|
+            next if file.revised_pay_and_stay? && PayAndStayTerms::PAYMENT_REVIEW_GROUPS.include?(group)
+            next unless fields.any? { |field| changes.key?(field) }
 
-          amount["group_key"] = "payment#{number}"
-          date["group_key"] = "payment#{number}" if date
+            if file.revised_move_out? && current["move_out_schedule"].blank? && terms["move_out_schedule"].blank?
+              fields = fields - ["move_out_schedule"]
+            end
+
+            # A counteroffer can choose a different branch and enter its details.
+            fields.each do |field|
+              changes[field] ||= { "from" => current[field].to_s, "to" => terms[field].to_s, "decision" => "pending" }
+              changes[field]["group_key"] = group
+            end
+          end
+        else
+          (1..6).each do |number|
+            amount = changes["amount#{number}"]
+            date = changes["date#{number}"]
+            next unless amount
+            adding = amount["from"].blank? && amount["to"].present?
+            removing = amount["from"].present? && amount["to"].blank? &&
+                       (date ? date["to"] : current["date#{number}"]).blank?
+            next unless adding || removing
+
+            amount["group_key"] = "payment#{number}"
+            date["group_key"] = "payment#{number}" if date
+          end
         end
-        if !valid_agreement_payment_terms?(terms)
+        if (validation_error = agreement_terms_error(terms, file: file))
           result = :invalid_payment
-        elsif changes.any? { |field, change| !valid_agreement_counteroffer?(field, change["to"]) }
+        elsif !file.revised_move_out? && (invalid = changes.find { |field, change| !valid_agreement_counteroffer?(field, change["to"], file: file) })
+          validation_error = "Enter a valid #{helpers.agreement_field_label(invalid.first).downcase}."
           result = :invalid
         elsif changes.empty?
           result = :unchanged
@@ -344,13 +458,15 @@ class DocumentsController < ApplicationController
               }
             end
 
-            # Keep amount and date changes together as one payment suggestion.
-            (1..6).each do |number|
-              amount_key = "amount#{number}"
-              date_key = "date#{number}"
+            unless file.revised_pay_and_stay?
+              # Keep amount and date changes together as one payment suggestion.
+              (1..6).each do |number|
+                amount_key = "amount#{number}"
+                date_key = "date#{number}"
 
-              if changes.key?(amount_key) && changes.key?(date_key)
-                changes[amount_key]["group_key"] = "payment#{number}"
+                if changes.key?(amount_key) && changes.key?(date_key)
+                  changes[amount_key]["group_key"] = "payment#{number}"
+                end
               end
             end
           else
@@ -370,10 +486,31 @@ class DocumentsController < ApplicationController
       redirect_to view_file_path(file.FileID), notice: "Suggested changes sent for review."
     when :unchanged
       redirect_to view_file_path(file.FileID), notice: "No terms were changed."
-    when :invalid
-      redirect_to view_file_path(file.FileID, edit: 1), alert: "One or more edited values are invalid. Review the document and try again."
-    when :invalid_payment
-      redirect_to view_file_path(file.FileID, edit: 1), alert: "A payment date needs a payment amount. Add an amount or remove the date."
+    when :invalid, :invalid_payment
+      if file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution? || file.agreement_to_mediate?
+        if file.AgreementTemplate == "b"
+          terms = terms.merge("additional_signature_parties" => file.agreement_terms["additional_signature_parties"])
+        end
+        unless file.custom_resolution? || file.agreement_to_mediate?
+          @agreement_editor_preview = true
+          assign_agreement_template_variables(file.AgreementTemplate, terms)
+          if file.AgreementTemplate == "b" && !file.revised_pay_and_stay? &&
+             !valid_agreement_counteroffer?("forgiveness_deadline", @forgiveness_deadline)
+            @forgiveness_deadline = ""
+          end
+          @agreement_retry_preview = render_to_string(template: stored_agreement_template(file), formats: [:html], layout: false)
+        end
+
+        params[:edit] = "1"
+        show
+        return if performed?
+
+        @submitted_agreement_terms = file.custom_resolution? ? submitted_custom_terms : terms
+        @agreement_editor_error = validation_error
+        render :show, status: :unprocessable_entity
+      else
+        redirect_to view_file_path(file.FileID, edit: 1), alert: validation_error
+      end
     else
       redirect_to view_file_path(file.FileID), alert: "This agreement changed while you were editing. Review the latest version."
     end
@@ -397,6 +534,7 @@ class DocumentsController < ApplicationController
 
     result = nil
     completed_round = nil
+    validation_error = nil
     accepted_changes = []
     # Keep access, reviewer eligibility, and proposal checks locked through publication.
     file.with_lock do
@@ -427,29 +565,27 @@ class DocumentsController < ApplicationController
               accepted_terms.delete(field)
             end
           end
-          if valid_agreement_payment_terms?(accepted_terms)
-            accepted_changes = item[:fields].map do |field|
+          accepted_terms = accepted_terms.except(*MoveOutTerms.inactive_fields(accepted_terms)) if file.revised_move_out?
+          accepted_terms = CustomResolutionTerms.normalize(accepted_terms) if file.custom_resolution?
+          if !(validation_error = agreement_terms_error(accepted_terms, file: file))
+            accepted_changes = item[:fields].filter_map do |field|
               change = changes.fetch(field)
+              next if change["from"] == change["to"]
+
               label = helpers.agreement_field_label(field)
               before = helpers.agreement_field_value(field, change["from"])
               after = helpers.agreement_field_value(field, change["to"])
               "#{label}: #{before} → #{after}"
             end
             item[:fields].each { |field| changes[field]["decision"] = decision }
-            assign_agreement_template_variables(file.AgreementTemplate, accepted_terms)
-            html = render_to_string(template: agreement_template_file(file.AgreementTemplate), formats: [:html], layout: false)
+            html = render_accepted_agreement(file, accepted_terms)
             DocumentRevision.new.call(
               file: file, extension: "html",
               writer: ->(_original, path, _locked) { File.write(path, html) }
             ) do
               file.AgreementTerms = JSON.generate(accepted_terms)
               file.AgreementVersion += 1
-              file.TenantSignature = false
-              file.LandlordSignature = false
-              file.TenantSignedAt = nil
-              file.LandlordSignedAt = nil
-              file.TenantSignatureName = nil
-              file.LandlordSignatureName = nil
+              file.clear_agreement_signatures
               proposal["base_version"] = file.AgreementVersion
               proposal["round_accepted"] = true
               file.AgreementProposal = JSON.generate(proposal)
@@ -500,9 +636,9 @@ class DocumentsController < ApplicationController
       end
     when :invalid_payment
       if request.format.json?
-        render json: { error: "A payment date needs a payment amount. Review the payment as a whole." }, status: :unprocessable_entity
+        render json: { error: validation_error }, status: :unprocessable_entity
       else
-        redirect_to focus_path, alert: "A payment date needs a payment amount. Review the payment as a whole."
+        redirect_to focus_path, alert: validation_error
       end
     else
       if request.format.json?
@@ -530,6 +666,8 @@ class DocumentsController < ApplicationController
 
     result = nil
     completed_round = nil
+    validation_error = nil
+    values = nil
     file.with_lock do
       proposal = file.agreement_proposal
       item = file.agreement_suggestion_items.find { |suggestion| suggestion[:key] == params[:field].to_s }
@@ -541,11 +679,11 @@ class DocumentsController < ApplicationController
          item[:offered_by_id].to_i == @user.UserID
         result = :unavailable
       else
-        values = params.fetch(:counteroffer, ActionController::Parameters.new).permit(*item[:fields]).to_h
+        values = agreement_counteroffer_values(item, file)
         candidate_terms = file.agreement_terms.merge(values)
-        if !valid_agreement_payment_terms?(candidate_terms)
+        if (validation_error = agreement_terms_error(candidate_terms, file: file))
           result = :invalid_payment
-        elsif item[:fields].any? { |field| !values.key?(field) || !valid_agreement_counteroffer?(field, values[field]) } ||
+        elsif item[:fields].any? { |field| !values.key?(field) || (!file.revised_move_out? && !valid_agreement_counteroffer?(field, values[field], file: file)) } ||
               item[:fields].all? { |field| values[field].to_s.strip == proposal["changes"][field]["to"].to_s }
           result = :invalid
         else
@@ -566,12 +704,14 @@ class DocumentsController < ApplicationController
     message = case result
     when :countered then completed_round ? "Review sent with counteroffers." : "Counteroffer saved. Complete the remaining suggestions to send it."
     when :invalid then "Enter a different value for this counteroffer."
-    when :invalid_payment then "A payment date needs a payment amount."
+    when :invalid_payment then validation_error
     else "This suggestion is no longer available. Refresh the agreement."
     end
     if request.format.json?
       render json: result == :countered ? { status: "countered", field: params[:field], round_complete: completed_round.present? } : { error: message },
              status: result == :countered ? :ok : :unprocessable_entity
+    elsif (file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution? || file.agreement_to_mediate?) && [:invalid, :invalid_payment].include?(result)
+      render_counteroffer_error(values, message)
     elsif [:invalid, :invalid_payment].include?(result)
       redirect_to view_file_path(file.FileID, counteroffer_error: params[:field],
                                  counteroffer_reason: ("payment" if result == :invalid_payment),
@@ -588,13 +728,18 @@ class DocumentsController < ApplicationController
     return render plain: "File not found", status: :not_found unless @file
 
     signature_result = nil
-    conversation = is_landlord = signature_name = nil
+    conversation = role = signature_name = nil
     @file.with_lock do
       unless find_file_for_user(@file.FileID)
         return render plain: "File not found", status: :not_found
       end
       unless @file.agreement_signable?
-        return redirect_to view_file_path(@file.FileID), alert: "This agreement must be shared in a conversation before signing."
+        message = if @file.custom_resolution? && @file.agreement_terms["cr_additional_signers"] != "no"
+          CustomResolutionTerms::SIGNER_ERROR
+        else
+          "This agreement must be shared in a conversation before signing."
+        end
+        return redirect_to view_file_path(@file.FileID), alert: message
       end
 
       # Load conversation to verify authorization
@@ -616,30 +761,42 @@ class DocumentsController < ApplicationController
         return redirect_to view_file_path(@file.FileID)
       end
 
-      # Verify user is either landlord or tenant
-      is_landlord = @user.UserID == conversation.LandlordID
-      is_tenant = @user.UserID == conversation.TenantID
-
-      unless (is_landlord || is_tenant) && !@user.mediator? && @user.Role != "Admin"
+      conversation.lock! if @file.agreement_to_mediate?
+      role = @file.agreement_signer_role(@user, conversation)
+      unless role
         flash[:alert] = "You are not authorized to sign this document."
         return redirect_to view_file_path(@file.FileID)
       end
 
-      signature_name = params[:signature_name]&.strip
+      signature_name = if @file.revised_move_out? || @file.custom_resolution? || @file.agreement_to_mediate?
+        [@user.FName, @user.LName].filter_map(&:presence).join(" ").squish
+      else
+        params[:signature_name]&.strip
+      end
 
       if signature_name.blank?
         flash[:alert] = "Please provide your name to sign the document."
         return redirect_to view_file_path(@file.FileID)
       end
+
+      signature_fields = ["#{role}Signature", "#{role}SignatureName", "#{role}SignedAt"]
+      signature_fields << "MediatorSignatureUserID" if role == "Mediator"
+      unless (signature_fields - FileDraft.column_names).empty?
+        raise DocumentRevision::Failure, "Missing signature columns for #{role}"
+      end
+
       if @file.agreement_suggestions_pending?
         signature_result = :suggestions_pending
       elsif @file.agreement_document? && params[:agreement_version].to_i != @file.AgreementVersion
         signature_result = :stale
-      elsif (is_landlord && @file.LandlordSignature) || (is_tenant && @file.TenantSignature)
+      elsif @file.public_send("#{role}Signature")
         signature_result = :already_signed
+      elsif @file.agreement_to_mediate? && (error = @file.mediator_signing_error(conversation))
+        return redirect_to view_file_path(@file.FileID), alert: error
+      elsif (@file.revised_pay_and_stay? || @file.revised_move_out? || @file.custom_resolution? || @file.agreement_to_mediate?) && (error = agreement_terms_error(@file.agreement_terms, file: @file))
+        return redirect_to view_file_path(@file.FileID), alert: "This agreement cannot be signed. #{error} Correct the agreement before signing."
       else
         signed_at = Time.current
-        role = is_landlord ? "Landlord" : "Tenant"
         DocumentRevision.new.call(
           file: @file, extension: "html",
           writer: ->(original, path, locked) {
@@ -651,6 +808,17 @@ class DocumentsController < ApplicationController
           locked.public_send("#{role}Signature=", true)
           locked.public_send("#{role}SignedAt=", signed_at)
           locked.public_send("#{role}SignatureName=", signature_name)
+          locked.MediatorSignatureUserID = @user.UserID if role == "Mediator"
+        end
+
+        # A successful save can omit attributes absent from the model's schema.
+        # Verify the write while the document and its new locator can still roll back.
+        stored_locator, stored_flag, stored_name, stored_time, stored_user_id =
+          FileDraft.uncached { FileDraft.where(FileID: @file.FileID).pick(:FileURLPath, *signature_fields) }
+        unless stored_locator == @file.FileURLPath && stored_flag && stored_name == signature_name &&
+               stored_time&.in_time_zone&.to_date == signed_at.to_date &&
+               (role != "Mediator" || stored_user_id == @user.UserID)
+          raise DocumentRevision::Failure, "Signature fields were not persisted for #{role}"
         end
         signature_result = :signed
       end
@@ -671,8 +839,7 @@ class DocumentsController < ApplicationController
       landlord = User.find_by(UserID: conversation.LandlordID)
       tenant = User.find_by(UserID: conversation.TenantID)
 
-      signer_role = is_landlord ? "Landlord" : "Tenant"
-      message_content = "#{signer_role} #{signature_name} has signed the document: #{@file.FileName}"
+      message_content = "#{role} #{signature_name} has signed the document: #{@file.FileName}"
 
       Message.create!(
         ConversationID: conversation.ConversationID,
@@ -694,13 +861,14 @@ class DocumentsController < ApplicationController
           tenant_signature: @file.TenantSignature,
           tenant_signed_at: @file.TenantSignedAt&.strftime("%B %d, %Y at %I:%M %p"),
           tenant_name: "#{tenant.FName} #{tenant.LName}",
-          both_signed: @file.LandlordSignature && @file.TenantSignature
+          mediator_signature: @file.agreement_to_mediate? && @file.MediatorSignature,
+          mediator_signed_at: (@file.MediatorSignedAt&.strftime("%B %d, %Y at %I:%M %p") if @file.agreement_to_mediate?),
+          both_signed: @file.agreement_fully_executed?
         }
       )
 
-      # Check if both parties have signed
-      if @file.LandlordSignature && @file.TenantSignature
-        flash[:success] = "Document signed successfully! Both parties have now signed this agreement."
+      if @file.agreement_fully_executed?
+        flash[:success] = "Document signed successfully. All required signers have signed this agreement."
 
         # Send completion notification
         Message.create!(
@@ -710,6 +878,10 @@ class DocumentsController < ApplicationController
           MessageDate: Time.current,
           is_system: true
         )
+      elsif @file.agreement_to_mediate?
+        flash[:success] = "Document signed successfully. Waiting for the remaining signatures."
+      elsif @file.LandlordSignature && @file.TenantSignature
+        flash[:success] = "Document signed successfully. #{PayAndStayTerms::ADDITIONAL_SIGNERS_NOTICE}"
       else
         flash[:success] = "Document signed successfully! Waiting for the other party to sign."
       end
@@ -718,7 +890,8 @@ class DocumentsController < ApplicationController
     end
 
     redirect_to view_file_path(@file.FileID)
-  rescue DocumentRevision::Failure
+  rescue DocumentRevision::Failure => error
+    Rails.logger.error("Signing failed file_id=#{@file.FileID}: #{error.message}")
     redirect_to view_file_path(@file.FileID), alert: "Failed to save signature. Please try again."
   end
 
@@ -740,14 +913,21 @@ class DocumentsController < ApplicationController
       return render plain: "Unauthorized", status: :forbidden unless agreement_suggester?(conversation) &&
         file.agreement_editable? && !file.agreement_suggestions_pending?
 
+      @agreement_editor_preview = true
       assign_agreement_template_variables(file.AgreementTemplate, file.agreement_terms)
-      return render template: agreement_template_file(file.AgreementTemplate), layout: false
+      return render template: stored_agreement_template(file), layout: false
     end
 
     deliver_document(file, disposition: "inline")
   end
 
   def generate_filled_template
+    template = new_agreement_template(params[:template])
+    if ["b", MoveOutTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE, AgreementToMediateTerms::TEMPLATE].include?(template)
+      return redirect_to template_intake_path(template: template, conversation_id: params[:conversation_id],
+                                             return_to: url_from(params[:return_to])), status: :see_other
+    end
+
     conv_id   = params[:conversation_id]
     landlord  = params[:landlord_name].to_s
     tenant    = params[:tenant_name].to_s
@@ -778,24 +958,12 @@ class DocumentsController < ApplicationController
     file_id = SecureRandom.uuid
     # Generate the PDF based on template type
     require "prawn"
-    template = params[:template] || "a"
     reason = params[:reason].to_s
     money_owed = params[:money_owed].to_s
-    monthly_rent = params[:monthly_rent].to_s
 
     writer = ->(path) do
       Prawn::Document.generate(path.to_s, margin: 54, page_size: "LETTER") do |pdf|
-        case template
-        when "a" # Agree to Vacate
-          generate_vacate_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
-        when "b" # Pay and Stay Agreement
-          generate_pay_stay_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, monthly_rent, schedule, best)
-        when "c" # Mediation Agreement
-          generate_mediation_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, monthly_rent, schedule, best)
-        else
-          # Fallback to generic
-          generate_generic_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
-        end
+        generate_generic_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
 
         # Footer
         pdf.move_down 20
@@ -837,6 +1005,14 @@ class DocumentsController < ApplicationController
 
   private
 
+  def render_legacy_agreement_format_error(error)
+    if request.format.json?
+      render json: { error: error.message }, status: :unprocessable_entity
+    else
+      render plain: error.message, status: :unprocessable_entity
+    end
+  end
+
   def render_agreement_revision_failure
     message = "Unable to revise agreement. Please try again."
     if request.format.json?
@@ -866,6 +1042,15 @@ class DocumentsController < ApplicationController
       response.headers["Content-Security-Policy"] = "sandbox allow-same-origin"
     end
 
+    if file.agreement_to_mediate? && mime_type == "text/html" && !file.agreement_fully_executed?
+      original = path.binread
+      html = AgreementSignature.new.clear_unrecorded_signatures(original, file: file)
+      if html != original
+        return send_data html, filename: "#{file.FileName}#{File.extname(path)}",
+                               type: mime_type, disposition: disposition
+      end
+    end
+
     send_file path,
               filename: "#{file.FileName}#{File.extname(path)}",
               type: mime_type || "application/octet-stream",
@@ -877,16 +1062,29 @@ class DocumentsController < ApplicationController
   end
 
   AGREEMENT_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed monthly_rent
+                        regular_rent_due_day regular_rent_arrangement regular_rent_change_details
                         best_option vacate_date rent_owed late_fees utilities other_charges
                         other_charges_description payment_lump_sum lump_sum_amount lump_sum_date
-                        payment_monthly monthly_payment_amount monthly_payment_months monthly_payment_day
-                        monthly_payment_start payment_final final_payment_amount final_payment_date
-                        payment_method payment_method_other_description additional_terms].freeze
+                        payment_monthly monthly_payment_amount monthly_payment_months monthly_payment_day landlord_representative tenant_representative
+                        monthly_payment_start payment_final final_payment_amount final_payment_date payment_custom_schedule rent_period late_fees_description utilities_period
+                        credits_description credits_amount reductions_description reductions_amount
+                        conditional_reduction forgiveness_amount forgiveness_deadline
+                        forgiveness_conditions forgiveness_remaining_amount forgiveness_failure_result
+                        unresolved_payment_issues unresolved_payment_details payment_method payment_method_other_description payment_recipient_instructions payment_application payment_application_instructions
+                        payment_portal_name].concat(PayAndStayTerms::FIELDS).freeze
   AGREEMENT_COMMON_FIELDS = %w[landlord_name tenant_name address negotiation_date reason money_owed
                                monthly_rent best_option].freeze
+  ORIGINAL_PAY_AND_STAY_TEMPLATE = "documents/templates/pay_and_stay_original".freeze
+  ORIGINAL_PAY_AND_STAY_FIELDS = ((AGREEMENT_COMMON_FIELDS - ["best_option"]) + %w[
+    rent_owed late_fees utilities other_charges other_charges_description additional_terms
+    payment_lump_sum lump_sum_amount lump_sum_date payment_monthly monthly_payment_amount
+    monthly_payment_months monthly_payment_day monthly_payment_start payment_final
+    final_payment_amount final_payment_date payment_method payment_method_other_description
+  ]).freeze
 
   def decide_mediator_suggestion(file, conversation, decision)
     result = :unavailable
+    validation_error = nil
     accepted_changes = []
 
     # Keep access, reviewer eligibility, and proposal checks locked through publication.
@@ -950,9 +1148,13 @@ class DocumentsController < ApplicationController
               end
             end
 
-            if valid_agreement_payment_terms?(accepted_terms)
-              accepted_changes = fields.map do |field|
+            accepted_terms = accepted_terms.except(*MoveOutTerms.inactive_fields(accepted_terms)) if file.revised_move_out?
+            accepted_terms = CustomResolutionTerms.normalize(accepted_terms) if file.custom_resolution?
+            if !(validation_error = agreement_terms_error(accepted_terms, file: file))
+              accepted_changes = fields.filter_map do |field|
                 change = changes[field]
+                next if change["from"] == change["to"]
+
                 "#{helpers.agreement_field_label(field)}: " \
                   "#{helpers.agreement_field_value(field, change['from'])} → " \
                   "#{helpers.agreement_field_value(field, change['to'])}"
@@ -960,16 +1162,7 @@ class DocumentsController < ApplicationController
 
               fields.each { |field| changes[field]["decision"] = "accepted" }
 
-              assign_agreement_template_variables(
-                file.AgreementTemplate,
-                accepted_terms
-              )
-
-              html = render_to_string(
-                template: agreement_template_file(file.AgreementTemplate),
-                formats: [:html],
-                layout: false
-              )
+              html = render_accepted_agreement(file, accepted_terms)
 
               DocumentRevision.new.call(
                 file: file, extension: "html",
@@ -978,12 +1171,7 @@ class DocumentsController < ApplicationController
                 file.AgreementTerms = JSON.generate(accepted_terms)
                 file.AgreementVersion += 1
 
-                file.TenantSignature = false
-                file.LandlordSignature = false
-                file.TenantSignedAt = nil
-                file.LandlordSignedAt = nil
-                file.TenantSignatureName = nil
-                file.LandlordSignatureName = nil
+                file.clear_agreement_signatures
 
                 proposal["base_version"] = file.AgreementVersion
                 file.AgreementProposal = JSON.generate(proposal)
@@ -1038,7 +1226,7 @@ class DocumentsController < ApplicationController
               when :updated then "Both parties accepted. The agreement has been updated."
               when :rejected then "Suggestion rejected."
               when :pending then "Decision saved. Waiting for the other party."
-              when :invalid_payment then "A payment date needs a payment amount."
+              when :invalid_payment then validation_error
               else "This suggestion is no longer available. Refresh the agreement."
               end
 
@@ -1062,6 +1250,8 @@ class DocumentsController < ApplicationController
 
   def counteroffer_mediator_suggestion(file, conversation)
     result = :unavailable
+    validation_error = nil
+    values = nil
 
     file.with_lock do
       proposal = file.agreement_proposal
@@ -1076,18 +1266,15 @@ class DocumentsController < ApplicationController
         item.present? &&
         mediator_can_counteroffer?(item, proposal, conversation)
 
-        values = params.fetch(
-          :counteroffer,
-          ActionController::Parameters.new
-        ).permit(*item[:fields]).to_h
+        values = agreement_counteroffer_values(item, file)
 
         candidate_terms = file.agreement_terms.merge(values)
 
-        if !valid_agreement_payment_terms?(candidate_terms)
+        if (validation_error = agreement_terms_error(candidate_terms, file: file))
           result = :invalid_payment
         elsif item[:fields].any? { |field|
                 !values.key?(field) ||
-                  !valid_agreement_counteroffer?(field, values[field])
+                  (!file.revised_move_out? && !valid_agreement_counteroffer?(field, values[field], file: file))
               } ||
               item[:fields].all? { |field|
                 values[field].to_s.strip ==
@@ -1131,7 +1318,7 @@ class DocumentsController < ApplicationController
               when :countered
                 "Counteroffer submitted. Waiting for the other party."
               when :invalid_payment
-                "A payment date needs a payment amount."
+                validation_error
               when :invalid
                 "Enter a valid counteroffer that differs from the current offer."
               else
@@ -1147,6 +1334,8 @@ class DocumentsController < ApplicationController
         result == :countered ? :ok :
         result == :unavailable ? :conflict : :unprocessable_entity
       )
+    elsif (file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution? || file.agreement_to_mediate?) && [:invalid, :invalid_payment].include?(result)
+      render_counteroffer_error(values, message)
     else
       redirect_to focus_path,
                   (result == :countered ?
@@ -1154,21 +1343,291 @@ class DocumentsController < ApplicationController
     end
   end
 
-  def agreement_terms_from_params
-    keys = AGREEMENT_FIELDS + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
-    params.permit(*keys).to_h
+  def render_counteroffer_error(values, message)
+    show
+    return if performed?
+
+    @counteroffer_error_field = params[:field].to_s
+    @submitted_counteroffer = values
+    @agreement_editor_error = message
+    render :show, status: :unprocessable_entity
   end
 
-  def agreement_fields_for_template(template)
+  def custom_resolution_params
+    fields = CustomResolutionTerms.groups(params.keys).values.flatten
+    params.permit(*fields).to_h
+  end
+
+  def agreement_terms_from_params(template)
+    return custom_resolution_params if template == CustomResolutionTerms::TEMPLATE
+    terms = params.permit(*agreement_fields_for_template(template)).to_h
+    terms.transform_values! { |value| value.to_s.strip } if [MoveOutTerms::TEMPLATE, AgreementToMediateTerms::TEMPLATE].include?(template)
+    terms
+  end
+
+  def agreement_editable_fields(file)
+    if file.AgreementTemplate == "b" && !file.revised_pay_and_stay? &&
+       stored_agreement_template(file) == ORIGINAL_PAY_AND_STAY_TEMPLATE
+      return ORIGINAL_PAY_AND_STAY_FIELDS
+    end
+
+    agreement_fields_for_template(file.AgreementTemplate, legacy: !file.revised_pay_and_stay?)
+  end
+
+  def agreement_fields_for_template(template, legacy: false)
+    payment_fields = (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
+
     case template
-    when "a" then AGREEMENT_COMMON_FIELDS + %w[vacate_date additional_terms] + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
-    when "b" then AGREEMENT_COMMON_FIELDS + (AGREEMENT_FIELDS - AGREEMENT_COMMON_FIELDS - ["vacate_date"])
-    else AGREEMENT_COMMON_FIELDS + (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
+    when AgreementToMediateTerms::TEMPLATE
+      AgreementToMediateTerms::FIELDS
+    when CustomResolutionTerms::TEMPLATE
+      CustomResolutionTerms::FIELDS
+    when MoveOutTerms::TEMPLATE
+      MoveOutTerms::FIELDS
+    when "a"
+      AGREEMENT_COMMON_FIELDS + %w[vacate_date additional_terms] + payment_fields
+    when "b"
+      fields = (AGREEMENT_FIELDS - ["vacate_date"]) + PayAndStayTerms::CUSTOM_ROWS.flatten
+      legacy ? fields - (PayAndStayTerms::FIELDS - (PayAndStayTerms::LEGACY_ASSISTANCE_FIELDS + ["additional_terms"])) - ["payment_portal_name"] : fields
+    else
+      AGREEMENT_COMMON_FIELDS + payment_fields
     end
   end
 
-  def valid_agreement_payment_terms?(terms)
-    (1..6).all? { |number| terms["date#{number}"].blank? || terms["amount#{number}"].present? }
+  def normalize_pay_and_stay_terms!(terms)
+    terms.transform_values! { |value| value.to_s.strip }
+    if terms.key?("payment_method")
+      terms["payment_method"] = PayAndStayTerms.payment_methods(terms["payment_method"]).join(",")
+    end
+    terms
+  end
+
+  def agreement_counteroffer_values(item, file)
+    submitted = params.fetch(:counteroffer, ActionController::Parameters.new)
+    return {} unless submitted.is_a?(ActionController::Parameters)
+
+    values = submitted.permit(*item[:fields]).to_h
+    if file.revised_pay_and_stay? && item[:fields].include?("payment_method") && submitted[:payment_method].is_a?(Array)
+      values["payment_method"] = submitted.permit(payment_method: [])[:payment_method].to_a.join(",")
+    end
+    normalize_pay_and_stay_terms!(values) if file.AgreementTemplate == "b"
+    if file.custom_resolution? && item[:fields].all? { |field| values.key?(field) }
+      normalized = CustomResolutionTerms.normalize(values)
+      values = values.keys.index_with { |field| normalized.fetch(field, "") }
+    end
+    values.transform_values! { |value| value.to_s.strip } if file.revised_move_out?
+    values
+  end
+
+  def stored_agreement_template(file)
+    return agreement_template_file(file.AgreementTemplate) unless file.AgreementTemplate == "b" && !file.revised_pay_and_stay?
+
+    headings = legacy_pay_and_stay_document(file).css("h3").map { |heading| heading.text.strip }
+    if headings.include?("9. Signatures and Final Agreement")
+      case headings.grep(/\A2\. /)
+      when ["2. Amount Currently Owed"] then return ORIGINAL_PAY_AND_STAY_TEMPLATE
+      when ["2. Agreed Payment Amount"] then return "documents/templates/pay_and_stay_legacy"
+      end
+    end
+    raise LegacyAgreementFormatError, "This older Pay-and-Stay format could not be identified. Its saved agreement was preserved."
+  end
+
+  def legacy_pay_and_stay_document(file)
+    @legacy_pay_and_stay_documents ||= {}
+    @legacy_pay_and_stay_documents[file.FileURLPath] ||= begin
+      path = DocumentStorage.configured.resolve(file.FileURLPath)
+      Nokogiri::HTML(path.binread, nil, "UTF-8")
+    end
+  rescue DocumentStorage::InvalidLocator, DocumentStorage::MissingFile, DocumentStorage::Unavailable,
+         DocumentStorageConfiguration::InvalidConfiguration, SystemCallError, IOError
+    raise LegacyAgreementFormatError, "The saved Pay-and-Stay agreement could not be read for editing."
+  end
+
+  def render_accepted_agreement(file, terms)
+    template = stored_agreement_template(file)
+    if template == ORIGINAL_PAY_AND_STAY_TEMPLATE
+      current = file.agreement_terms
+      original = legacy_pay_and_stay_document(file)
+      original_date = original.at_css('[data-agreement-field="negotiation_date"]')&.text
+      assign_agreement_template_variables("b", current)
+      @date = original_date
+      baseline = render_to_string(template: template, formats: [:html], layout: false)
+      unless legacy_agreement_without_signatures(original.dup) == legacy_agreement_without_signatures(Nokogiri::HTML(baseline, nil, "UTF-8"))
+        raise LegacyAgreementFormatError, "This saved Pay-and-Stay agreement differs from its original template. The change could not be applied safely."
+      end
+    end
+
+    assign_agreement_template_variables(file.AgreementTemplate, terms)
+    @date = original_date if original_date && current["negotiation_date"] == terms["negotiation_date"]
+    render_to_string(template: template, formats: [:html], layout: false)
+  end
+
+  def legacy_agreement_without_signatures(document)
+    document.css(".signature-section .signature-line, .signature-section .date-line").each do |slot|
+      slot.content = "___________"
+    end
+    document.to_html.lines.map(&:rstrip).join("\n")
+  end
+
+  def valid_pay_and_stay_unresolved_issues?(terms)
+    selection = terms["unresolved_payment_issues"].to_s.strip
+
+    return false unless %w[yes no].include?(selection)
+
+    return false if selection == "yes" &&
+                    terms["unresolved_payment_details"].to_s.strip.blank?
+
+    true
+  end
+
+  def valid_pay_and_stay_regular_rent?(terms)
+    due_day = terms["regular_rent_due_day"].to_s.strip
+    arrangement = terms["regular_rent_arrangement"].to_s.strip
+
+    return false unless valid_pay_and_stay_rent_due?(due_day)
+
+    return false unless %w[unchanged modified].include?(arrangement)
+
+    if arrangement == "modified"
+      return false if terms["regular_rent_change_details"].to_s.strip.blank?
+    end
+
+    true
+  end
+
+  def valid_pay_and_stay_rent_due?(value)
+    return (1..31).cover?(value.to_i) if value.match?(/\A\d{1,2}\z/)
+
+    value.match?(/\A\d{4}-\d{2}-\d{2}\z/) && Date.iso8601(value).present?
+  rescue Date::Error
+    false
+  end
+
+  def valid_pay_and_stay_payment_times?(terms)
+    (1..6).all? do |i|
+      value = terms["time#{i}"].to_s.strip
+
+      value.blank? ||
+        value.match?(/\A(?:[01]\d|2[0-3]):[0-5]\d\z/)
+    end
+  end
+
+  def valid_pay_and_stay_assistance_status?(terms)
+    %w[not_submitted pending approved].include?(terms["assistance_status"].to_s.strip)
+  end
+
+  def valid_pay_and_stay_rental_assistance?(terms)
+    %w[none arrangement].include?(terms["rental_assistance"].to_s.strip)
+  end
+
+  def valid_pay_and_stay_conditional_reduction?(terms)
+    selection = terms["conditional_reduction"].to_s.strip
+
+    return false unless %w[none conditional].include?(selection)
+    return true if selection == "none"
+
+    required_fields = %w[
+      forgiveness_amount
+      forgiveness_deadline
+      forgiveness_conditions
+      forgiveness_remaining_amount
+      forgiveness_failure_result
+    ]
+
+    return false unless required_fields.all? { |field| terms[field].to_s.strip.present? }
+
+    amount_fields = %w[forgiveness_amount forgiveness_remaining_amount]
+
+    return false unless amount_fields.all? do |field|
+      terms[field].to_s.strip.match?(/\A\d+(?:\.\d{1,2})?\z/)
+    end
+
+    Date.iso8601(terms["forgiveness_deadline"].to_s.strip)
+    true
+  rescue Date::Error
+    false
+  end
+
+  def valid_pay_and_stay_payment_application?(terms)
+    application = terms["payment_application"].to_s
+    instructions = terms["payment_application_instructions"].to_s.strip
+
+    return false unless %w[standard different].include?(application)
+    return false if application == "different" && instructions.blank?
+
+    true
+  end
+
+  def agreement_terms_error(terms, file:)
+    return CustomResolutionTerms.error(CustomResolutionTerms.normalize(terms)) if file.custom_resolution?
+    return MoveOutTerms.error(terms) if file.revised_move_out?
+    return AgreementToMediateTerms.error(terms) if file.agreement_to_mediate?
+
+    if file.AgreementTemplate == "b"
+      if !file.revised_pay_and_stay? && stored_agreement_template(file) == ORIGINAL_PAY_AND_STAY_TEMPLATE
+        current = file.agreement_terms
+        unsupported = ((current.keys | terms.keys) - ORIGINAL_PAY_AND_STAY_FIELDS).any? do |field|
+          current[field].to_s != terms[field].to_s
+        end
+        return "This change cannot be displayed in the original Pay-and-Stay format." if unsupported
+        if terms["payment_method"].to_s != current["payment_method"].to_s &&
+           !["", "online_portal", "money_order", "cashiers_check", "other"].include?(terms["payment_method"].to_s)
+          return "Select a payment method available in the original Pay-and-Stay agreement."
+        end
+      end
+      revised = file.revised_pay_and_stay?
+      return pay_and_stay_terms_error(terms, complete: revised) ||
+        (PayAndStayTerms.release_error(terms, previous: file.agreement_terms) if revised)
+    end
+
+    if (1..6).any? { |number| terms["date#{number}"].present? && terms["amount#{number}"].blank? }
+      "A payment date needs a payment amount."
+    end
+  end
+
+  def pay_and_stay_terms_error(terms, complete:)
+    checks = [
+      [%w[unresolved_payment_issues], :valid_pay_and_stay_unresolved_issues?, "Select Yes or No for unresolved payment issues and enter details for Yes."],
+      [%w[regular_rent_arrangement regular_rent_due_day], :valid_pay_and_stay_regular_rent?, "Enter a valid regular rent due day or date and complete the selected rent arrangement."],
+      [%w[payment_application], :valid_pay_and_stay_payment_application?, "Select how payments will be applied and provide instructions if applied differently."],
+      [%w[conditional_reduction], :valid_pay_and_stay_conditional_reduction?, "Select a conditional reduction option and complete its amounts, deadline, conditions, and result if selected."]
+    ]
+    checks.each do |fields, check, message|
+      return message if (complete || fields.any? { |field| terms.key?(field) }) && !send(check, terms)
+    end
+    return "Enter valid payment due times." unless valid_pay_and_stay_payment_times?(terms)
+    return "Select valid payment methods." unless PayAndStayTerms.valid_payment_methods?(terms["payment_method"])
+
+    unless complete
+      if (1..6).any? { |number| terms["date#{number}"].present? && terms["amount#{number}"].blank? }
+        return "A payment date needs a payment amount."
+      end
+      if terms["rental_assistance"].present? && !valid_pay_and_stay_rental_assistance?(terms)
+        return "Select a valid rental assistance option."
+      end
+      if terms["assistance_status"].present? && !valid_pay_and_stay_assistance_status?(terms)
+        return "Select a valid rental assistance application status."
+      end
+      return
+    end
+
+    required = %w[landlord_name tenant_name address negotiation_date reason money_owed monthly_rent payment_recipient_instructions]
+    missing = required.find { |field| terms[field].blank? }
+    return "Enter the #{helpers.agreement_field_label(missing).downcase}." if missing
+
+    methods = PayAndStayTerms.payment_methods(terms["payment_method"])
+    return "Select at least one payment method." if methods.empty?
+    return "Enter the online portal name or address." if methods.include?("online_portal") && terms["payment_portal_name"].blank?
+    return "Describe the other payment method." if methods.include?("other") && terms["payment_method_other_description"].blank?
+
+    invalid = agreement_fields_for_template("b").find do |field|
+      terms[field].present? && !valid_agreement_counteroffer?(field, terms[field])
+    end
+    return "Enter a valid #{helpers.agreement_field_label(invalid).downcase}." if invalid
+
+    PayAndStayTerms.payment_plan_error(terms) || PayAndStayTerms.breakdown_error(terms) ||
+      PayAndStayTerms.payment_total_error(terms) ||
+      PayAndStayTerms.validation_error(terms, complete: true)
   end
 
   def other_agreement_party_id(conversation, user_id)
@@ -1224,7 +1683,12 @@ class DocumentsController < ApplicationController
     else
       "No suggestions remain pending. The agreement is ready for signing."
     end
-    [ conversation.tenant, conversation.landlord ].compact.uniq(&:UserID).each do |recipient|
+    recipients = if file.agreement_to_mediate?
+      conversation.notification_participants
+    else
+      [conversation.tenant, conversation.landlord].compact.uniq(&:UserID)
+    end
+    recipients.each do |recipient|
       next if recipient.UserID == @user.UserID
 
       MediationNotifications.agreement_notification(recipient, conversation.ConversationID, event, file.FileID,
@@ -1237,16 +1701,35 @@ class DocumentsController < ApplicationController
     notify_agreement_participants(conversation, file, event)
   end
 
-  def valid_agreement_counteroffer?(field, raw_value)
+  def valid_agreement_counteroffer?(field, raw_value, file: nil)
     value = raw_value.to_s.strip
+    if file&.agreement_to_mediate?
+      return AgreementToMediateTerms::FIELDS.include?(field) && value.length <= 255 &&
+        (value.present? || !AgreementToMediateTerms::REQUIRED.include?(field))
+    end
+    if file&.custom_resolution?
+      spec = CustomResolutionTerms.definition(field)
+      return spec && (value.blank? || CustomResolutionTerms.valid_value?(value, spec[1]))
+    end
+    return MoveOutTerms.value_valid?(field, value) if file&.revised_move_out?
+
+    if field.match?(/\Atime[1-6]\z/)
+      return value.blank? || value.match?(/\A(?:[01]\d|2[0-3]):[0-5]\d\z/)
+    end
+    return %w[unchanged modified].include?(value) if field == "regular_rent_arrangement"
+    return valid_pay_and_stay_rent_due?(value) if field == "regular_rent_due_day"
+    return %w[yes no].include?(value) if field == "unresolved_payment_issues"
+    return %w[standard different].include?(value) if field == "payment_application"
+    return %w[none conditional].include?(value) if field == "conditional_reduction"
+    return PayAndStayTerms.valid_value?(field, value) if PayAndStayTerms::FIELDS.include?(field)
     return false if value.length > (field == "additional_terms" ? 5000 : 255)
     return false if %w[landlord_name tenant_name address negotiation_date reason money_owed vacate_date].include?(field) && value.blank?
-    return %w[1 0].include?(value) if %w[payment_lump_sum payment_monthly payment_final].include?(field)
-    return value.blank? || %w[online_portal money_order cashiers_check other].include?(value) if field == "payment_method"
+    return value.blank? || %w[1 0].include?(value) if PayAndStayTerms::PAYMENT_OPTIONS.key?(field)
+    return PayAndStayTerms.valid_payment_methods?(value) if field == "payment_method"
     return value.blank? || value.match?(/\A\d+(?:\.\d{1,2})?\z/) if field.match?(/\Aamount[1-6]\z/) ||
-      %w[money_owed monthly_rent rent_owed late_fees utilities other_charges lump_sum_amount monthly_payment_amount final_payment_amount].include?(field)
+      %w[money_owed monthly_rent rent_owed late_fees utilities other_charges lump_sum_amount monthly_payment_amount final_payment_amount forgiveness_amount forgiveness_remaining_amount credits_amount reductions_amount].include?(field)
     return value.blank? || (Date.iso8601(value) && true) if field.match?(/\Adate[1-6]\z/) ||
-      %w[negotiation_date vacate_date lump_sum_date monthly_payment_start final_payment_date].include?(field)
+      %w[negotiation_date vacate_date lump_sum_date monthly_payment_start final_payment_date forgiveness_deadline].include?(field)
     return value.blank? || (value.match?(/\A\d{1,2}\z/) && (1..31).cover?(value.to_i)) if field == "monthly_payment_day"
     return value.blank? || value.match?(/\A\d+\z/) if field == "monthly_payment_months"
 
@@ -1261,18 +1744,44 @@ class DocumentsController < ApplicationController
     "#{@user.Role} #{name}"
   end
 
+  def new_agreement_template(template)
+    return MoveOutTerms::TEMPLATE if template.blank? || template == "a"
+    return AgreementToMediateTerms::TEMPLATE if template == "c"
+
+    template
+  end
+
   def agreement_template_file(template)
-    { "a" => "documents/templates/agree_to_vacate",
+    {
+      AgreementToMediateTerms::TEMPLATE => "documents/templates/agreement_to_mediate_v1",
+      CustomResolutionTerms::TEMPLATE => "documents/templates/custom_resolution_v1",
+      MoveOutTerms::TEMPLATE => "documents/templates/move_out_v1",
+      "a" => "documents/templates/agree_to_vacate",
       "b" => "documents/templates/pay_and_stay",
-      "c" => "documents/templates/mediation_agreement" }.fetch(template.to_s, "documents/templates/agree_to_vacate")
+      "c" => "documents/templates/mediation_agreement"
+    }.fetch(template.to_s) do
+      raise ActionController::BadRequest, "Unknown agreement template"
+    end
   end
 
   def agreement_template_name(template)
-    { "a" => "Agree to Vacate", "b" => "Pay and Stay Agreement",
-      "c" => "Mediation Agreement" }.fetch(template.to_s, "Agreement")
+    {
+      AgreementToMediateTerms::TEMPLATE => "Agreement to Mediate",
+      CustomResolutionTerms::TEMPLATE => "Custom Resolution Agreement",
+      MoveOutTerms::TEMPLATE => "Move-Out Agreement",
+      "a" => "Move-Out Agreement",
+      "b" => "Pay-and-Stay Agreement",
+      "c" => "Agreement to Mediate"
+    }.fetch(template.to_s, "Unknown Agreement")
   end
 
   def assign_agreement_template_variables(template, terms)
+    return @agreement_to_mediate_terms = terms if template == AgreementToMediateTerms::TEMPLATE
+    return @custom_resolution_terms = terms if template == CustomResolutionTerms::TEMPLATE
+    return @move_out_terms = terms if template == MoveOutTerms::TEMPLATE
+
+    @landlord_representative = terms["landlord_representative"].to_s
+    @tenant_representative = terms["tenant_representative"].to_s
     @landlord = terms["landlord_name"].to_s
     @tenant = terms["tenant_name"].to_s
     @address = terms["address"].to_s
@@ -1288,17 +1797,41 @@ class DocumentsController < ApplicationController
     @vacate_date = terms["vacate_date"] if template == "a"
     @schedule = (1..6).filter_map do |i|
       amount = terms["amount#{i}"].to_s
-      [ i, amount, terms["date#{i}"] ] if amount.present?
+      if amount.present? || (template == "b" && @agreement_editor_preview &&
+                             (terms["date#{i}"].present? || terms["time#{i}"].present?))
+        [i, amount, terms["date#{i}"]]
+      end
+    end.sort_by do |index, _amount, due_date|
+      parsed_date = begin
+        Date.iso8601(due_date.to_s)
+      rescue Date::Error
+        Date.new(9999, 12, 31)
+      end
+
+      [parsed_date, index]
     end
     if template == "b"
       %w[rent_owed late_fees utilities other_charges other_charges_description lump_sum_amount
          lump_sum_date monthly_payment_amount monthly_payment_months monthly_payment_day
          monthly_payment_start final_payment_amount final_payment_date payment_method
-         payment_method_other_description].each do |field|
+         rent_period late_fees_description utilities_period
+         credits_description credits_amount reductions_description reductions_amount
+         regular_rent_due_day regular_rent_arrangement regular_rent_change_details
+         unresolved_payment_issues unresolved_payment_details
+         conditional_reduction forgiveness_amount forgiveness_deadline
+         forgiveness_conditions forgiveness_remaining_amount forgiveness_failure_result
+         payment_method_other_description payment_recipient_instructions payment_application payment_application_instructions payment_portal_name].concat(PayAndStayTerms::FIELDS).each do |field|
         instance_variable_set("@#{field}", terms[field].to_s)
       end
-      %w[payment_lump_sum payment_monthly payment_final].each do |field|
+      if @additional_terms_selection.blank? && @additional_terms.present?
+        @additional_terms_selection = "included"
+        @other_additional_terms = "1"
+      end
+      %w[payment_lump_sum payment_monthly payment_final payment_custom_schedule].each do |field|
         instance_variable_set("@#{field}", terms[field] == "1")
+      end
+      (1..6).each do |i|
+        instance_variable_set("@time#{i}", terms["time#{i}"].to_s)
       end
     end
   end
@@ -1313,6 +1846,24 @@ class DocumentsController < ApplicationController
 
   def agreement_creator?(conversation)
     agreement_party?(conversation) || conversation.MediatorID == @user.UserID
+  end
+
+  def assigned_agreement_mediator_name(conversation)
+    mediator = conversation.mediator if conversation&.MediatorAssigned?
+    AgreementToMediateTerms.account_name(mediator) if mediator&.mediator?
+  end
+
+  def assigned_mediator_for_generation?
+    return false unless @user.mediator? && params[:conversation_id].present?
+
+    conversation = @template_conversation || PrimaryMessageGroup.find_by(ConversationID: params[:conversation_id])
+    conversation&.MediatorAssigned? && conversation.MediatorID == @user.UserID
+  end
+
+  def authorize_mediation_template
+    return unless new_agreement_template(params[:template]) == AgreementToMediateTerms::TEMPLATE
+
+    head :forbidden unless assigned_mediator_for_generation?
   end
 
   def agreement_suggester?(conversation)
@@ -1398,9 +1949,10 @@ class DocumentsController < ApplicationController
       params[field].to_s.gsub(/[^\w\- ]/, "").squeeze(" ").strip.presence
     end
     document_type = {
-      "a" => "Agree to Vacate",
-      "b" => "Pay and Stay Agreement",
-      "c" => "Mediation Agreement"
+      AgreementToMediateTerms::TEMPLATE => "Agreement to Mediate",
+      CustomResolutionTerms::TEMPLATE => "Custom Resolution Agreement",
+      MoveOutTerms::TEMPLATE => "Move-Out Agreement",
+      "b" => "Pay and Stay Agreement"
     }.fetch(template.to_s, "Agreement")
 
     [ *party_names, document_type ].compact.join(" - ")
@@ -1465,165 +2017,6 @@ class DocumentsController < ApplicationController
   end
 
   # PDF Template Generators
-  def generate_vacate_agreement(pdf, landlord, tenant, address, date, reason, money_owed, schedule, best)
-    pdf.text "AGREEMENT TO VACATE PREMISES", size: 18, style: :bold, align: :center
-    pdf.move_down 20
-
-    pdf.text "This Agreement to Vacate is made on #{date.strftime('%B %d, %Y')} between:", size: 11
-    pdf.move_down 10
-
-    pdf.text "LANDLORD: #{landlord}", size: 11, style: :bold
-    pdf.text "TENANT: #{tenant}", size: 11, style: :bold
-    pdf.text "PROPERTY ADDRESS: #{address}", size: 11, style: :bold
-    pdf.move_down 15
-
-    pdf.text "WHEREAS:", size: 12, style: :bold
-    pdf.move_down 8
-    pdf.text "• The Tenant currently resides at the above-mentioned property", size: 10, indent_paragraphs: 20
-    pdf.text "• Reason for agreement: #{reason}", size: 10, indent_paragraphs: 20
-    pdf.text "• Outstanding rent owed: $#{money_owed}", size: 10, indent_paragraphs: 20
-    pdf.move_down 15
-
-    pdf.text "TERMS OF AGREEMENT:", size: 12, style: :bold
-    pdf.move_down 8
-
-    vacate_date = schedule.first&.last if schedule.any?
-    vacate_date_str = vacate_date.present? ? (Date.parse(vacate_date) rescue vacate_date) : "To be determined"
-
-    pdf.text "1. The Tenant agrees to vacate the premises on or before: #{vacate_date_str}", size: 10, indent_paragraphs: 20
-    pdf.move_down 8
-    pdf.text "2. The Tenant will leave the property in clean and acceptable condition", size: 10, indent_paragraphs: 20
-    pdf.move_down 8
-    pdf.text "3. All keys and access devices will be returned to the Landlord", size: 10, indent_paragraphs: 20
-    pdf.move_down 8
-
-    if schedule.any?
-      pdf.text "4. Payment Schedule for Outstanding Rent ($#{money_owed}):", size: 10, indent_paragraphs: 20, style: :bold
-      pdf.move_down 5
-      schedule.each_with_index do |(i, amt, due), idx|
-        due_str = due.present? ? (Date.parse(due).strftime("%B %d, %Y") rescue due) : "TBD"
-        pdf.text "   Payment #{idx + 1}: $#{amt} due on #{due_str}", size: 9, indent_paragraphs: 40
-      end
-    end
-
-    pdf.move_down 15
-    pdf.text "Both parties agree to the terms outlined above.", size: 10
-  end
-
-  def generate_pay_stay_agreement(pdf, landlord, tenant, address, date, reason, money_owed, monthly_rent, schedule, best)
-    pdf.text "PAY AND STAY NEGOTIATED AGREEMENT", size: 18, style: :bold, align: :center
-    pdf.move_down 20
-
-    pdf.text "This Pay and Stay Agreement is entered into on #{date.strftime('%B %d, %Y')} by and between:", size: 11
-    pdf.move_down 10
-
-    pdf.text "LANDLORD: #{landlord}", size: 11, style: :bold
-    pdf.text "TENANT: #{tenant}", size: 11, style: :bold
-    pdf.text "PROPERTY ADDRESS: #{address}", size: 11, style: :bold
-    pdf.move_down 15
-
-    pdf.text "RECITALS:", size: 12, style: :bold
-    pdf.move_down 8
-    pdf.text "• Tenant is currently residing at the property", size: 10, indent_paragraphs: 20
-    pdf.text "• Reason for negotiation: #{reason}", size: 10, indent_paragraphs: 20
-    pdf.text "• Total amount owed: $#{money_owed}", size: 10, indent_paragraphs: 20
-    pdf.text "• Monthly rent: $#{monthly_rent}", size: 10, indent_paragraphs: 20
-    pdf.move_down 15
-
-    pdf.text "AGREEMENT TERMS:", size: 12, style: :bold
-    pdf.move_down 8
-
-    pdf.text "1. The Tenant will remain in the property and continue tenancy", size: 10, indent_paragraphs: 20
-    pdf.move_down 8
-    pdf.text "2. The Tenant agrees to pay the outstanding balance according to the following schedule:", size: 10, indent_paragraphs: 20
-    pdf.move_down 10
-
-    if schedule.any?
-      data = [ [ "Payment #", "Amount", "Due Date" ] ]
-      schedule.each_with_index do |(i, amt, due), idx|
-        due_str = due.present? ? (Date.parse(due).strftime("%m/%d/%Y") rescue due) : "TBD"
-        data << [ (idx + 1).to_s, "$#{amt}", due_str ]
-      end
-
-      pdf.table(data, header: true, width: pdf.bounds.width - 40, position: 20,
-                cell_style: { size: 10, padding: 8 }) do
-        row(0).font_style = :bold
-        row(0).background_color = "E8F4F8"
-      end
-      pdf.move_down 15
-    end
-
-    pdf.text "3. Tenant must continue paying monthly rent of $#{monthly_rent} on time", size: 10, indent_paragraphs: 20
-    pdf.move_down 8
-    pdf.text "4. Failure to comply with this agreement may result in eviction proceedings", size: 10, indent_paragraphs: 20
-    pdf.move_down 15
-
-    pdf.text "This agreement is binding upon execution by both parties.", size: 10
-  end
-
-  def generate_mediation_agreement(pdf, landlord, tenant, address, date, reason, money_owed, monthly_rent, schedule, best)
-    pdf.text "MEDIATION AGREEMENT", size: 18, style: :bold, align: :center
-    pdf.move_down 20
-
-    pdf.text "This Mediation Agreement is executed on #{date.strftime('%B %d, %Y')} between:", size: 11
-    pdf.move_down 10
-
-    pdf.text "PARTY A (Landlord): #{landlord}", size: 11, style: :bold
-    pdf.text "PARTY B (Tenant): #{tenant}", size: 11, style: :bold
-    pdf.text "CONCERNING PROPERTY: #{address}", size: 11, style: :bold
-    pdf.move_down 15
-
-    pdf.text "BACKGROUND:", size: 12, style: :bold
-    pdf.move_down 8
-    pdf.text "The parties have entered into mediation to resolve the following dispute:", size: 10
-    pdf.move_down 5
-    pdf.text "• Nature of dispute: #{reason}", size: 10, indent_paragraphs: 20
-    pdf.text "• Amount in question: $#{money_owed}", size: 10, indent_paragraphs: 20
-    pdf.text "• Current monthly rent: $#{monthly_rent}", size: 10, indent_paragraphs: 20
-    pdf.move_down 15
-
-    pdf.text "MEDIATED RESOLUTION:", size: 12, style: :bold
-    pdf.move_down 8
-
-    pdf.text "The parties agree to the following terms to resolve this dispute:", size: 10
-    pdf.move_down 10
-
-    pdf.text "1. PAYMENT ARRANGEMENT:", size: 10, style: :bold, indent_paragraphs: 20
-    pdf.move_down 5
-
-    if schedule.any?
-      pdf.text "   The Tenant agrees to pay the outstanding balance as follows:", size: 10, indent_paragraphs: 20
-      pdf.move_down 8
-
-      data = [ [ "Installment", "Amount", "Due Date" ] ]
-      schedule.each_with_index do |(i, amt, due), idx|
-        due_str = due.present? ? (Date.parse(due).strftime("%B %d, %Y") rescue due) : "TBD"
-        data << [ (idx + 1).to_s, "$#{amt}", due_str ]
-      end
-
-      pdf.table(data, header: true, width: pdf.bounds.width - 40, position: 20,
-                cell_style: { size: 9, padding: 6 }) do
-        row(0).font_style = :bold
-        row(0).background_color = "F0F0F0"
-      end
-      pdf.move_down 12
-    end
-
-    pdf.text "2. ONGOING OBLIGATIONS:", size: 10, style: :bold, indent_paragraphs: 20
-    pdf.move_down 5
-    pdf.text "   • Tenant will continue paying regular monthly rent of $#{monthly_rent}", size: 9, indent_paragraphs: 25
-    pdf.text "   • Tenant will maintain the property in good condition", size: 9, indent_paragraphs: 25
-    pdf.text "   • Landlord will not pursue eviction while this agreement is honored", size: 9, indent_paragraphs: 25
-    pdf.move_down 12
-
-    pdf.text "3. DEFAULT PROVISION:", size: 10, style: :bold, indent_paragraphs: 20
-    pdf.move_down 5
-    pdf.text "   If Tenant fails to make any payment, Landlord may proceed with eviction", size: 9, indent_paragraphs: 25
-    pdf.move_down 15
-
-    pdf.text "This agreement represents the full understanding between the parties.", size: 10
-  end
-
   def generate_generic_agreement(pdf, landlord, tenant, address, date, reason, money_owed, schedule, best)
     pdf.text "RENTAL AGREEMENT", size: 18, style: :bold, align: :center
     pdf.move_down 20

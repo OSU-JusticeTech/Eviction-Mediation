@@ -1,3 +1,11 @@
+<% if @intake&.BestOption == "Move Out" %>
+  <div class="docs-wrapper">
+    <h1>Move-Out Agreement</h1>
+    <%= link_to "Open Move-Out Agreement editor",
+          template_intake_path(template: MoveOutTerms::TEMPLATE, conversation_id: @pmg.ConversationID,
+                               return_to: message_path(@pmg.ConversationID)), class: "btn btn-primary" %>
+  </div>
+<% else %>
 <div class="generate-doc-layout">
   <div class="generate-doc-panel scrollable-form">
     <h2>Customize Document</h2>
@@ -37,16 +45,10 @@
 
       <% best = @intake&.BestOption %>
 
-      <% if best == "Move Out" %>
-        <div class="form-section">
-          <%= label_tag :vacate_date, "Vacate Date", class: "required-label" %>
-          <%= date_field_tag :vacate_date, 2.weeks.from_now.to_date, class: "form-control" %>
-        </div>
-      <% end %>
+      <%= hidden_field_tag :template, "b" if best == "Pay Missed Rent" %>
 
       <% number_of_payments =
            case best
-           when "Move Out" then 6
            when "Pay Missed Rent" then 5
            else 0
            end %>
@@ -95,14 +97,11 @@
     <% end %>
   </div>
 
-  <% vacate = "/templates/#{ERB::Util.url_encode('Agreement to Vacate.pdf')}" %>
 <% pay    = "/templates/#{ERB::Util.url_encode('Pay and Stay Agreement.pdf')}" %>
 
 <div class="preview-panel">
   <h2>Document Preview</h2>
   <% case (@intake&.BestOption) %>
-  <% when "Move Out" %>
-    <iframe src="<%= vacate %>"></iframe>
   <% when "Pay Missed Rent" %>
     <iframe src="<%= pay %>"></iframe>
   <% else %>
@@ -111,3 +110,5 @@
 </div>
 </div>
 
+
+<% end %>
