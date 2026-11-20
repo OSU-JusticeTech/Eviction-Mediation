@@ -433,6 +433,20 @@
     margin-bottom: 15px;
 }
 
+.signup-form > .show-password-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 0 0 15px;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.signup-form > .show-password-label input {
+    margin: 0;
+}
+
 /* Label Styling */
 .input-group label {
     font-weight: bold;

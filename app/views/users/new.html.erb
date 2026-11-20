@@ -77,6 +77,11 @@
         <% end %>
       </div>
 
+      <label class="show-password-label">
+        <input type="checkbox" id="show-password" aria-controls="user_password user_password_confirmation">
+        Show Password
+      </label>
+
       <!-- Role Selection -->
       <div class="role-selection">
         <p>Please select your role:</p>
@@ -198,10 +203,10 @@
 
       <!-- Phone Number (Always Visible) -->
       <div class="input-group">
-        <label for="PhoneNumber">Phone Number</label>
+        <%= f.label :PhoneNumber, "Phone Number (Optional)", for: "phone-number" %>
         <div class="input-field">
           <i class="fa-solid fa-phone"></i>
-          <%= f.telephone_field :PhoneNumber, placeholder: "(555) 555-1234", required: true, class: "signup-input", id: "phone-number", inputmode: "tel", pattern: "\\(\\d{3}\\) \\d{3}-\\d{4}", title: "Use format (123) 456-7890" %>
+          <%= f.telephone_field :PhoneNumber, placeholder: "(555) 555-1234", class: "signup-input", id: "phone-number", inputmode: "tel", pattern: "\\(\\d{3}\\) \\d{3}-\\d{4}", title: "Use format (123) 456-7890" %>
         </div>
       </div>
 
@@ -444,6 +449,19 @@
 
     if (tenantRadio) tenantRadio.addEventListener("change", toggleFields);
     if (landlordRadio) landlordRadio.addEventListener("change", toggleFields);
+
+    const showPassword = document.getElementById("show-password");
+    const passwordFields = [
+      document.getElementById("user_password"),
+      document.getElementById("user_password_confirmation")
+    ];
+    if (showPassword && passwordFields.every(Boolean)) {
+      showPassword.checked = false;
+      passwordFields.forEach((field) => { field.type = "password"; });
+      showPassword.onchange = () => {
+        passwordFields.forEach((field) => { field.type = showPassword.checked ? "text" : "password"; });
+      };
+    }
 
     setupPhoneFormatting();
     setupAddressFormatting();
