@@ -90,4 +90,7 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Run tests (unit, integration, system)
-        run: make test TEST_ALL=false WEB_IMAGE_REF=eviction-mediation-web-development
+        run: >-
+          make test TEST_ALL=false
+          WEB_IMAGE_REF=eviction-mediation-web-development
+          COMPOSE_FILE=docker-compose.yml:.github/compose.ci.yml

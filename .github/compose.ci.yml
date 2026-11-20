@@ -1,0 +1,4 @@
+services:
+  chrome:
+    # Capybara 3.40 resets storage with origin "*", which Chrome 158 rejects.
+    image: docker.io/selenium/standalone-chrome:4.52.0-20261101

@@ -1,0 +1,73 @@
+<% field = ->(key) do
+     name = "#{row}_#{key}"
+     editor ? custom_resolution_inline_field(name, terms) : tag.span(terms[name].presence || "___________", class: "value")
+   end
+   selected = ->(key) { terms["#{row}_#{key}"] }
+   clause = ->(key, choices, &block) { custom_resolution_clause(terms, editor, { "#{row}_#{key}" => choices }, &block) }
+   action = {
+     "repair" => "Repair or arrange repair of", "clean" => "Clean the following area or remove specified trash",
+     "belongings" => "Organize or move specified belongings", "access" => "Arrange access or an appointment for",
+     "conduct" => "Change the following conduct or communication practice", "other" => "Other"
+   }
+   compensation = { "payment" => "a payment", "credit" => "a rent credit", "reimbursement" => "a reimbursement" } %>
+<section class="action" data-action-id="<%= row.delete_prefix("cr_action_") %>">
+  <h3>Action <span><%= number %></span></h3>
+  <p>Who will act? <%= editor ? field.call("actor") : CustomResolutionTerms::ACTION.fetch(:actor)[1][selected.call("actor")] || "___________" %>
+    <% if !editor && selected.call("actor") == "both" %> — <%= field.call("tasks") %><% end %>
+  </p>
+  <% if editor %>
+    <%= clause.call("actor", "both") do %><p>Identify each person’s task: <%= field.call("tasks") %></p><% end %>
+    <p>What will be done? <%= field.call("kind") %></p>
+    <p>
+      <% action.each do |kind, label| %>
+        <%= custom_resolution_clause(terms, editor, { "#{row}_kind" => kind }, element: :span) do %><%= label %>:<% end %>
+      <% end %>
+      <%= field.call("details") %>
+    </p>
+  <% else %>
+    <p><%= action.fetch(selected.call("kind"), "What will be done?") %>: <%= field.call("details") %></p>
+  <% end %>
+  <p>Completion deadline: <%= field.call("deadline") %><% if editor || selected.call("time").present? %>, <%= field.call("time") %><% end %></p>
+  <p>Assistance, supplies, or prior steps:
+    <% if editor %><%= field.call("assistance") %>
+    <% elsif selected.call("assistance") == "no" %>None needed.
+    <% else %><%= field.call("help_details") %><% end %>
+  </p>
+  <% if editor %>
+    <%= clause.call("assistance", "yes") do %><p>What is needed, who will provide it, and when: <%= field.call("help_details") %></p><% end %>
+  <% end %>
+
+  <h3>Payment, credit, or reimbursement for this action</h3>
+  <% if editor %><p><%= field.call("compensation") %></p><% end %>
+  <%= clause.call("compensation", "none") do %>
+    <p>No payment, credit, or reimbursement is agreed for this action. This does not decide any disputed responsibility for costs.</p>
+  <% end %>
+  <%= clause.call("compensation", compensation.keys) do %>
+    <p><%= field.call("provider") %> will provide
+      <% if editor %>
+        <% compensation.each do |option, wording| %>
+          <%= custom_resolution_clause(terms, editor, { "#{row}_compensation" => option }, element: :span) do %><%= wording %>.<% end %>
+        <% end %>
+      <% else %>
+        <%= compensation.fetch(selected.call("compensation")) %>.
+      <% end %>
+    </p>
+    <p>Amount: $<%= field.call("amount") %></p>
+    <p>Recipient: <%= field.call("recipient") %></p>
+    <p>Due date or credit effective date: <%= field.call("due") %></p>
+    <p>Payment method or how the credit will be recorded: <%= field.call("method") %></p>
+    <p>Conditions: <%= field.call("conditions") %></p>
+  <% end %>
+  <% if !editor && !(compensation.key?(selected.call("compensation")) || selected.call("compensation") == "none") %><p>___________</p><% end %>
+
+  <h3>How will completion be confirmed?</h3>
+  <% if editor %><p><%= field.call("confirmation") %></p><% end %>
+  <%= clause.call("confirmation", "written") do %><p>Written confirmation from both parties.</p><% end %>
+  <%= clause.call("confirmation", "documents") do %><p>Agreed photos or documents: <%= field.call("confirmation_details") %></p><% end %>
+  <%= clause.call("confirmation", "review") do %>
+    <p>A scheduled walkthrough or review: <%= field.call("confirmation_date") %>, <%= field.call("confirmation_details") %></p>
+  <% end %>
+  <%= clause.call("confirmation", "other") do %><p>Other: <%= field.call("confirmation_details") %></p><% end %>
+  <% if !editor && !CustomResolutionTerms::ACTION.fetch(:confirmation)[1].key?(selected.call("confirmation")) %><p>___________</p><% end %>
+  <% if editor %><button type="button" class="agreement-remove-payment" data-custom-inline-remove>Remove action</button><% end %>
+</section>

@@ -296,6 +296,7 @@ class MessagesController < ApplicationController
             tenant_signature_required: is_html && file.agreement_signable? && !file.TenantSignature,
             landlord_signature_required: is_html && file.agreement_signable? && !file.LandlordSignature,
             agreement_document: file.agreement_document?,
+            mediator_signature_required: file.agreement_to_mediate? && !file.MediatorSignature,
             extension: extension.presence || file.FileTypes
           }
         end
@@ -381,7 +382,7 @@ class MessagesController < ApplicationController
         messages: { ConversationID: conversation_ids }
       )
       .where(TenantSignature: true, LandlordSignature: true)
-      .distinct
+      .distinct.select(&:agreement_fully_executed?)
 
     # Fetch Intake Responses
     @intake_question = IntakeQuestion.find_by(IntakeID: @mediation.IntakeID) if @mediation.IntakeID.present?

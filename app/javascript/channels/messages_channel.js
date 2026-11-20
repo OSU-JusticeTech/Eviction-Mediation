@@ -77,7 +77,9 @@ const buildAttachmentHtml = (attachment, currentUserRole) => {
   const signUrl = escapeAttribute(attachment.sign_url || "");
   const needsTenantSignature = Boolean(attachment.tenant_signature_required);
   const needsLandlordSignature = Boolean(attachment.landlord_signature_required);
-  const isAgreement = Boolean(attachment.agreement_document) && ["Tenant", "Landlord"].includes(currentUserRole);
+  const isAgreement = Boolean(attachment.agreement_document) &&
+    (["Tenant", "Landlord"].includes(currentUserRole) ||
+      (currentUserRole === "Mediator" && Boolean(attachment.mediator_signature_required)));
 
   const showTenantCTA = currentUserRole === "Tenant" && needsTenantSignature && signUrl;
   const showLandlordCTA = currentUserRole === "Landlord" && needsLandlordSignature && signUrl;
