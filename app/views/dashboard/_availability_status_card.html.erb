@@ -9,12 +9,12 @@
     <i class="fas <%= available ? 'fa-check-circle' : 'fa-pause-circle' %>"></i>
   </div>
   <div class="status-content">
-    <h3>Current Status: <%= available ? "Available" : "Unavailable" %></h3>
+    <h2>Current Status: <%= available ? "Available" : "Unavailable" %></h2>
 
     <% if at_capacity %>
-      <p style="color: #e67e22; font-weight: 500;">You're at capacity (<%= active_cases %>/<%= capacity %> cases)</p>
+      <p style="color: #a94c08; font-weight: 500;">You're at capacity (<%= active_cases %>/<%= capacity %> cases)</p>
     <% elsif unavailable_with_cases %>
-      <p style="color: #3498db; font-weight: 500;">You still have <%= active_cases %> open <%= "case".pluralize(active_cases) %></p>
+      <p style="color: #1558b0; font-weight: 500;">You still have <%= active_cases %> open <%= "case".pluralize(active_cases) %></p>
     <% elsif available %>
       <p>Click "Disable" to stop accepting new mediation requests</p>
     <% else %>

@@ -54,13 +54,13 @@
   <% if @conversation && @landlord && @tenant && @file.FileTypes == "html" && params[:view_mode] != 'simple' %>
     <% if @file.agreement_editable? && @can_suggest_agreement %>
       <div class="signature-status-card">
-        <h3>Review Agreement</h3>
+        <h2>Review Agreement</h2>
         <p>Review the document below. If a date, amount, or other term needs work, you can suggest changes below.</p>
       </div>
     <% end %>
     <!-- Signature Status Card -->
     <div class="signature-status-card" id="signature-status-card">
-      <h3>Signature Status</h3>
+      <h2>Signature Status</h2>
       <div class="signature-grid">
         <% signers = { "Landlord" => @landlord, "Tenant" => @tenant }
            signers["Mediator"] = @mediator if @file.agreement_to_mediate? %>
@@ -97,7 +97,7 @@
     <%= render "documents/generation_editor", review_file: @file %>
   <% elsif @editing_agreement %>
     <div class="signature-status-card agreement-editor-guide" data-agreement-editor data-agreement-template="<%= @file.AgreementTemplate %>">
-      <h3>Suggest Changes</h3>
+      <h2>Suggest Changes</h2>
       <p>Click a highlighted value in the document to edit it. Your edits are only a preview until you send them.</p>
       <p class="agreement-editor-count" data-agreement-edit-count role="status">No changes yet</p>
       <%= form_with url: update_review_document_path(@file.FileID), method: :patch, local: true,
@@ -145,7 +145,7 @@
       <div class="signature-status-card agreement-suggestions-card">
         <div class="agreement-suggestions-heading">
           <div>
-            <h3>Suggested Changes</h3>
+            <h2>Suggested Changes</h2>
             <p>Started by <%= @proposal_author ? "#{@proposal_author.Role} #{@proposal_author.FName} #{@proposal_author.LName}" : "a participant" %>. Review each offered value against the agreement above.<%= " Counteroffers will be shared after you address every item." if can_decide %></p>
           </div>
           <span class="suggestion-badge <%= suggestions_pending ? 'pending' : 'reviewed' %>"><%= suggestions_pending ? "Pending review" : "Reviewed" %></span>
@@ -374,7 +374,7 @@
 
     <% if @file.agreement_editable? && !@file.agreement_suggestions_pending? && @can_suggest_agreement && !@editing_agreement %>
       <div class="signature-status-card agreement-suggestion-entry-card">
-        <h3>Suggest Changes</h3>
+        <h2>Suggest Changes</h2>
         <p>
           <% if @user.mediator? %>
             Your suggested changes will be sent to both the landlord and tenant for review.
@@ -391,7 +391,7 @@
     <% needs_signature = @user_role_in_conversation.present? && !@file.public_send("#{@user_role_in_conversation.capitalize}Signature") %>
     <% if @file.agreement_suggestions_pending? && needs_signature %>
       <div class="signing-card">
-        <h3><i class="fa-solid fa-pen-to-square"></i> Signing Paused</h3>
+        <h2><i class="fa-solid fa-pen-to-square"></i> Signing Paused</h2>
         <p class="signing-description">The pending suggested changes must be reviewed before signing can resume.</p>
       </div>
     <% elsif needs_signature && @file.agreement_to_mediate? && !@editing_agreement && (error = @file.mediator_signing_error(@conversation)) %>
@@ -399,7 +399,7 @@
     <% elsif @file.agreement_signable? && needs_signature && !@editing_agreement %>
       <% signer = @user %>
       <div class="signing-card" data-signer-role="<%= @user_role_in_conversation %>">
-        <h3><i class="fa-solid fa-pen-to-square"></i> Sign This Document</h3>
+        <h2><i class="fa-solid fa-pen-to-square"></i> Sign This Document</h2>
         <p class="signing-description">Sign only if you agree to the version shown above. If suggested changes are later accepted, all required signers will need to sign the updated document.</p>
         <%= form_with url: apply_signature_document_path(@file.FileID), method: :post, local: true, class: "signature-form" do |form| %>
           <%= hidden_field_tag :agreement_version, @file.AgreementVersion if @file.agreement_document? %>

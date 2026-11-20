@@ -488,7 +488,7 @@ label.dropzone * {
   display: none;
 }
 
-.signature-status-card h3 {
+.signature-status-card h2 {
   margin: 0 0 20px;
   font-size: 20px;
   font-weight: 700;
@@ -507,7 +507,7 @@ label.dropzone * {
   gap: 16px;
 }
 
-.agreement-suggestions-heading h3 {
+.agreement-suggestions-heading h2 {
   margin-bottom: 8px;
 }
 
@@ -755,7 +755,7 @@ label.dropzone * {
 }
 
 .signature-status.signed {
-  color: #10b981;
+  color: #047857;
 }
 
 .signature-status.signed i {
@@ -763,7 +763,7 @@ label.dropzone * {
 }
 
 .signature-status.pending {
-  color: #94a3b8;
+  color: #526278;
 }
 
 .signature-status.pending i {
@@ -815,7 +815,7 @@ label.dropzone * {
   box-shadow: 0 2px 12px rgba(251, 191, 36, 0.15);
 }
 
-.signing-card h3 {
+.signing-card h2 {
   margin: 0 0 8px;
   font-size: 20px;
   font-weight: 700;
@@ -876,9 +876,9 @@ label.dropzone * {
   justify-content: flex-start;
 }
 
-.btn-sign {
+.signature-form .btn-sign {
   padding: 12px 28px;
-  background: #10b981;
+  background: #1558b0;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -889,21 +889,21 @@ label.dropzone * {
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
-.btn-sign:hover {
-  background: #059669;
+.signature-form .btn-sign:hover {
+  background: #10468e;
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
 }
 
-.btn-sign:disabled,
-.btn-sign:disabled:hover {
+.signature-form .btn-sign:disabled,
+.signature-form .btn-sign:disabled:hover {
   background: #94a3b8;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
 }
 
-.btn-sign:active {
+.signature-form .btn-sign:active {
   transform: translateY(0);
 }
 

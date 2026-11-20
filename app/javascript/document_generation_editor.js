@@ -293,12 +293,28 @@ function startDocumentGenerationEditor() {
     });
   }
 
+  function nameField(node) {
+    const fieldLabel = node.title || node.dataset.agreementField.replaceAll('_', ' ');
+    const visibleValue = node.textContent.trim();
+    node.setAttribute('aria-label', visibleValue && !/^_+$/.test(visibleValue)
+      ? `${visibleValue} — edit ${fieldLabel}`
+      : `Edit ${fieldLabel}`);
+  }
+
+  function nameChoice(node) {
+    const choiceLabel = `Choose ${node.dataset.agreementChoice.replaceAll('_', ' ')}: ${node.dataset.agreementValue.replaceAll('_', ' ')}`;
+    node.setAttribute('aria-label', [node.textContent.trim(), choiceLabel].filter(Boolean).join(' — '));
+  }
+
   function writeField(doc, field, value) {
     const input = inputs.get(field);
     if (!input) return;
     input.value = value;
     doc.querySelectorAll(`[data-agreement-field="${field}"]`).forEach(node => {
-      if (node !== activeEdit?.node) node.textContent = displayValue(field, value, node);
+      node.textContent = displayValue(field, value, node);
+      nameField(node);
+      const choice = node.closest('[data-agreement-choice]');
+      if (choice && !choice.hasAttribute('data-custom-checkbox')) nameChoice(choice);
       node.classList.toggle('agreement-changed', value !== original.get(field));
     });
     if (/^date[1-6]$/.test(field)) {
@@ -340,29 +356,28 @@ function startDocumentGenerationEditor() {
     editor.className = 'agreement-inline-input';
     if (node.title) editor.placeholder = node.title;
     editor.setAttribute('aria-label', `Edit ${node.title || field.replaceAll('_', ' ')}`);
-    node.textContent = '';
-    node.append(editor);
-    const finish = save => {
+    const finish = (save, restoreFocus = false) => {
       if (activeEdit?.node !== node) return;
       const value = save ? editor.value.trim() : inputs.get(field).value;
       activeEdit = null;
-      node.textContent = displayValue(field, value, node);
+      editor.replaceWith(node);
       if (save) writeField(doc, field, value);
+      if (restoreFocus) node.focus();
     };
     activeEdit = { node, finish };
+    node.replaceWith(editor);
     editor.addEventListener('blur', () => finish(true), { once: true });
     if (type === 'time') {
-      editor.addEventListener('change', () => finish(true), { once: true });
+      editor.addEventListener('change', () => finish(true, true), { once: true });
     }
     if (type === 'select') {
       editor.addEventListener('change', () => {
-        finish(true);
-        node.focus();
+        finish(true, true);
       }, { once: true });
     }
     editor.addEventListener('keydown', event => {
-      if (event.key === 'Escape') { event.preventDefault(); finish(false); }
-      if (event.key === 'Enter' && editor.tagName === 'INPUT') { event.preventDefault(); finish(true); }
+      if (event.key === 'Escape') { event.preventDefault(); finish(false, true); }
+      if (event.key === 'Enter' && editor.tagName === 'INPUT') { event.preventDefault(); finish(true, true); }
     });
     editor.focus();
     if (editor.tagName === 'TEXTAREA' || editor.type === 'text') editor.select();
@@ -417,9 +432,11 @@ function startDocumentGenerationEditor() {
         return;
       }
       node.setAttribute('role', 'button');
-      node.setAttribute('aria-label', node.dataset.agreementField ?
-        `Edit ${(node.title || node.dataset.agreementField.replaceAll('_', ' '))}` :
-        `Choose ${node.dataset.agreementChoice.replaceAll('_', ' ')}: ${node.dataset.agreementValue.replaceAll('_', ' ')}`);
+      if (node.dataset.agreementField) {
+        nameField(node);
+      } else {
+        nameChoice(node);
+      }
     });
   }
 
@@ -534,7 +551,6 @@ function startDocumentGenerationEditor() {
       addCustomActionControls(doc);
       finish.disabled = false;
     }
-    makeEditable(doc);
 
     // Display prefilled information in the agreement.
     inputs.forEach((input, field) => {
@@ -544,6 +560,7 @@ function startDocumentGenerationEditor() {
         }
       });
     });
+    makeEditable(doc);
     doc.addEventListener('keydown', event => {
       if ((event.key === 'Enter' || event.key === ' ') &&
           event.target.matches('[data-agreement-field], [data-agreement-choice]')) {

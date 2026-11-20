@@ -73,7 +73,7 @@
 
 /* Logout Button (Navbar) */
 .navbar-logout {
-    background: #e74c3c;
+    background: #c0392b;
     color: white;
     font-size: 1rem;
     font-weight: bold;
@@ -85,7 +85,7 @@
 }
 
 .navbar-logout:hover {
-    background: #c0392b;
+    background: #a93226;
     transform: scale(1.05);
 }
 
@@ -324,7 +324,7 @@
         text-align: center;
         padding: 10px;
         border-radius: 8px;
-        background: #e74c3c;
+        background: #c0392b;
         color: white;
         font-weight: 600;
     }

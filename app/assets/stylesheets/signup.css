@@ -597,7 +597,7 @@ select.signup-input {
 }
 
 .signup-link {
-    color: #007bff;
+    color: #0056b3;
     text-decoration: none;
     font-weight: bold;
 }
@@ -667,7 +667,7 @@ select.signup-input {
 
 /* Terms and Conditions Link */
 .disclaimer-link {
-    color: #007bff;
+    color: #0056b3;
     text-decoration: underline;
     cursor: pointer;
     margin-left: 0;

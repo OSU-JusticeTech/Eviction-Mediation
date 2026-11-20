@@ -159,7 +159,7 @@
     flex-direction: column;
 }
 
-.card-content h3 {
+.card-content h2 {
     font-size: 1.25rem;
     font-weight: 600;
     color: #1e293b;
@@ -310,7 +310,7 @@ input[type="submit"].card-btn:disabled {
     flex-shrink: 0;
 }
 
-.step-content h4 {
+.step-content h3 {
     font-size: 1.1rem;
     font-weight: 600;
     color: #1e293b;
@@ -661,7 +661,7 @@ input[type="submit"].card-btn:disabled {
     flex: 1;
 }
 
-.status-content h3 {
+.status-content h2 {
     font-size: 1.25rem;
     font-weight: 600;
     color: #1e293b;
@@ -688,7 +688,7 @@ input[type="submit"].card-btn:disabled {
     min-width: 0;
 }
 
-.workload-header h3 {
+.workload-header h2 {
     font-size: 1.25rem;
     font-weight: 600;
     color: #1e293b;
@@ -767,7 +767,7 @@ input[type="submit"].card-btn:disabled {
     margin: 0 auto 1rem auto;
 }
 
-.tip-card h4 {
+.tip-card h3 {
     font-size: 1.1rem;
     font-weight: 600;
     color: #1e293b;
@@ -888,7 +888,7 @@ input[type="submit"].card-btn:disabled {
         display: contents;
     }
     
-    .action-card .card-content h3 {
+    .action-card .card-content h2 {
         grid-row: 1 / 2;
         grid-column: 2 / 3;
         margin: 0;
@@ -1091,17 +1091,16 @@ input[type="submit"].card-btn:disabled {
 }
 
 .case-last-message {
-    color: #94a3b8;
+    color: #526278;
     font-size: 0.8rem;
 }
 
 .case-last-message--none {
-    color: #cbd5e1;
     font-style: italic;
 }
 
 .card-btn--urgent {
-    background: #d97706;
+    background: #a94c08;
     color: #fff;
 }
 
