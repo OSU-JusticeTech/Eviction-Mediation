@@ -76,6 +76,34 @@
         </div>
       <% end %>
 
+      <%# --- CHAT INSTRUCTIONS (TENANTS & LANDLORDS) --- %>
+      <% if @user.Role == "Tenant" || @user.Role == "Landlord" %>
+        <details open class="chat-instructions-box" style="background: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #2563eb; border-radius: 8px; padding: 14px 18px; margin: 16px 0; color: #334155; font-size: 0.92rem; line-height: 1.5;">
+          <summary style="cursor: pointer; font-weight: 700; color: #0b2b4b; font-size: 0.98rem; list-style: none; display: flex; justify-content: space-between; align-items: center;">
+            <span>
+              <i class="fa-solid fa-lightbulb" style="color: #2563eb; margin-right: 8px;"></i>
+              How to Get Started in This Chat
+            </span>
+            <span style="font-size: 0.8rem; font-weight: 500; color: #64748b;">Click to hide/show</span>
+          </summary>
+
+          <ul style="margin: 10px 0 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px;">
+            <li>
+              <strong>How to begin:</strong> Start by briefly introducing your main concern and sharing what you hope to resolve (for example, a payment plan or move-out timeline).
+            </li>
+            <li>
+              <strong>Your mediator is a real human:</strong> A trained, neutral person—not a bot or AI—may join or review this chat to help guide the discussion fairly.
+            </li>
+            <li>
+              <strong>Be clear and specific:</strong> Share helpful details like dates, dollar amounts, or specific questions so everyone stays on the same page.
+            </li>
+            <li>
+              <strong>Keep it respectful:</strong> Focus on solving the problem together rather than placing blame. Constructive messages lead to faster agreements.
+            </li>
+          </ul>
+        </details>
+      <% end %>
+
       <div class="conversation-info-panel" data-conversation-info-panel hidden role="dialog" aria-modal="true">
         <div class="conversation-info-card">
           <div class="conversation-info-card__header">
