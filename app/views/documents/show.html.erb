@@ -41,6 +41,10 @@
     </div>
   </div>
 
+  <% if @file.agreement_to_mediate? && !@editing_agreement %>
+    <p><%= link_to "Data Privacy and Privacy Policy", resources_path(tab: "faqs", category: "data-privacy"), target: "_blank", rel: "noopener" %></p>
+  <% end %>
+
   <% if @file.custom_resolution? && @file.agreement_terms["cr_additional_signers"] != "no" %>
     <p role="status"><%= CustomResolutionTerms::SIGNER_ERROR %></p>
   <% elsif @file.additional_pay_and_stay_signers? %>
@@ -58,51 +62,38 @@
     <div class="signature-status-card" id="signature-status-card">
       <h3>Signature Status</h3>
       <div class="signature-grid">
-        <div class="signature-party">
-          <div class="party-label">Landlord</div>
-          <div class="party-name"><%= @landlord.FName %> <%= @landlord.LName %></div>
-          <% if @file.LandlordSignature %>
-            <div class="signature-status signed">
-              <i class="fa-solid fa-check-circle"></i> Signed
-            </div>
-            <% if @file.LandlordSignedAt %>
-              <div class="signature-timestamp"><%= @file.LandlordSignedAt.strftime("%B %d, %Y at %I:%M %p") %></div>
+        <% signers = { "Landlord" => @landlord, "Tenant" => @tenant }
+           signers["Mediator"] = @mediator if @file.agreement_to_mediate? %>
+        <% signers.each do |role, signer| %>
+          <% signed = @file.public_send("#{role}Signature") %>
+          <% signed_at = @file.public_send("#{role}SignedAt") %>
+          <% name = signed && role == "Mediator" ? @file.MediatorSignatureName : AgreementToMediateTerms.account_name(signer) %>
+          <div class="signature-party" data-signature-role="<%= role.downcase %>">
+            <div class="party-label"><%= role %></div>
+            <div class="party-name"><%= name.presence || "Awaiting assignment" %></div>
+            <% if signed %>
+              <div class="signature-status signed"><i class="fa-solid fa-check-circle"></i> Signed</div>
+              <% if signed_at %>
+                <div class="signature-timestamp"><%= signed_at.strftime("%B %d, %Y at %I:%M %p") %></div>
+              <% end %>
+            <% else %>
+              <div class="signature-status pending"><i class="fa-regular fa-circle"></i> Awaiting signature</div>
             <% end %>
-          <% else %>
-            <div class="signature-status pending">
-              <i class="fa-regular fa-circle"></i> Awaiting signature
-            </div>
-          <% end %>
-        </div>
-        <div class="signature-party">
-          <div class="party-label">Tenant</div>
-          <div class="party-name"><%= @tenant.FName %> <%= @tenant.LName %></div>
-          <% if @file.TenantSignature %>
-            <div class="signature-status signed">
-              <i class="fa-solid fa-check-circle"></i> Signed
-            </div>
-            <% if @file.TenantSignedAt %>
-              <div class="signature-timestamp"><%= @file.TenantSignedAt.strftime("%B %d, %Y at %I:%M %p") %></div>
-            <% end %>
-          <% else %>
-            <div class="signature-status pending">
-              <i class="fa-regular fa-circle"></i> Awaiting signature
-            </div>
-          <% end %>
-        </div>
+          </div>
+        <% end %>
       </div>
 
       <% if @file.agreement_fully_executed? %>
         <div class="completion-banner">
           <i class="fa-solid fa-check-circle"></i>
-          <strong>Document Fully Executed</strong> - Both parties have signed this agreement.
+          <strong>Document Fully Executed</strong> - All required signers have signed this agreement.
         </div>
       <% end %>
     </div>
 
   <% end %>
 
-  <% if @editing_agreement && @file.custom_resolution? %>
+  <% if @editing_agreement && (@file.custom_resolution? || @file.agreement_to_mediate?) %>
     <%= render "documents/generation_editor", review_file: @file %>
   <% elsif @editing_agreement %>
     <div class="signature-status-card agreement-editor-guide" data-agreement-editor data-agreement-template="<%= @file.AgreementTemplate %>">
@@ -126,7 +117,7 @@
     </div>
   <% end %>
 
-  <% unless @editing_agreement && @file.custom_resolution? %>
+  <% unless @editing_agreement && (@file.custom_resolution? || @file.agreement_to_mediate?) %>
     <div class="document-preview-card">
       <%= tag.iframe src: view_inline_document_path(@file.FileID, editable_preview: @editing_agreement ? 1 : nil),
             srcdoc: (@agreement_retry_preview && String.new(@agreement_retry_preview)),
@@ -397,21 +388,22 @@
       </div>
     <% end %>
 
-    <% needs_signature = (@user_role_in_conversation == "landlord" && !@file.LandlordSignature) ||
-                         (@user_role_in_conversation == "tenant" && !@file.TenantSignature) %>
+    <% needs_signature = @user_role_in_conversation.present? && !@file.public_send("#{@user_role_in_conversation.capitalize}Signature") %>
     <% if @file.agreement_suggestions_pending? && needs_signature %>
       <div class="signing-card">
         <h3><i class="fa-solid fa-pen-to-square"></i> Signing Paused</h3>
-        <p class="signing-description">The pending suggested changes must be reviewed before either party can sign.</p>
+        <p class="signing-description">The pending suggested changes must be reviewed before signing can resume.</p>
       </div>
+    <% elsif needs_signature && @file.agreement_to_mediate? && !@editing_agreement && (error = @file.mediator_signing_error(@conversation)) %>
+      <p role="status"><%= error %></p>
     <% elsif @file.agreement_signable? && needs_signature && !@editing_agreement %>
-      <% signer = @user_role_in_conversation == "landlord" ? @landlord : @tenant %>
+      <% signer = @user %>
       <div class="signing-card" data-signer-role="<%= @user_role_in_conversation %>">
         <h3><i class="fa-solid fa-pen-to-square"></i> Sign This Document</h3>
-        <p class="signing-description">Sign only if you agree to the version shown above. If suggested changes are later accepted, both parties will need to sign the updated document.</p>
+        <p class="signing-description">Sign only if you agree to the version shown above. If suggested changes are later accepted, all required signers will need to sign the updated document.</p>
         <%= form_with url: apply_signature_document_path(@file.FileID), method: :post, local: true, class: "signature-form" do |form| %>
           <%= hidden_field_tag :agreement_version, @file.AgreementVersion if @file.agreement_document? %>
-          <% if @file.revised_move_out? || @file.custom_resolution? %>
+          <% if @file.revised_move_out? || @file.custom_resolution? || @file.agreement_to_mediate? %>
             <p>Your signature will be recorded as <strong>/s/ <%= [signer.FName, signer.LName].compact.join(" ").squish %></strong>.</p>
           <% else %>
             <div class="form-group">
@@ -624,62 +616,35 @@
             return;
           }
           if (data.type === 'signature_update') {
-            // Update landlord signature status
-            const signatureParties = document.querySelectorAll('.signature-party');
-            if (signatureParties[0] && data.landlord_signature) {
-              const landlordDiv = signatureParties[0];
-              const statusDiv = landlordDiv.querySelector('.signature-status');
-              if (statusDiv) {
-                statusDiv.className = 'signature-status signed';
-                statusDiv.innerHTML = '<i class="fa-solid fa-check-circle"></i> Signed';
-                
-                // Add timestamp if it doesn't exist
-                let timestampDiv = landlordDiv.querySelector('.signature-timestamp');
-                if (!timestampDiv && data.landlord_signed_at) {
-                  timestampDiv = document.createElement('div');
-                  timestampDiv.className = 'signature-timestamp';
-                  timestampDiv.textContent = data.landlord_signed_at;
-                  statusDiv.after(timestampDiv);
-                }
+            document.querySelectorAll('.signature-party[data-signature-role]').forEach(party => {
+              const role = party.dataset.signatureRole;
+              if (!data[role + '_signature']) return;
+
+              const status = party.querySelector('.signature-status');
+              status.className = 'signature-status signed';
+              status.innerHTML = '<i class="fa-solid fa-check-circle"></i> Signed';
+              const signedAt = data[role + '_signed_at'];
+              if (signedAt && !party.querySelector('.signature-timestamp')) {
+                const timestamp = document.createElement('div');
+                timestamp.className = 'signature-timestamp';
+                timestamp.textContent = signedAt;
+                party.appendChild(timestamp);
               }
-            }
-            
-            // Update tenant signature status
-            if (signatureParties[1] && data.tenant_signature) {
-              const tenantDiv = signatureParties[1];
-              const statusDiv = tenantDiv.querySelector('.signature-status');
-              if (statusDiv) {
-                statusDiv.className = 'signature-status signed';
-                statusDiv.innerHTML = '<i class="fa-solid fa-check-circle"></i> Signed';
-                
-                // Add timestamp if it doesn't exist
-                let timestampDiv = tenantDiv.querySelector('.signature-timestamp');
-                if (!timestampDiv && data.tenant_signed_at) {
-                  timestampDiv = document.createElement('div');
-                  timestampDiv.className = 'signature-timestamp';
-                  timestampDiv.textContent = data.tenant_signed_at;
-                  statusDiv.after(timestampDiv);
-                }
-              }
-            }
-            
-            // Hide signing form if current user just signed
-            const signingCard = document.querySelector('.signing-card');
-            if (signingCard && ((signingCard.dataset.signerRole === 'landlord' && data.landlord_signature) ||
-                                (signingCard.dataset.signerRole === 'tenant' && data.tenant_signature))) {
-              signingCard.remove();
-            }
+            });
+
+            const signingCard = document.querySelector('.signing-card[data-signer-role]');
+            if (signingCard && data[signingCard.dataset.signerRole + '_signature']) signingCard.remove();
             const documentPreview = document.querySelector('.document-iframe');
             if (documentPreview) documentPreview.src = documentPreview.src;
             
-            // Show fully executed banner if both signed
+            // Show the completion banner when all required signatures are present.
             if (data.both_signed) {
               document.querySelector('.agreement-suggestion-entry-card')?.remove();
               const statusCard = document.getElementById('signature-status-card');
               if (statusCard && !statusCard.querySelector('.completion-banner')) {
                 const banner = document.createElement('div');
                 banner.className = 'completion-banner';
-                banner.innerHTML = '<i class="fa-solid fa-check-circle"></i><strong>Document Fully Executed</strong> - Both parties have signed this agreement.';
+                banner.innerHTML = '<i class="fa-solid fa-check-circle"></i><strong>Document Fully Executed</strong> - All required signers have signed this agreement.';
                 statusCard.appendChild(banner);
               }
             }

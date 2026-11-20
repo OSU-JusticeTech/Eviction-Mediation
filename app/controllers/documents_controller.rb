@@ -32,14 +32,13 @@ class DocumentsController < ApplicationController
     when CustomResolutionTerms::TEMPLATE then "Custom Resolution Agreement"
     when MoveOutTerms::TEMPLATE then "Move-Out Agreement"
     when "b" then "Pay and Stay Agreement"
-    when "c" then "Mediation Agreement"
+    when AgreementToMediateTerms::TEMPLATE then "Agreement to Mediate"
     else "Unknown Template"
     end
 
     # Set default resolution type based on template
     @default_resolution = case @template
     when "b" then "Payment Plan"
-    when "c" then "Payment Plan"
     else ""
     end
 
@@ -60,6 +59,9 @@ class DocumentsController < ApplicationController
       "negotiation_date" => Date.today.iso8601,
       "best_option" => @default_resolution
     }
+    if @template == AgreementToMediateTerms::TEMPLATE
+      @generation_values["mediator_name"] = assigned_agreement_mediator_name(@conversation)
+    end
     if @template == CustomResolutionTerms::TEMPLATE
       @generation_values["cr_action_#{SecureRandom.uuid}_present"] = "yes"
     end
@@ -83,7 +85,7 @@ class DocumentsController < ApplicationController
 
     @schedule = []
 
-    @template = MoveOutTerms::TEMPLATE unless [*%w[b c], CustomResolutionTerms::TEMPLATE].include?(@template)
+    @template = MoveOutTerms::TEMPLATE unless ["b", AgreementToMediateTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE].include?(@template)
     @move_out_terms = {} if @template == MoveOutTerms::TEMPLATE
     template_file = agreement_template_file(@template)
 
@@ -92,7 +94,7 @@ class DocumentsController < ApplicationController
 
   def generate_from_intake
     template = new_agreement_template(params[:template])
-    return head :not_found unless [MoveOutTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE, "b", "c"].include?(template)
+    return head :not_found unless [MoveOutTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE, AgreementToMediateTerms::TEMPLATE, "b"].include?(template)
     @conversation_id = params[:conversation_id]
     conversation = PrimaryMessageGroup.find_by(ConversationID: @conversation_id) if @conversation_id.present?
 
@@ -111,6 +113,21 @@ class DocumentsController < ApplicationController
         @generation_values = submitted_terms
         @agreement_editor_error = error
         return render :template_intake, status: error ? :unprocessable_entity : :ok
+      end
+    elsif template == AgreementToMediateTerms::TEMPLATE
+      mediator_name = assigned_agreement_mediator_name(conversation)
+      terms["mediator_name"] = mediator_name if terms["mediator_name"].blank?
+      error = if conversation && mediator_name.blank?
+        "Assign a mediator with a name before generating this agreement."
+      else
+        AgreementToMediateTerms.error(terms.merge("additional_signature_parties" => params[:additional_signature_parties]))
+      end
+      if error
+        @template_conversation = conversation
+        template_intake
+        @generation_values.merge!(terms)
+        @agreement_editor_error = error
+        return render :template_intake, status: :unprocessable_entity
       end
     elsif template == "b"
       normalize_pay_and_stay_terms!(terms)
@@ -285,14 +302,10 @@ class DocumentsController < ApplicationController
       @landlord = User.find_by(UserID: @conversation.LandlordID)
       @tenant = User.find_by(UserID: @conversation.TenantID)
 
+      @mediator = @conversation.mediator if @file.agreement_to_mediate? && @conversation.MediatorAssigned?
+
       # Determine if current user can sign
-      @user_role_in_conversation = if @user.UserID == @conversation.LandlordID
-        "landlord"
-      elsif @user.UserID == @conversation.TenantID
-        "tenant"
-      else
-        nil
-      end
+      @user_role_in_conversation = @file.agreement_signer_role(@user, @conversation)&.downcase
     end
     if @agreement_proposal.present?
       offerer_ids = @file.agreement_suggestion_items.map { |item| item[:offered_by_id].to_i }.uniq
@@ -354,6 +367,9 @@ class DocumentsController < ApplicationController
         elsif file.custom_resolution?
           submitted_custom_terms = params[:custom_full_form] == "1" ? terms : current.merge(terms)
           terms = CustomResolutionTerms.normalize(submitted_custom_terms)
+        elsif file.agreement_to_mediate?
+          terms = current.merge(terms.transform_values { |value| value.to_s.strip })
+          terms["additional_signature_parties"] = params[:additional_signature_parties] if params[:additional_signature_parties].present?
         elsif file.revised_move_out?
           terms = current.merge(terms.transform_values { |value| value.to_s.strip })
           terms = terms.except(*MoveOutTerms.inactive_fields(terms))
@@ -465,11 +481,11 @@ class DocumentsController < ApplicationController
     when :unchanged
       redirect_to view_file_path(file.FileID), notice: "No terms were changed."
     when :invalid, :invalid_payment
-      if file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution?
+      if file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution? || file.agreement_to_mediate?
         if file.AgreementTemplate == "b"
           terms = terms.merge("additional_signature_parties" => file.agreement_terms["additional_signature_parties"])
         end
-        unless file.custom_resolution?
+        unless file.custom_resolution? || file.agreement_to_mediate?
           @agreement_editor_preview = true
           assign_agreement_template_variables(file.AgreementTemplate, terms)
           if file.AgreementTemplate == "b" && !file.revised_pay_and_stay? &&
@@ -563,12 +579,7 @@ class DocumentsController < ApplicationController
             ) do
               file.AgreementTerms = JSON.generate(accepted_terms)
               file.AgreementVersion += 1
-              file.TenantSignature = false
-              file.LandlordSignature = false
-              file.TenantSignedAt = nil
-              file.LandlordSignedAt = nil
-              file.TenantSignatureName = nil
-              file.LandlordSignatureName = nil
+              file.clear_agreement_signatures
               proposal["base_version"] = file.AgreementVersion
               proposal["round_accepted"] = true
               file.AgreementProposal = JSON.generate(proposal)
@@ -693,7 +704,7 @@ class DocumentsController < ApplicationController
     if request.format.json?
       render json: result == :countered ? { status: "countered", field: params[:field], round_complete: completed_round.present? } : { error: message },
              status: result == :countered ? :ok : :unprocessable_entity
-    elsif (file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution?) && [:invalid, :invalid_payment].include?(result)
+    elsif (file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution? || file.agreement_to_mediate?) && [:invalid, :invalid_payment].include?(result)
       render_counteroffer_error(values, message)
     elsif [:invalid, :invalid_payment].include?(result)
       redirect_to view_file_path(file.FileID, counteroffer_error: params[:field],
@@ -711,7 +722,7 @@ class DocumentsController < ApplicationController
     return render plain: "File not found", status: :not_found unless @file
 
     signature_result = nil
-    conversation = is_landlord = signature_name = nil
+    conversation = role = signature_name = nil
     @file.with_lock do
       unless find_file_for_user(@file.FileID)
         return render plain: "File not found", status: :not_found
@@ -744,16 +755,14 @@ class DocumentsController < ApplicationController
         return redirect_to view_file_path(@file.FileID)
       end
 
-      # Verify user is either landlord or tenant
-      is_landlord = @user.UserID == conversation.LandlordID
-      is_tenant = @user.UserID == conversation.TenantID
-
-      unless (is_landlord || is_tenant) && !@user.mediator? && @user.Role != "Admin"
+      conversation.lock! if @file.agreement_to_mediate?
+      role = @file.agreement_signer_role(@user, conversation)
+      unless role
         flash[:alert] = "You are not authorized to sign this document."
         return redirect_to view_file_path(@file.FileID)
       end
 
-      signature_name = if @file.revised_move_out? || @file.custom_resolution?
+      signature_name = if @file.revised_move_out? || @file.custom_resolution? || @file.agreement_to_mediate?
         [@user.FName, @user.LName].filter_map(&:presence).join(" ").squish
       else
         params[:signature_name]&.strip
@@ -767,13 +776,14 @@ class DocumentsController < ApplicationController
         signature_result = :suggestions_pending
       elsif @file.agreement_document? && params[:agreement_version].to_i != @file.AgreementVersion
         signature_result = :stale
-      elsif (is_landlord && @file.LandlordSignature) || (is_tenant && @file.TenantSignature)
+      elsif @file.public_send("#{role}Signature")
         signature_result = :already_signed
-      elsif (@file.revised_pay_and_stay? || @file.revised_move_out? || @file.custom_resolution?) && (error = agreement_terms_error(@file.agreement_terms, file: @file))
+      elsif @file.agreement_to_mediate? && (error = @file.mediator_signing_error(conversation))
+        return redirect_to view_file_path(@file.FileID), alert: error
+      elsif (@file.revised_pay_and_stay? || @file.revised_move_out? || @file.custom_resolution? || @file.agreement_to_mediate?) && (error = agreement_terms_error(@file.agreement_terms, file: @file))
         return redirect_to view_file_path(@file.FileID), alert: "This agreement cannot be signed. #{error} Correct the agreement before signing."
       else
         signed_at = Time.current
-        role = is_landlord ? "Landlord" : "Tenant"
         DocumentRevision.new.call(
           file: @file, extension: "html",
           writer: ->(original, path, locked) {
@@ -785,6 +795,7 @@ class DocumentsController < ApplicationController
           locked.public_send("#{role}Signature=", true)
           locked.public_send("#{role}SignedAt=", signed_at)
           locked.public_send("#{role}SignatureName=", signature_name)
+          locked.MediatorSignatureUserID = @user.UserID if role == "Mediator"
         end
         signature_result = :signed
       end
@@ -805,8 +816,7 @@ class DocumentsController < ApplicationController
       landlord = User.find_by(UserID: conversation.LandlordID)
       tenant = User.find_by(UserID: conversation.TenantID)
 
-      signer_role = is_landlord ? "Landlord" : "Tenant"
-      message_content = "#{signer_role} #{signature_name} has signed the document: #{@file.FileName}"
+      message_content = "#{role} #{signature_name} has signed the document: #{@file.FileName}"
 
       Message.create!(
         ConversationID: conversation.ConversationID,
@@ -828,13 +838,14 @@ class DocumentsController < ApplicationController
           tenant_signature: @file.TenantSignature,
           tenant_signed_at: @file.TenantSignedAt&.strftime("%B %d, %Y at %I:%M %p"),
           tenant_name: "#{tenant.FName} #{tenant.LName}",
+          mediator_signature: @file.agreement_to_mediate? && @file.MediatorSignature,
+          mediator_signed_at: (@file.MediatorSignedAt&.strftime("%B %d, %Y at %I:%M %p") if @file.agreement_to_mediate?),
           both_signed: @file.agreement_fully_executed?
         }
       )
 
-      # Check if both parties have signed
       if @file.agreement_fully_executed?
-        flash[:success] = "Document signed successfully! Both parties have now signed this agreement."
+        flash[:success] = "Document signed successfully. All required signers have signed this agreement."
 
         # Send completion notification
         Message.create!(
@@ -844,6 +855,8 @@ class DocumentsController < ApplicationController
           MessageDate: Time.current,
           is_system: true
         )
+      elsif @file.agreement_to_mediate?
+        flash[:success] = "Document signed successfully. Waiting for the remaining signatures."
       elsif @file.LandlordSignature && @file.TenantSignature
         flash[:success] = "Document signed successfully. #{PayAndStayTerms::ADDITIONAL_SIGNERS_NOTICE}"
       else
@@ -886,7 +899,7 @@ class DocumentsController < ApplicationController
 
   def generate_filled_template
     template = new_agreement_template(params[:template])
-    if ["b", MoveOutTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE].include?(template)
+    if ["b", MoveOutTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE, AgreementToMediateTerms::TEMPLATE].include?(template)
       return redirect_to template_intake_path(template: template, conversation_id: params[:conversation_id],
                                              return_to: url_from(params[:return_to])), status: :see_other
     end
@@ -923,17 +936,10 @@ class DocumentsController < ApplicationController
     require "prawn"
     reason = params[:reason].to_s
     money_owed = params[:money_owed].to_s
-    monthly_rent = params[:monthly_rent].to_s
 
     writer = ->(path) do
       Prawn::Document.generate(path.to_s, margin: 54, page_size: "LETTER") do |pdf|
-        case template
-        when "c" # Mediation Agreement
-          generate_mediation_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, monthly_rent, schedule, best)
-        else
-          # Fallback to generic
-          generate_generic_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
-        end
+        generate_generic_agreement(pdf, landlord, tenant, address, nego_date, reason, money_owed, schedule, best)
 
         # Footer
         pdf.move_down 20
@@ -1132,12 +1138,7 @@ class DocumentsController < ApplicationController
                 file.AgreementTerms = JSON.generate(accepted_terms)
                 file.AgreementVersion += 1
 
-                file.TenantSignature = false
-                file.LandlordSignature = false
-                file.TenantSignedAt = nil
-                file.LandlordSignedAt = nil
-                file.TenantSignatureName = nil
-                file.LandlordSignatureName = nil
+                file.clear_agreement_signatures
 
                 proposal["base_version"] = file.AgreementVersion
                 file.AgreementProposal = JSON.generate(proposal)
@@ -1300,7 +1301,7 @@ class DocumentsController < ApplicationController
         result == :countered ? :ok :
         result == :unavailable ? :conflict : :unprocessable_entity
       )
-    elsif (file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution?) && [:invalid, :invalid_payment].include?(result)
+    elsif (file.AgreementTemplate == "b" || file.revised_move_out? || file.custom_resolution? || file.agreement_to_mediate?) && [:invalid, :invalid_payment].include?(result)
       render_counteroffer_error(values, message)
     else
       redirect_to focus_path,
@@ -1327,7 +1328,7 @@ class DocumentsController < ApplicationController
   def agreement_terms_from_params(template)
     return custom_resolution_params if template == CustomResolutionTerms::TEMPLATE
     terms = params.permit(*agreement_fields_for_template(template)).to_h
-    terms.transform_values! { |value| value.to_s.strip } if template == MoveOutTerms::TEMPLATE
+    terms.transform_values! { |value| value.to_s.strip } if [MoveOutTerms::TEMPLATE, AgreementToMediateTerms::TEMPLATE].include?(template)
     terms
   end
 
@@ -1344,6 +1345,8 @@ class DocumentsController < ApplicationController
     payment_fields = (1..6).flat_map { |i| ["amount#{i}", "date#{i}"] }
 
     case template
+    when AgreementToMediateTerms::TEMPLATE
+      AgreementToMediateTerms::FIELDS
     when CustomResolutionTerms::TEMPLATE
       CustomResolutionTerms::FIELDS
     when MoveOutTerms::TEMPLATE
@@ -1525,6 +1528,7 @@ class DocumentsController < ApplicationController
   def agreement_terms_error(terms, file:)
     return CustomResolutionTerms.error(CustomResolutionTerms.normalize(terms)) if file.custom_resolution?
     return MoveOutTerms.error(terms) if file.revised_move_out?
+    return AgreementToMediateTerms.error(terms) if file.agreement_to_mediate?
 
     if file.AgreementTemplate == "b"
       if !file.revised_pay_and_stay? && stored_agreement_template(file) == ORIGINAL_PAY_AND_STAY_TEMPLATE
@@ -1646,7 +1650,12 @@ class DocumentsController < ApplicationController
     else
       "No suggestions remain pending. The agreement is ready for signing."
     end
-    [ conversation.tenant, conversation.landlord ].compact.uniq(&:UserID).each do |recipient|
+    recipients = if file.agreement_to_mediate?
+      conversation.notification_participants
+    else
+      [conversation.tenant, conversation.landlord].compact.uniq(&:UserID)
+    end
+    recipients.each do |recipient|
       next if recipient.UserID == @user.UserID
 
       MediationNotifications.agreement_notification(recipient, conversation.ConversationID, event, file.FileID,
@@ -1661,6 +1670,10 @@ class DocumentsController < ApplicationController
 
   def valid_agreement_counteroffer?(field, raw_value, file: nil)
     value = raw_value.to_s.strip
+    if file&.agreement_to_mediate?
+      return AgreementToMediateTerms::FIELDS.include?(field) && value.length <= 255 &&
+        (value.present? || !AgreementToMediateTerms::REQUIRED.include?(field))
+    end
     if file&.custom_resolution?
       spec = CustomResolutionTerms.definition(field)
       return spec && (value.blank? || CustomResolutionTerms.valid_value?(value, spec[1]))
@@ -1699,11 +1712,15 @@ class DocumentsController < ApplicationController
   end
 
   def new_agreement_template(template)
-    template.blank? || template == "a" ? MoveOutTerms::TEMPLATE : template
+    return MoveOutTerms::TEMPLATE if template.blank? || template == "a"
+    return AgreementToMediateTerms::TEMPLATE if template == "c"
+
+    template
   end
 
   def agreement_template_file(template)
     {
+      AgreementToMediateTerms::TEMPLATE => "documents/templates/agreement_to_mediate_v1",
       CustomResolutionTerms::TEMPLATE => "documents/templates/custom_resolution_v1",
       MoveOutTerms::TEMPLATE => "documents/templates/move_out_v1",
       "a" => "documents/templates/agree_to_vacate",
@@ -1716,6 +1733,7 @@ class DocumentsController < ApplicationController
 
   def agreement_template_name(template)
     {
+      AgreementToMediateTerms::TEMPLATE => "Agreement to Mediate",
       CustomResolutionTerms::TEMPLATE => "Custom Resolution Agreement",
       MoveOutTerms::TEMPLATE => "Move-Out Agreement",
       "a" => "Move-Out Agreement",
@@ -1725,6 +1743,7 @@ class DocumentsController < ApplicationController
   end
 
   def assign_agreement_template_variables(template, terms)
+    return @agreement_to_mediate_terms = terms if template == AgreementToMediateTerms::TEMPLATE
     return @custom_resolution_terms = terms if template == CustomResolutionTerms::TEMPLATE
     return @move_out_terms = terms if template == MoveOutTerms::TEMPLATE
 
@@ -1794,6 +1813,11 @@ class DocumentsController < ApplicationController
 
   def agreement_creator?(conversation)
     agreement_party?(conversation) || conversation.MediatorID == @user.UserID
+  end
+
+  def assigned_agreement_mediator_name(conversation)
+    mediator = conversation.mediator if conversation&.MediatorAssigned?
+    AgreementToMediateTerms.account_name(mediator) if mediator&.mediator?
   end
 
   def agreement_suggester?(conversation)
@@ -1879,10 +1903,10 @@ class DocumentsController < ApplicationController
       params[field].to_s.gsub(/[^\w\- ]/, "").squeeze(" ").strip.presence
     end
     document_type = {
+      AgreementToMediateTerms::TEMPLATE => "Agreement to Mediate",
       CustomResolutionTerms::TEMPLATE => "Custom Resolution Agreement",
       MoveOutTerms::TEMPLATE => "Move-Out Agreement",
-      "b" => "Pay and Stay Agreement",
-      "c" => "Mediation Agreement"
+      "b" => "Pay and Stay Agreement"
     }.fetch(template.to_s, "Agreement")
 
     [ *party_names, document_type ].compact.join(" - ")
@@ -1947,69 +1971,6 @@ class DocumentsController < ApplicationController
   end
 
   # PDF Template Generators
-  def generate_mediation_agreement(pdf, landlord, tenant, address, date, reason, money_owed, monthly_rent, schedule, best)
-    pdf.text "MEDIATION AGREEMENT", size: 18, style: :bold, align: :center
-    pdf.move_down 20
-
-    pdf.text "This Mediation Agreement is executed on #{date.strftime('%B %d, %Y')} between:", size: 11
-    pdf.move_down 10
-
-    pdf.text "PARTY A (Landlord): #{landlord}", size: 11, style: :bold
-    pdf.text "PARTY B (Tenant): #{tenant}", size: 11, style: :bold
-    pdf.text "CONCERNING PROPERTY: #{address}", size: 11, style: :bold
-    pdf.move_down 15
-
-    pdf.text "BACKGROUND:", size: 12, style: :bold
-    pdf.move_down 8
-    pdf.text "The parties have entered into mediation to resolve the following dispute:", size: 10
-    pdf.move_down 5
-    pdf.text "• Nature of dispute: #{reason}", size: 10, indent_paragraphs: 20
-    pdf.text "• Amount in question: $#{money_owed}", size: 10, indent_paragraphs: 20
-    pdf.text "• Current monthly rent: $#{monthly_rent}", size: 10, indent_paragraphs: 20
-    pdf.move_down 15
-
-    pdf.text "MEDIATED RESOLUTION:", size: 12, style: :bold
-    pdf.move_down 8
-
-    pdf.text "The parties agree to the following terms to resolve this dispute:", size: 10
-    pdf.move_down 10
-
-    pdf.text "1. PAYMENT ARRANGEMENT:", size: 10, style: :bold, indent_paragraphs: 20
-    pdf.move_down 5
-
-    if schedule.any?
-      pdf.text "   The Tenant agrees to pay the outstanding balance as follows:", size: 10, indent_paragraphs: 20
-      pdf.move_down 8
-
-      data = [ [ "Installment", "Amount", "Due Date" ] ]
-      schedule.each_with_index do |(i, amt, due), idx|
-        due_str = due.present? ? (Date.parse(due).strftime("%B %d, %Y") rescue due) : "TBD"
-        data << [ (idx + 1).to_s, "$#{amt}", due_str ]
-      end
-
-      pdf.table(data, header: true, width: pdf.bounds.width - 40, position: 20,
-                cell_style: { size: 9, padding: 6 }) do
-        row(0).font_style = :bold
-        row(0).background_color = "F0F0F0"
-      end
-      pdf.move_down 12
-    end
-
-    pdf.text "2. ONGOING OBLIGATIONS:", size: 10, style: :bold, indent_paragraphs: 20
-    pdf.move_down 5
-    pdf.text "   • Tenant will continue paying regular monthly rent of $#{monthly_rent}", size: 9, indent_paragraphs: 25
-    pdf.text "   • Tenant will maintain the property in good condition", size: 9, indent_paragraphs: 25
-    pdf.text "   • Landlord will not pursue eviction while this agreement is honored", size: 9, indent_paragraphs: 25
-    pdf.move_down 12
-
-    pdf.text "3. DEFAULT PROVISION:", size: 10, style: :bold, indent_paragraphs: 20
-    pdf.move_down 5
-    pdf.text "   If Tenant fails to make any payment, Landlord may proceed with eviction", size: 9, indent_paragraphs: 25
-    pdf.move_down 15
-
-    pdf.text "This agreement represents the full understanding between the parties.", size: 10
-  end
-
   def generate_generic_agreement(pdf, landlord, tenant, address, date, reason, money_owed, schedule, best)
     pdf.text "RENTAL AGREEMENT", size: 18, style: :bold, align: :center
     pdf.move_down 20

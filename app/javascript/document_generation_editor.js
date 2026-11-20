@@ -245,6 +245,7 @@ function startDocumentGenerationEditor() {
 
   function displayValue(field, value, node) {
     if (!value) {
+      if (node.dataset.agreementEmpty) return node.dataset.agreementEmpty;
       if (/^time[1-6]$/.test(field)) return '—';
       return field === 'additional_terms' ? '___________' :
         (node.dataset.agreementFormat === 'long-date' ? 'TBD' : '___________');

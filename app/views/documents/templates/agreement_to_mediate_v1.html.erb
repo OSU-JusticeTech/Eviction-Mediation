@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Agreement to Mediate</title>
+  <style>
+    body { max-width: 48rem; margin: 2rem auto; padding: 0 1rem; color: #161616; font: 1rem/1.45 Georgia, serif; }
+    header { text-align: center; }
+    h2 { font-size: 1.2rem; }
+    h3 { font-size: 1.05rem; }
+    .field { overflow-wrap: anywhere; text-decoration: underline; }
+    .signature-block { break-inside: avoid; }
+    @media print { .signatures { break-before: page; } }
+  </style>
+</head>
+<body>
+<%
+  terms = local_assigns.fetch(:editor_values, @agreement_to_mediate_terms || {})
+  preview = local_assigns.fetch(:inline_editor, @agreement_editor_preview)
+  field = ->(key, label, placeholder = "___________") do
+    tag.span(terms[key].presence || placeholder, class: "field", title: (label if preview),
+             data: { agreement_field: (key if preview), agreement_empty: placeholder })
+  end
+%>
+<header>
+  <h1>AGREEMENT TO MEDIATE</h1>
+  <p>Ohio Rental Dispute</p>
+</header>
+<h2>Party Information:</h2>
+<p>Landlord / legal entity: <%= field.call("landlord_name", "Landlord / legal entity") %></p>
+<p>Landlord’s representative, if applicable: <%= field.call("landlord_representative", "Landlord’s representative name and capacity", "None") %></p>
+<p>Tenant(s): <%= field.call("tenant_name", "Tenant name") %></p>
+<p>Tenant’s representative, if applicable: <%= field.call("tenant_representative", "Tenant’s representative name and capacity", "None") %></p>
+<p>Rental property: <%= field.call("address", "Rental property street, unit, city, Ohio, and ZIP") %></p>
+<p>Mediator: <%= field.call("mediator_name", "Assigned mediator’s name") %></p>
+<p>Mediation provider: Franklin County Municipal Court Self-Help Center</p>
+<p>In this Agreement, “parties” means the landlord and tenant. “Participants” includes the parties and people taking part with them, such as attorneys, representatives, and interpreters. The mediator’s responsibilities are stated separately.</p>
+<h2>1. What We Are Agreeing To</h2>
+<p>We agree to participate in online mediation concerning our rental dispute. Mediation is a process in which a neutral person helps participants communicate, understand concerns, and reach a voluntary agreement.</p>
+<p>Signing this document means agreeing to the mediation process. It does not mean agreeing that money is owed, accepting a payment plan, agreeing to move out, or settling any claim.</p>
+<h2>2. Participation and Choice</h2>
+<p>Participation in this platform’s mediation service is voluntary. Either party may decline a proposed resolution or end participation by notifying the mediator. The mediator may also pause or end mediation.</p>
+<p>Neither party is required to reach a settlement. Ending mediation does not, by itself, cancel an existing lease, a separate agreement, or a court obligation.</p>
+<p>If a court has ordered participation or imposed requirements, this Agreement does not change them. Participants must ask the court for any needed clarification or change.</p>
+<h2>3. The Mediator’s Role</h2>
+<p>The mediator is a real person who helps the participants discuss the dispute. The mediator does not:</p>
+<ul>
+  <li>Decide who wins or impose a resolution.</li>
+  <li>Represent either party or provide legal advice.</li>
+  <li>Guarantee that an agreement will be reached or performed.</li>
+  <li>Take sides.</li>
+</ul>
+<p>The mediator may help identify issues, explore options, and put proposed terms into writing. Each party decides whether to accept a proposed settlement, which will be reviewed separately as described in Section 9.</p>
+<p>The mediator will disclose any known relationships or circumstances that could reasonably raise concerns about taking sides. Participants should promptly raise concerns about the mediator or the process.</p>
+<h2>4. Legal Advice and Other Participants</h2>
+<p>Each party may consult their own attorneys before, during, or after mediation, including before accepting settlement terms. An attorney or another person designated by a party may accompany and participate with that party.</p>
+<p>The parties will identify representatives, support people, and interpreters to the mediator so their roles and appropriate access can be arranged. Anyone acting for another person or an organization must explain their role and authority.</p>
+<h2>5. Online Communication and Conduct</h2>
+<p>Mediation will take place through the Franklin County Municipal Court’s Eviction Mediation Self-Help Tool, primarily through written messages. Replies may occur at different times; immediate responses are not guaranteed.</p>
+<p>The mediator will explain response expectations and any scheduled Zoom sessions. Participants agree to communicate respectfully and avoid threats, harassment, or abusive conduct. Safety concerns should be raised promptly with the mediator. This platform is not an emergency service.</p>
+<p>Participants must not take screenshots, record mediation sessions, or create automated transcripts. Participants must not share mediation communications outside the process except as permitted by law or this Agreement. Participants may obtain copies of signed agreements and other records made available by the platform.</p>
+<p>If you need an interpreter, help related to a disability, or another way to participate, tell the mediator.</p>
+<h2>6. Confidentiality and Its Limits</h2>
+<p>The parties and mediator agree to keep mediation communications confidential, subject to applicable law and the exceptions below. Communications covered by Ohio Revised Code Chapter 2710 may also be protected from disclosure or use in legal proceedings.</p>
+<p>Information may be shared as reasonably necessary:</p>
+<ul>
+  <li>To participate in mediation or obtain legal advice, with recipients informed that the information is confidential.</li>
+  <li>To allow authorized staff to operate and support the service, limited to the information and purpose described in Section 7.</li>
+  <li>As permitted or required by applicable law, or through consent that meets legal requirements.</li>
+</ul>
+<p>These protections have exceptions, including certain threats, criminal matters, required disclosures, and written agreements signed by all parties. This is not a complete list.</p>
+<p>Communications, documents, and other evidence created or kept outside mediation do not become confidential or protected from use in court simply because they are shared in mediation. Their protection depends on applicable law. Communications and documents are not guaranteed to be withheld from a court or other lawful process.</p>
+<h2>7. Messages, Documents, and mediator access</h2>
+<p>By signing, each party authorizes the assigned mediator to access earlier shared messages and documents, and future messages and documents shared in this conversation.</p>
+<p>Messages exchanged during direct negotiation before mediation may not be protected by mediation privilege. Communications made for mediation may be protected from disclosure or use in court under Ohio law, subject to legal exceptions. Giving the mediator access does not, by itself, make earlier messages or documents protected.</p>
+<p>Privacy and access: For information about who may access your information, why they may access it, and how long it is kept, see our <%= agreement_privacy_policy_reference(preview: preview) %>.</p>
+<p>Participants should share only information reasonably needed for the dispute and avoid unnecessary sensitive information.</p>
+<p>Messages and documents shared in the platform conversation are visible to both parties and the assigned mediator, including earlier shared messages and documents. The platform does not offer private written messages to the mediator.</p>
+<p>During a Zoom session, the mediator may arrange a separate conversation in a breakout room. Before that conversation begins, the mediator will explain who can participate and whether information discussed may be shared with the other party.</p>
+<h2>8. Existing Cases, Deadlines, and Rights</h2>
+<p>Signing this Agreement or participating in mediation does not itself stop an eviction case, cancel a hearing, extend a deadline, or change rent obligations.</p>
+<p>Each party remains responsible for deadlines and court requirements unless properly changed.</p>
+<h2>9. Any Settlement Will be Separate</h2>
+<p>This Agreement to Mediate does not give up either party’s rights or claims concerning the rental dispute. Any settlement of those issues will be addressed in a separate agreement.</p>
+<p>If the parties reach proposed settlement terms, those terms will be presented separately for review. Each party may ask questions and seek independent legal advice before accepting or signing them.</p>
+<p>A settlement may create legally enforceable obligations. The mediator and platform do not guarantee that either party will follow a settlement or automatically enforce it.</p>
+<h2>10. Fees</h2>
+<p>There is no charge to either party to use the platform or participate in mediation through this service.</p>
+<p>Each party is responsible for any fees charged by an attorney or other professional they independently hire.</p>
+<p>This Agreement does not change any court fees or other costs associated with an existing case.</p>
+<section class="signatures">
+<h2>11. Acknowledgement and Signatures</h2>
+<p>By signing, each party confirms that they have had an opportunity to read this Agreement, ask questions, and review the access and privacy information identified above.</p>
+<p>Signing creates the commitments about the mediation process described here. It does not require either party to accept a settlement.</p>
+  <% { "Landlord" => "Landlord / Authorized Representative", "Tenant" => "Tenant / authorized representative", "Mediator" => "Mediator" }.each do |role, label| %>
+    <div class="signature-block" data-signature-role="<%= role %>">
+      <h3><%= label %>:</h3>
+      <% if role == "Mediator" %>
+        <p>I agree to serve under the process and responsibilities described in this Agreement.</p>
+      <% end %>
+      <p>Printed name: <span class="field" data-signature-slot="<%= role %>-name">___________</span></p>
+      <% unless role == "Mediator" %>
+        <p>Title / capacity: <%= field.call("#{role.downcase}_capacity", "#{role} signer’s title or capacity", role) %></p>
+      <% end %>
+      <p>Signature: <span class="signature-line" data-signature-slot="<%= role %>-signature">___________</span></p>
+      <p>Date: <span class="date-line" data-signature-slot="<%= role %>-date">___________</span></p>
+    </div>
+  <% end %>
+</section>
+</body>
+</html>

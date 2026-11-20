@@ -296,6 +296,7 @@ class MessagesController < ApplicationController
             tenant_signature_required: is_html && file.agreement_signable? && !file.TenantSignature,
             landlord_signature_required: is_html && file.agreement_signable? && !file.LandlordSignature,
             agreement_document: file.agreement_document?,
+            mediator_signature_required: file.agreement_to_mediate? && !file.MediatorSignature,
             extension: extension.presence || file.FileTypes
           }
         end

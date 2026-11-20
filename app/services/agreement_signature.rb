@@ -6,7 +6,7 @@ class AgreementSignature
   def call(original, file:, role:, name:, signed_at:)
     unless file.FileTypes.to_s.downcase.delete_prefix(".") == "html" &&
            File.extname(file.FileURLPath.to_s).downcase == ".html" &&
-           (file.AgreementTemplate.blank? || [*%w[a b c], MoveOutTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE].include?(file.AgreementTemplate))
+           (file.AgreementTemplate.blank? || [*%w[a b c], MoveOutTerms::TEMPLATE, CustomResolutionTerms::TEMPLATE, AgreementToMediateTerms::TEMPLATE].include?(file.AgreementTemplate))
       raise Invalid, "Unsupported agreement"
     end
     html_content = original.dup.force_encoding(Encoding::UTF_8)
@@ -14,7 +14,7 @@ class AgreementSignature
     signed_date = signed_at.strftime("%B %d, %Y")
     escaped_signature_name = ERB::Util.html_escape(name)
 
-    if file.revised_pay_and_stay? || file.revised_move_out? || file.custom_resolution?
+    if file.revised_pay_and_stay? || file.revised_move_out? || file.custom_resolution? || file.agreement_to_mediate?
       slots = {
         "signature" => ["signature-line", "/s/ #{escaped_signature_name}"],
         "name" => ["field", escaped_signature_name],

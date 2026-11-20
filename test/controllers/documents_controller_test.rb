@@ -602,7 +602,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     templates = {
       MoveOutTerms::TEMPLATE => ["Move-Out Agreement", move_out_params],
       "b" => ["Pay and Stay Agreement", pay_and_stay_params],
-      "c" => ["Mediation Agreement", agreement_params]
+      "c" => ["Agreement to Mediate", agreement_to_mediate_params]
     }
     templates.each do |template, (name, terms)|
       file_ids_before = FileDraft.pluck(:FileID)
@@ -1957,6 +1957,206 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_select 'input[name="move_out_time"][value="16:30"]'
   end
 
+  test "Agreement to Mediate uses the inline document for generation and subsequent review" do
+    log_in_as(@tenant)
+    get template_intake_path(template: "c", conversation_id: @mediation.ConversationID)
+    assert_response :success
+    assert_select "[data-document-generation-editor] #document-generation-form"
+    assert_select "input[name='mediator_name'][value=?]", agreement_to_mediate_params[:mediator_name]
+    assert_select "input[name='tenant_name'][value='John Doe']"
+    assert_select "select[name='reason']", count: 0
+    preview = Nokogiri::HTML(Nokogiri::HTML(response.body).at_css("iframe")["srcdoc"])
+    assert_equal (1..11).to_a, preview.css("h2").filter_map { |heading| heading.text[/^(\d+)\./, 1]&.to_i }
+    assert_equal AgreementToMediateTerms::FIELDS.sort, preview.css("[data-agreement-field]").map { |node| node["data-agreement-field"] }.sort
+    assert_includes preview.text, "authorizes the assigned mediator to access earlier shared messages and documents, and future messages and documents shared in this conversation"
+    assert_includes preview.text, "It does not mean agreeing that money is owed, accepting a payment plan, agreeing to move out, or settling any claim."
+    assert_includes preview.at_css("a")["href"], "category=data-privacy"
+    refute_includes preview.text, "[version/date]"
+
+    assert_no_difference("FileDraft.count") do
+      post generate_from_intake_path(template: AgreementToMediateTerms::TEMPLATE),
+           params: agreement_to_mediate_params.merge(additional_signature_parties: "Other signer")
+    end
+    assert_response :unprocessable_entity
+    assert_select "[data-agreement-editor-error]", text: /another signature is required/
+
+    file = create_shared_agreement_to_mediate
+    get view_file_path(file.FileID, edit: 1)
+    assert_response :success
+    assert_select "[data-document-generation-editor] input[name='address'][value='123 Main Street']"
+    assert_select "[data-document-generation-editor] input[name='landlord_representative'][value='Pat Lee, property manager']"
+    patch update_review_document_path(file.FileID), params: { address: "", agreement_version: 1 }
+    assert_response :unprocessable_entity
+    assert_select "[data-agreement-editor-error]", text: /Complete the landlord/
+    assert_select "[data-document-generation-editor] input[name='address'][value='']"
+  end
+
+  test "Agreement to Mediate executes only after all three authorized signatures" do
+    original_host = ENV["APP_URL"]
+    original_protocol = ENV["APP_PROTOCOL"]
+    ENV["APP_URL"] = "mediation.example.test:8443"
+    ENV["APP_PROTOCOL"] = "https"
+    file = create_shared_agreement_to_mediate
+    [@landlord, @tenant].each do |party|
+      log_in_as(party)
+      post apply_signature_document_path(file.FileID), params: {
+        agreement_version: 1, role: "Mediator", signature_name: "Forged name"
+      }
+      refute file.reload.MediatorSignature
+      refute file.agreement_fully_executed?
+    end
+    assert file.LandlordSignature
+    assert file.TenantSignature
+    assert_equal "Jane Doe", file.LandlordSignatureName
+    assert_equal "John Doe", file.TenantSignatureName
+    refute Message.where("Contents LIKE ?", "Document fully executed:%").exists?
+    get view_file_path(file.FileID)
+    assert_select ".signature-party[data-signature-role='mediator'] .pending"
+    assert_select ".completion-banner", count: 0
+
+    log_in_as(users(:mediator2))
+    post apply_signature_document_path(file.FileID), params: { agreement_version: 1 }
+    assert_response :not_found
+    refute file.reload.MediatorSignature
+
+    @mediation.update!(MediatorAssigned: false)
+    log_in_as(@mediator)
+    post apply_signature_document_path(file.FileID), params: { agreement_version: 1 }
+    refute file.reload.MediatorSignature
+    @mediation.update!(MediatorAssigned: true)
+
+    get view_file_path(file.FileID)
+    assert_select ".signing-card[data-signer-role='mediator']"
+    post apply_signature_document_path(file.FileID), params: { agreement_version: 1, signature_name: "Forged name" }
+    assert file.reload.agreement_fully_executed?
+    assert_equal @mediator.UserID, file.MediatorSignatureUserID
+    assert_equal agreement_to_mediate_params[:mediator_name], file.MediatorSignatureName
+    assert file.MediatorSignedAt
+    assert_equal 1, Message.where("Contents LIKE ?", "Document fully executed:%").count
+    assert_no_difference("Message.count") do
+      post apply_signature_document_path(file.FileID), params: { agreement_version: 1 }
+    end
+
+    get view_file_path(file.FileID)
+    assert_select ".completion-banner", text: /Document Fully Executed/
+    assert_select ".signature-party .signed", count: 3
+    assert_select ".signing-card", count: 0
+    get download_file_path(file.FileID)
+    assert_response :success
+    document = Nokogiri::HTML(response.body)
+    assert_equal "https://mediation.example.test:8443#{resources_path(tab: "faqs", category: "data-privacy")}",
+                 document.at_css("a")["href"]
+    %w[Landlord Tenant Mediator].each do |role|
+      assert_equal "/s/ #{file.public_send("#{role}SignatureName")}", document.at_css("[data-signature-slot='#{role}-signature']").text
+    end
+  ensure
+    ENV["APP_URL"] = original_host
+    ENV["APP_PROTOCOL"] = original_protocol
+  end
+
+  test "Agreement to Mediate uses privacy policy text without a public host" do
+    original_host = ENV["APP_URL"]
+    [nil, "127.0.0.1:3004"].each do |host|
+      ENV["APP_URL"] = host
+      log_in_as(@tenant)
+      post generate_from_intake_path(template: AgreementToMediateTerms::TEMPLATE),
+           params: agreement_to_mediate_params.except(:mediator_name).merge(conversation_id: @mediation.ConversationID)
+      assert_redirected_to documents_path
+
+      file = FileDraft.find_by!(AgreementTemplate: AgreementToMediateTerms::TEMPLATE, CreatorID: @tenant.UserID)
+      assert_equal agreement_to_mediate_params[:mediator_name], file.agreement_terms["mediator_name"]
+      get download_file_path(file.FileID)
+      assert_response :success
+      document = Nokogiri::HTML(response.body)
+      assert_includes document.text, "Data Privacy and Privacy Policy."
+      assert_empty document.css("a")
+      file.destroy!
+    end
+  ensure
+    ENV["APP_URL"] = original_host
+  end
+
+  test "Agreement to Mediate cannot be generated for a conversation without an assigned mediator" do
+    @mediation.update!(MediatorAssigned: false)
+    log_in_as(@tenant)
+    get template_intake_path(template: "c", conversation_id: @mediation.ConversationID)
+    assert_response :success
+    assert_select "input[name='mediator_name']" do |inputs|
+      assert inputs.first["value"].blank?
+    end
+
+    assert_no_difference("FileDraft.count") do
+      post generate_from_intake_path(template: AgreementToMediateTerms::TEMPLATE),
+           params: agreement_to_mediate_params.merge(conversation_id: @mediation.ConversationID)
+    end
+    assert_response :unprocessable_entity
+    assert_select "[data-agreement-editor-error]", text: /Assign a mediator/
+  end
+
+  test "Agreement to Mediate keeps signatures on rejection and clears them on accepted counteroffers" do
+    file = create_shared_agreement_to_mediate
+    [@mediator, @tenant].each do |user|
+      log_in_as(user)
+      post apply_signature_document_path(file.FileID), params: { agreement_version: 1 }
+    end
+    assert file.reload.MediatorSignature
+    assert file.TenantSignature
+    signed_locator = file.FileURLPath
+
+    patch update_review_document_path(file.FileID), params: { address: "First proposal", agreement_version: 1 }
+    log_in_as(@landlord)
+    patch decide_document_suggestion_path(file.FileID, "address"), params: { decision: "rejected" }, as: :json
+    assert_response :success
+    assert_equal signed_locator, file.reload.FileURLPath
+    assert file.MediatorSignature
+    assert file.TenantSignature
+
+    log_in_as(@tenant)
+    patch update_review_document_path(file.FileID), params: { address: "Second proposal", agreement_version: 1 }
+    log_in_as(@landlord)
+    patch counteroffer_document_suggestion_path(file.FileID, "address"), params: { counteroffer: { address: "Final address" } }, as: :json
+    assert_response :success
+    assert file.reload.MediatorSignature
+    log_in_as(@tenant)
+    patch decide_document_suggestion_path(file.FileID, "address"), params: { decision: "accepted" }, as: :json
+    assert_response :success
+    assert_equal 2, file.reload.AgreementVersion
+    assert_equal "Final address", file.agreement_terms["address"]
+    refute file.MediatorSignature
+    refute file.TenantSignature
+    assert_nil file.MediatorSignatureUserID
+    assert_nil file.MediatorSignedAt
+    assert_nil file.MediatorSignatureName
+    log_in_as(@mediator)
+    post apply_signature_document_path(file.FileID), params: { agreement_version: 1 }
+    refute file.reload.MediatorSignature
+    post apply_signature_document_path(file.FileID), params: { agreement_version: 2 }
+    assert file.reload.MediatorSignature
+  end
+
+  test "settlement templates and historical mediation still execute with two signatures" do
+    {
+      "b" => pay_and_stay_params,
+      MoveOutTerms::TEMPLATE => move_out_params,
+      CustomResolutionTerms::TEMPLATE => custom_resolution_params,
+      "c" => agreement_params
+    }.each do |template, terms|
+      file = create_agreement_draft(template: template, terms: terms)
+      log_in_as(@mediator)
+      post apply_signature_document_path(file.FileID), params: { agreement_version: 1, signature_name: "Mediator" }
+      refute file.reload.MediatorSignature
+      refute file.LandlordSignature
+      refute file.TenantSignature
+
+      [@landlord, @tenant].each do |party|
+        log_in_as(party)
+        post apply_signature_document_path(file.FileID), params: { agreement_version: 1, signature_name: "Signer" }
+      end
+      assert file.reload.agreement_fully_executed?, template
+      refute file.MediatorSignature
+    end
+  end
+
   test "Custom Resolution appears fourth, previews saved terms, and shares through chat" do
     activate_mediation(@mediation)
     log_in_as(@tenant)
@@ -3133,26 +3333,15 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to template_intake_path(template: "b", conversation_id: @mediation.ConversationID)
   end
 
-  test "generate_filled_template supports mediation template" do
+  test "legacy mediation generation opens the Agreement to Mediate editor" do
     log_in_as(@tenant)
 
-    assert_difference("FileDraft.count", 1) do
-      post generate_filled_template_path, params: {
-        template: "c",
-        landlord_name: "Jane Doe",
-        tenant_name: "John Doe",
-        address: "123 Main Street",
-        negotiation_date: "2026-03-20",
-        reason: "Nonpayment",
-        money_owed: "900",
-        monthly_rent: "1200",
-        best_option: "Payment Plan",
-        amount1: "300",
-        date1: "2026-03-30"
-      }
+    assert_no_difference("FileDraft.count") do
+      post generate_filled_template_path, params: { template: "c", conversation_id: @mediation.ConversationID }
     end
 
-    assert_redirected_to documents_path
+    assert_response :see_other
+    assert_redirected_to template_intake_path(template: AgreementToMediateTerms::TEMPLATE, conversation_id: @mediation.ConversationID)
   end
 
   %w[upload html pdf].each do |workflow|
@@ -3491,7 +3680,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     when "html"
       post generate_from_intake_path(template: MoveOutTerms::TEMPLATE), params: move_out_params
     when "pdf"
-      post generate_filled_template_path, params: agreement_params.merge(template: "c")
+      post generate_filled_template_path, params: agreement_params.merge(template: "generic")
     end
   end
 
@@ -3536,6 +3725,27 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
       negotiation_date: "2026-03-20", reason: "Failure to Pay Rent", money_owed: "900",
       best_option: "Move Out", vacate_date: "2026-05-01",
       amount1: "500", date1: "2026-03-30", amount2: "400", date2: "2026-04-30" }
+  end
+
+  def agreement_to_mediate_params
+    agreement_params.slice(:landlord_name, :tenant_name, :address).merge(
+      landlord_representative: "Pat Lee, property manager",
+      landlord_capacity: "Authorized representative",
+      mediator_name: AgreementToMediateTerms.account_name(@mediator)
+    )
+  end
+
+  def create_shared_agreement_to_mediate
+    activate_mediation(@mediation)
+    log_in_as(@tenant)
+    post generate_from_intake_path(template: AgreementToMediateTerms::TEMPLATE),
+         params: agreement_to_mediate_params.merge(conversation_id: @mediation.ConversationID)
+    assert_redirected_to documents_path
+    file = FileDraft.where(AgreementTemplate: AgreementToMediateTerms::TEMPLATE, CreatorID: @tenant.UserID).sole
+    post messages_path, params: { ConversationID: @mediation.ConversationID, Contents: "", file_id: file.FileID }
+    assert_redirected_to message_path(@mediation.ConversationID)
+    assert_equal @mediation.ConversationID, file.reload.agreement_conversation_id
+    file
   end
 
   def custom_resolution_params
@@ -3590,8 +3800,8 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     log_in_as(@tenant)
     terms ||= template == "b" ? pay_and_stay_params : agreement_params
 
-    file = if template == "a"
-      create_historical_vacate_draft(terms)
+    file = if %w[a c].include?(template)
+      create_historical_agreement_draft(template, terms)
     else
       post generate_from_intake_path(template: template),
            params: terms.merge(conversation_id: @mediation.ConversationID)
@@ -3633,19 +3843,19 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     file
   end
 
-  def create_historical_vacate_draft(terms)
+  def create_historical_agreement_draft(template, terms)
     controller = DocumentsController.new
-    controller.send(:assign_agreement_template_variables, "a", terms.stringify_keys)
-    html = DocumentsController.renderer.render(template: "documents/templates/agree_to_vacate",
+    controller.send(:assign_agreement_template_variables, template, terms.stringify_keys)
+    html = DocumentsController.renderer.render(template: controller.send(:agreement_template_file, template),
                                                assigns: controller.view_assigns, layout: false)
 
     writer = ->(path) { File.write(path, html) }
     DocumentCreation.new.call(extension: "html", writer: writer) do |locator|
       attrs = {
-        FileID: SecureRandom.uuid, FileName: "Jane Doe - John Doe - Agree to Vacate",
+        FileID: SecureRandom.uuid, FileName: (template == "a" ? "Jane Doe - John Doe - Agree to Vacate" : "Mediation Agreement"),
         FileTypes: "html", FileURLPath: locator, CreatorID: @tenant.UserID,
         TenantSignature: false, LandlordSignature: false,
-        AgreementTemplate: "a", AgreementTerms: terms.to_json, AgreementVersion: 1
+        AgreementTemplate: template, AgreementTerms: terms.to_json, AgreementVersion: 1
       }
       key, value = controller.send(:next_filedraft_pk_value)
       attrs[key] = value if key && value

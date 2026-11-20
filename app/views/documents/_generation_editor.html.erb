@@ -2,7 +2,10 @@
    template = review_file ? review_file.AgreementTemplate : @template
    values = review_file ? (@submitted_agreement_terms || review_file.agreement_terms) : @generation_values
    custom = template == CustomResolutionTerms::TEMPLATE
-   preview = if custom
+   mediation = template == AgreementToMediateTerms::TEMPLATE
+   preview = if mediation
+     render(template: "documents/templates/agreement_to_mediate_v1", layout: false, locals: { inline_editor: true, editor_values: values })
+   elsif custom
      render(template: "documents/templates/custom_resolution_v1", layout: false, locals: { inline_editor: true, editor_values: values })
    else
      @agreement_retry_preview
@@ -10,6 +13,7 @@
 <div class="docs-wrapper"
      data-document-generation-editor
      data-agreement-template="<%= template %>"
+     <% if mediation %>data-required-agreement-fields="<%= AgreementToMediateTerms::REQUIRED.join(" ") %>"<% end %>
      <% if custom %>data-custom-signer-error="<%= CustomResolutionTerms::SIGNER_ERROR %>"<% end %>
      <% if template == MoveOutTerms::TEMPLATE %>data-required-agreement-fields="<%= MoveOutTerms::REQUIRED.join(" ") %>"
        data-move-out-rules="<%= MoveOutTerms.editor_rules.to_json %>"<% end %>>
@@ -20,7 +24,11 @@
     The legal terms cannot be edited.
   </p>
 
-  <% if custom %><noscript>JavaScript is required to complete the agreement in the preview.</noscript><% end %>
+  <% if mediation %>
+    <p>The landlord and tenant each sign through their own account. The assigned mediator signs separately. If another signature is required, contact the mediator.</p>
+    <p><%= link_to "Data Privacy and Privacy Policy", resources_path(tab: "faqs", category: "data-privacy"), target: "_blank", rel: "noopener" %></p>
+  <% end %>
+  <% if custom || mediation %><noscript>JavaScript is required to complete the agreement in the preview.</noscript><% end %>
   <p data-agreement-edit-count role="status">No information entered yet</p>
   <p data-agreement-editor-error role="alert" <%= "hidden" unless @agreement_editor_error %>><%= @agreement_editor_error %></p>
 
@@ -32,13 +40,19 @@
 
     <% if review_file %>
       <%= hidden_field_tag :agreement_version, review_file.AgreementVersion %>
-      <%= hidden_field_tag :custom_full_form, "1" %>
+      <%= hidden_field_tag :custom_full_form, "1" if custom %>
     <% else %>
       <%= hidden_field_tag :conversation_id, params[:conversation_id] if params[:conversation_id].present? %>
       <%= hidden_field_tag :return_to, params[:return_to] if params[:return_to].present? %>
     <% end %>
 
-    <% fields = custom ? CustomResolutionTerms.groups(values.keys).values.flatten : @generation_fields %>
+    <% fields = if mediation
+         AgreementToMediateTerms::FIELDS
+       elsif custom
+         CustomResolutionTerms.groups(values.keys).values.flatten
+       else
+         @generation_fields
+       end %>
 
     <% fields.each do |field| %>
       <% next if field == "reason" && template != MoveOutTerms::TEMPLATE %>
@@ -62,7 +76,7 @@
                           placeholder: "Example: Unpaid rent for September and October 2026",
                           data: { agreement_term: "reason" } %>
       </div>
-    <% elsif !custom && template != MoveOutTerms::TEMPLATE %>
+    <% elsif !custom && !mediation && template != MoveOutTerms::TEMPLATE %>
       <div class="form-group" style="margin: 20px 0;">
         <%= label_tag :reason, "Reason for Dispute", class: "form-label required-label" %>
 
@@ -97,7 +111,7 @@
     <% end %>
 
   <div class="document-preview-card">
-    <%= tag.iframe src: (template_preview_path(template: template) unless review_file),
+    <%= tag.iframe src: (template_preview_path(template: template) unless review_file || mediation),
           srcdoc: (preview && String.new(preview)),
           sandbox: ("allow-same-origin" if preview),
           class: "document-iframe", title: "Editable agreement preview",

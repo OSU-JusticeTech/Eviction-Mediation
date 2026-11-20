@@ -21,7 +21,7 @@
               <div class="attachment-name"><%= file.FileName.presence || "Untitled document" %></div>
               <div class="attachment-actions">
                 <% if file.agreement_document? && %w[Tenant Landlord Mediator].include?(current_user.Role) %>
-                  <% if current_user.Role == "Mediator" %>
+                  <% if current_user.Role == "Mediator" && !file.agreement_to_mediate? %>
                     <%= link_to "Review & Suggest Changes", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
                   <% else %>
                     <%= link_to "Review & Sign", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
@@ -96,7 +96,7 @@
                 <div class="attachment-name"><%= file.FileName.presence || "Untitled document" %></div>
                 <div class="attachment-actions">
                   <% if file.agreement_document? && %w[Tenant Landlord Mediator].include?(current_user.Role) %>
-                    <% if current_user.Role == "Mediator" %>
+                    <% if current_user.Role == "Mediator" && !file.agreement_to_mediate? %>
                       <%= link_to "Review & Suggest Changes", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
                     <% else %>
                       <%= link_to "Review & Sign", view_file_path(file.FileID), class: "attachment-link attachment-link--primary" %>
