@@ -2028,6 +2028,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     get view_file_path(file.FileID)
     assert_select ".signing-card[data-signer-role='mediator']"
     post apply_signature_document_path(file.FileID), params: { agreement_version: 1, signature_name: "Forged name" }
+    assert_match(/All required signers have signed/, flash[:success])
     assert file.reload.agreement_fully_executed?
     assert_equal @mediator.UserID, file.MediatorSignatureUserID
     assert_equal agreement_to_mediate_params[:mediator_name], file.MediatorSignatureName
@@ -2041,17 +2042,78 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".completion-banner", text: /Document Fully Executed/
     assert_select ".signature-party .signed", count: 3
     assert_select ".signing-card", count: 0
-    get download_file_path(file.FileID)
+    get view_inline_document_path(file.FileID)
     assert_response :success
     document = Nokogiri::HTML(response.body)
     assert_equal "https://mediation.example.test:8443#{resources_path(tab: "faqs", category: "data-privacy")}",
                  document.at_css("a")["href"]
     %w[Landlord Tenant Mediator].each do |role|
       assert_equal "/s/ #{file.public_send("#{role}SignatureName")}", document.at_css("[data-signature-slot='#{role}-signature']").text
+      assert_equal file.public_send("#{role}SignedAt").strftime("%B %d, %Y"),
+                   document.at_css("[data-signature-slot='#{role}-date']").text
     end
   ensure
     ENV["APP_URL"] = original_host
     ENV["APP_PROTOCOL"] = original_protocol
+  end
+
+  test "a silently omitted mediator signature rolls back the published agreement and completion" do
+    file = agreement_to_mediate_awaiting_mediator
+    before = file.attributes
+    files = Dir.children(@document_storage_root).sort
+    path = DocumentStorage.configured.resolve(file.FileURLPath)
+    original = path.binread
+
+    filter = FileDraft.instance_method(:attributes_for_update)
+    FileDraft.define_method(:attributes_for_update) do |names|
+      filter.bind_call(self, names).reject { |name| name.start_with?("MediatorSign") }
+    end
+    FileDraft.send(:private, :attributes_for_update)
+    begin
+      assert_no_difference ["Message.count", "Notification.count"] do
+        assert_no_enqueued_emails do
+          post apply_signature_document_path(file.FileID), params: { agreement_version: 1 }
+        end
+      end
+    ensure
+      FileDraft.remove_method(:attributes_for_update)
+    end
+
+    assert_redirected_to view_file_path(file.FileID)
+    assert_equal "Failed to save signature. Please try again.", flash[:alert]
+    assert_equal before, file.reload.attributes
+    refute file.agreement_fully_executed?
+    assert_equal files, Dir.children(@document_storage_root).sort
+    get view_file_path(file.FileID)
+    assert_select ".signature-party[data-signature-role='mediator'] .pending"
+    assert_select ".completion-banner", count: 0
+    get view_inline_document_path(file.FileID)
+    assert_equal original, response.body.b
+  end
+
+  test "an Agreement to Mediate with unrecorded signature HTML can be signed again" do
+    file = agreement_to_mediate_awaiting_mediator
+    path = DocumentStorage.configured.resolve(file.FileURLPath)
+    original = path.binread
+    inconsistent = AgreementSignature.new.call(original, file: file, role: "Mediator",
+                                                name: "Unrecorded signer", signed_at: 1.day.ago)
+    path.binwrite(inconsistent)
+
+    [view_inline_document_path(file.FileID), download_file_path(file.FileID)].each do |url|
+      get url
+      assert_response :success
+      assert_equal original, response.body.b
+    end
+    refute file.reload.agreement_fully_executed?
+
+    post apply_signature_document_path(file.FileID), params: { agreement_version: 1 }
+    assert_match(/All required signers have signed/, flash[:success])
+    assert file.reload.agreement_fully_executed?
+    assert_equal inconsistent.b, path.binread
+    get view_inline_document_path(file.FileID)
+    document = Nokogiri::HTML(response.body)
+    assert_equal "/s/ #{file.MediatorSignatureName}", document.at_css("[data-signature-slot='Mediator-signature']").text
+    assert_equal file.MediatorSignedAt.strftime("%B %d, %Y"), document.at_css("[data-signature-slot='Mediator-date']").text
   end
 
   test "Agreement to Mediate uses privacy policy text without a public host" do
@@ -3746,6 +3808,17 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to message_path(@mediation.ConversationID)
     assert_equal @mediation.ConversationID, file.reload.agreement_conversation_id
     file
+  end
+
+  def agreement_to_mediate_awaiting_mediator
+    file = create_shared_agreement_to_mediate
+    [@landlord, @tenant].each do |party|
+      log_in_as(party)
+      post apply_signature_document_path(file.FileID), params: { agreement_version: 1 }
+      assert_match(/Waiting for the remaining signatures/, flash[:success])
+    end
+    log_in_as(@mediator)
+    file.reload
   end
 
   def custom_resolution_params

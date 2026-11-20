@@ -772,6 +772,13 @@ class DocumentsController < ApplicationController
         flash[:alert] = "Please provide your name to sign the document."
         return redirect_to view_file_path(@file.FileID)
       end
+
+      signature_fields = ["#{role}Signature", "#{role}SignatureName", "#{role}SignedAt"]
+      signature_fields << "MediatorSignatureUserID" if role == "Mediator"
+      unless (signature_fields - FileDraft.column_names).empty?
+        raise DocumentRevision::Failure, "Missing signature columns for #{role}"
+      end
+
       if @file.agreement_suggestions_pending?
         signature_result = :suggestions_pending
       elsif @file.agreement_document? && params[:agreement_version].to_i != @file.AgreementVersion
@@ -796,6 +803,16 @@ class DocumentsController < ApplicationController
           locked.public_send("#{role}SignedAt=", signed_at)
           locked.public_send("#{role}SignatureName=", signature_name)
           locked.MediatorSignatureUserID = @user.UserID if role == "Mediator"
+        end
+
+        # A successful save can omit attributes absent from the model's schema.
+        # Verify the write while the document and its new locator can still roll back.
+        stored_locator, stored_flag, stored_name, stored_time, stored_user_id =
+          FileDraft.uncached { FileDraft.where(FileID: @file.FileID).pick(:FileURLPath, *signature_fields) }
+        unless stored_locator == @file.FileURLPath && stored_flag && stored_name == signature_name &&
+               stored_time&.in_time_zone&.to_date == signed_at.to_date &&
+               (role != "Mediator" || stored_user_id == @user.UserID)
+          raise DocumentRevision::Failure, "Signature fields were not persisted for #{role}"
         end
         signature_result = :signed
       end
@@ -867,7 +884,8 @@ class DocumentsController < ApplicationController
     end
 
     redirect_to view_file_path(@file.FileID)
-  rescue DocumentRevision::Failure
+  rescue DocumentRevision::Failure => error
+    Rails.logger.error("Signing failed file_id=#{@file.FileID}: #{error.message}")
     redirect_to view_file_path(@file.FileID), alert: "Failed to save signature. Please try again."
   end
 
@@ -1016,6 +1034,15 @@ class DocumentsController < ApplicationController
     # Native PDF viewers must remain usable without sandbox restrictions.
     unless mime_type == "application/pdf"
       response.headers["Content-Security-Policy"] = "sandbox allow-same-origin"
+    end
+
+    if file.agreement_to_mediate? && mime_type == "text/html" && !file.agreement_fully_executed?
+      original = path.binread
+      html = AgreementSignature.new.clear_unrecorded_signatures(original, file: file)
+      if html != original
+        return send_data html, filename: "#{file.FileName}#{File.extname(path)}",
+                               type: mime_type, disposition: disposition
+      end
     end
 
     send_file path,
