@@ -700,10 +700,10 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "template preview supports mediation template" do
-    log_in_as(@tenant)
+  test "template preview supports mediation template for the assigned mediator" do
+    log_in_as(@mediator)
 
-    get template_preview_path(template: "c")
+    get template_preview_path(template: "c", conversation_id: @mediation.ConversationID)
 
     assert_response :success
   end
@@ -1958,7 +1958,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "Agreement to Mediate uses the inline document for generation and subsequent review" do
-    log_in_as(@tenant)
+    log_in_as(@mediator)
     get template_intake_path(template: "c", conversation_id: @mediation.ConversationID)
     assert_response :success
     assert_select "[data-document-generation-editor] #document-generation-form"
@@ -1975,12 +1975,14 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_no_difference("FileDraft.count") do
       post generate_from_intake_path(template: AgreementToMediateTerms::TEMPLATE),
-           params: agreement_to_mediate_params.merge(additional_signature_parties: "Other signer")
+           params: agreement_to_mediate_params.merge(conversation_id: @mediation.ConversationID,
+                                                     additional_signature_parties: "Other signer")
     end
     assert_response :unprocessable_entity
     assert_select "[data-agreement-editor-error]", text: /another signature is required/
 
     file = create_shared_agreement_to_mediate
+    log_in_as(@tenant)
     get view_file_path(file.FileID, edit: 1)
     assert_response :success
     assert_select "[data-document-generation-editor] input[name='address'][value='123 Main Street']"
@@ -1999,6 +2001,11 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     file = create_shared_agreement_to_mediate
     [@landlord, @tenant].each do |party|
       log_in_as(party)
+      get view_file_path(file.FileID)
+      assert_response :success
+      assert_select ".signing-card[data-signer-role=?]", party.Role.downcase
+      get view_inline_document_path(file.FileID)
+      assert_response :success
       post apply_signature_document_path(file.FileID), params: {
         agreement_version: 1, role: "Mediator", signature_name: "Forged name"
       }
@@ -2120,12 +2127,12 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     original_host = ENV["APP_URL"]
     [nil, "127.0.0.1:3004"].each do |host|
       ENV["APP_URL"] = host
-      log_in_as(@tenant)
+      log_in_as(@mediator)
       post generate_from_intake_path(template: AgreementToMediateTerms::TEMPLATE),
            params: agreement_to_mediate_params.except(:mediator_name).merge(conversation_id: @mediation.ConversationID)
       assert_redirected_to documents_path
 
-      file = FileDraft.find_by!(AgreementTemplate: AgreementToMediateTerms::TEMPLATE, CreatorID: @tenant.UserID)
+      file = FileDraft.find_by!(AgreementTemplate: AgreementToMediateTerms::TEMPLATE, CreatorID: @mediator.UserID)
       assert_equal agreement_to_mediate_params[:mediator_name], file.agreement_terms["mediator_name"]
       get download_file_path(file.FileID)
       assert_response :success
@@ -2138,21 +2145,66 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     ENV["APP_URL"] = original_host
   end
 
-  test "Agreement to Mediate cannot be generated for a conversation without an assigned mediator" do
-    @mediation.update!(MediatorAssigned: false)
-    log_in_as(@tenant)
-    get template_intake_path(template: "c", conversation_id: @mediation.ConversationID)
-    assert_response :success
-    assert_select "input[name='mediator_name']" do |inputs|
-      assert inputs.first["value"].blank?
+  test "only the assigned mediator sees Agreement to Mediate in the conversation picker" do
+    activate_mediation(@mediation)
+    conversation_id = @mediation.ConversationID
+    return_to = message_path(conversation_id)
+    settlement_templates = ["Move-Out Agreement", "Pay and Stay Agreement", "Custom Resolution Agreement"]
+
+    [@landlord, @tenant, @mediator].each do |user|
+      log_in_as(user)
+      get return_to
+      assert_response :success
+      picker_path = generate_file_path(conversation_id: conversation_id, return_to: return_to)
+      assert_select "a[href=?]", picker_path, text: /Generate a document/
+
+      get picker_path
+      assert_response :success
+      expected = settlement_templates.dup
+      expected << "Agreement to Mediate" if user == @mediator
+      assert_select ".template-title" do |titles|
+        assert_equal expected.sort, titles.map { |title| title.text.strip }.sort
+      end
+      assert_select "iframe[src=?]", template_preview_path(template: AgreementToMediateTerms::TEMPLATE,
+        conversation_id: conversation_id), count: user == @mediator ? 1 : 0
+
+      get generate_file_path
+      assert_response :success
+      assert_select ".template-card", count: 3
+    end
+  end
+
+  test "direct mediation template requests require the assigned mediator and conversation" do
+    conversation_id = @mediation.ConversationID
+    [@landlord, @tenant, users(:mediator2), @mediator].each do |user|
+      log_in_as(user)
+      # The assigned mediator must also supply the conversation.
+      context = user == @mediator ? {} : { conversation_id: conversation_id }
+      ["c", AgreementToMediateTerms::TEMPLATE].each do |template|
+        get template_intake_path(template: template, **context)
+        assert_includes [403, 404], response.status
+        get template_preview_path(template: template, **context)
+        assert_response :forbidden
+
+        assert_no_difference("FileDraft.count") do
+          post generate_from_intake_path(template: template), params: agreement_to_mediate_params.merge(context)
+          assert_response :forbidden
+          post generate_filled_template_path, params: { template: template }.merge(context)
+          assert_response :forbidden
+          post generate_filled_template_document_path(conversation_id), params: { template: template }.merge(context)
+          assert_response :forbidden
+        end
+      end
     end
 
+    @mediation.update!(MediatorAssigned: false)
+    get generate_file_path(conversation_id: conversation_id)
+    assert_select ".template-title", text: "Agreement to Mediate", count: 0
     assert_no_difference("FileDraft.count") do
       post generate_from_intake_path(template: AgreementToMediateTerms::TEMPLATE),
-           params: agreement_to_mediate_params.merge(conversation_id: @mediation.ConversationID)
+           params: agreement_to_mediate_params.merge(conversation_id: conversation_id)
+      assert_response :forbidden
     end
-    assert_response :unprocessable_entity
-    assert_select "[data-agreement-editor-error]", text: /Assign a mediator/
   end
 
   test "Agreement to Mediate keeps signatures on rejection and clears them on accepted counteroffers" do
@@ -2219,13 +2271,13 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "Custom Resolution appears fourth, previews saved terms, and shares through chat" do
+  test "Custom Resolution appears for tenants, previews saved terms, and shares through chat" do
     activate_mediation(@mediation)
     log_in_as(@tenant)
     template = CustomResolutionTerms::TEMPLATE
     get generate_file_path(conversation_id: @mediation.ConversationID)
     assert_response :success
-    assert_select ".template-card", count: 4
+    assert_select ".template-card", count: 3
     assert_select "a[href*='custom_resolution_v1']", text: "Select Template D"
     get template_preview_path(template: template)
     assert_response :success
@@ -3396,7 +3448,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "legacy mediation generation opens the Agreement to Mediate editor" do
-    log_in_as(@tenant)
+    log_in_as(@mediator)
 
     assert_no_difference("FileDraft.count") do
       post generate_filled_template_path, params: { template: "c", conversation_id: @mediation.ConversationID }
@@ -3799,11 +3851,11 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
 
   def create_shared_agreement_to_mediate
     activate_mediation(@mediation)
-    log_in_as(@tenant)
+    log_in_as(@mediator)
     post generate_from_intake_path(template: AgreementToMediateTerms::TEMPLATE),
          params: agreement_to_mediate_params.merge(conversation_id: @mediation.ConversationID)
     assert_redirected_to documents_path
-    file = FileDraft.where(AgreementTemplate: AgreementToMediateTerms::TEMPLATE, CreatorID: @tenant.UserID).sole
+    file = FileDraft.where(AgreementTemplate: AgreementToMediateTerms::TEMPLATE, CreatorID: @mediator.UserID).sole
     post messages_path, params: { ConversationID: @mediation.ConversationID, Contents: "", file_id: file.FileID }
     assert_redirected_to message_path(@mediation.ConversationID)
     assert_equal @mediation.ConversationID, file.reload.agreement_conversation_id

@@ -19,8 +19,14 @@ class DocumentsController < ApplicationController
     :template_preview, :intake_template_view, :generate_filled_template,
     :apply_signature, :review, :update_review, :decide_suggestion, :counteroffer_suggestion
   ]
+  before_action :authorize_mediation_template, only: [
+    :template_intake, :template_preview, :generate_from_intake, :generate_filled_template
+  ]
   before_action :set_conversation_context, only: [ :intake_template_view ]
 
+  def generate
+    @show_mediation_template = assigned_mediator_for_generation?
+  end
 
   def intake_template_view
   end
@@ -1845,6 +1851,19 @@ class DocumentsController < ApplicationController
   def assigned_agreement_mediator_name(conversation)
     mediator = conversation.mediator if conversation&.MediatorAssigned?
     AgreementToMediateTerms.account_name(mediator) if mediator&.mediator?
+  end
+
+  def assigned_mediator_for_generation?
+    return false unless @user.mediator? && params[:conversation_id].present?
+
+    conversation = @template_conversation || PrimaryMessageGroup.find_by(ConversationID: params[:conversation_id])
+    conversation&.MediatorAssigned? && conversation.MediatorID == @user.UserID
+  end
+
+  def authorize_mediation_template
+    return unless new_agreement_template(params[:template]) == AgreementToMediateTerms::TEMPLATE
+
+    head :forbidden unless assigned_mediator_for_generation?
   end
 
   def agreement_suggester?(conversation)
