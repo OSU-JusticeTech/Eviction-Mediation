@@ -61,7 +61,7 @@ class ResourcesLandingTest < ApplicationSystemTestCase
     assert_current_path faqs_path
     assert_text "Frequently Asked Questions"
 
-    click_link "Back to home"
+    click_link "Back"
     assert_current_path root_path
     assert_text "Resolve rental disputes"
   end
@@ -71,7 +71,7 @@ class ResourcesLandingTest < ApplicationSystemTestCase
 
     assert_text "Negotiation & Mediation: What They Are and How They Can Help"
 
-    click_link "Back to Resources"
+    click_link "Back"
     assert_current_path root_path
     assert_text "Resolve rental disputes"
   end
