@@ -509,6 +509,12 @@ select.signup-input {
 }
 
 @media (forced-colors: active) {
+    select#state.signup-input {
+        -webkit-appearance: auto;
+        appearance: auto;
+        background-image: none;
+    }
+
     .signup-page .signup-input:focus-visible {
         outline-color: CanvasText;
     }
