@@ -142,7 +142,7 @@ function initializeMediatorSchedule() {
 
         const remove = document.createElement("button");
         remove.type = "button";
-        remove.className = "btn-secondary";
+        remove.className = "schedule-btn schedule-btn-danger";
         remove.textContent = "Remove";
 
         remove.addEventListener("click", async () => {
