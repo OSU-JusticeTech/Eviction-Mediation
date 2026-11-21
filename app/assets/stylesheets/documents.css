@@ -428,7 +428,7 @@ label.dropzone * {
 }
 
 .btn-document-action:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.20);
 }
 
 .signature-status-card {
@@ -901,6 +901,19 @@ label.dropzone * {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+.signature-form .btn-sign:focus-visible,
+.signature-form .form-input:focus-visible {
+  outline: 3px solid #102a4d;
+  outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .signature-form .btn-sign:focus-visible,
+  .signature-form .form-input:focus-visible {
+    outline-color: CanvasText;
+  }
 }
 
 .signature-form .btn-sign:active {

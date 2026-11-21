@@ -478,9 +478,10 @@ function startDocumentGenerationEditor() {
           table.innerHTML = '<thead><tr><th>Installment</th><th>Amount</th><th>Due Date</th></tr></thead><tbody></tbody>';
           anchor.before(table);
         }
+        const installmentHeader = template === 'b' ? `<th scope="row">${number}</th>` : `<td>${number}</td>`;
         row = doc.createElement('tr');
         row.innerHTML = `
-          ${template === 'move_out_v1' ? '' : `<td>${number}</td>`}
+          ${template === 'move_out_v1' ? '' : installmentHeader}
           <td>$<span data-agreement-field="amount${number}">___________</span></td>
           <td><span data-agreement-field="date${number}" data-agreement-format="long-date">TBD</span></td>
           <td><span data-agreement-field="time${number}" data-agreement-input="time" title="Time and AM/PM">—</span></td>
