@@ -303,11 +303,17 @@ input[type="submit"].card-btn:disabled {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: #3498db;
+    background: #2277b3;
     color: white;
     font-weight: 600;
     font-size: 1.1rem;
     flex-shrink: 0;
+}
+
+@media (forced-colors: active) {
+    .step-number {
+        border: 1px solid CanvasText;
+    }
 }
 
 .step-content h3 {

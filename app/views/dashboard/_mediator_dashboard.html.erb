@@ -158,7 +158,14 @@
 
   .calendar-day.other-month {
     background: #f8fafc;
-    color: #94a3b8;
+    color: #52647a;
+  }
+
+  @media (forced-colors: active) {
+    .calendar-day.other-month {
+      border-color: CanvasText;
+      border-style: dashed;
+    }
   }
 
   .calendar-event {

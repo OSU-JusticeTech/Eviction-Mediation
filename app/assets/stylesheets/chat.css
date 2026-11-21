@@ -1124,6 +1124,23 @@
     box-shadow: 0 12px 24px rgba(16, 42, 77, 0.12);
   }
 
+  .conversation-cta--primary {
+    background: linear-gradient(135deg, #125fcc 0%, #1c6bd0 100%);
+  }
+
+  @media (forced-colors: active) {
+    .conversation-cta--primary {
+      background: ButtonFace;
+      border-color: ButtonText;
+      color: ButtonText;
+    }
+
+    .conversation-cta--primary:focus-visible {
+      outline: 2px solid Highlight;
+      outline-offset: 2px;
+    }
+  }
+
   .conversation-cta--danger,
   .conversation-action--danger {
     background: linear-gradient(135deg, #c62828 0%, #f44336 100%);
