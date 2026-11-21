@@ -1,10 +1,12 @@
 class ResourcesController < ApplicationController
   def index
     @active_tab = params[:tab] || "resources"
-
+    # General is now "Negotiation and Mediation""
     faq_categories = {
-      "General" => Rails.root.join("db", "faq_general.txt"),
+      "Negotiation and Mediation" => Rails.root.join("db", "faq_general.txt"),
+      "Using the Tool" => Rails.root.join("db", "faq_usingthetool.txt"),
       "Eviction & Housing Help" => Rails.root.join("db", "faq_evictionhousinghelp.txt"),
+      "Housing Resources" => Rails.root.join("db", "faq_housingresources.txt"),
       "Data Privacy" => Rails.root.join("db", "faq_privacy.txt")
     }
 

@@ -1,3 +1,11 @@
+Q: What is the difference between negotiation or mediation? 
+A: 
+**Negotiation** is when you and the other person talk directly to try to solve a disagreement. In this tool, landlords and tenants begin by negotiating through a text-based chat. You can explain your concerns, ask questions, and discuss possible solutions.
+ 
+**Mediation** is when a neutral person called a mediator joins the conversation to help both sides communicate and work toward an agreement. The mediator does not take sides or make decisions for you.
+ 
+You can reach an agreement through negotiation without ever needing a mediator.
+ 
 Q: What is Mediation? 
 A: 
 Mediation is a way to work through a disagreement with help from a neutral person called a **mediator.** The mediator listens to both sides and helps them talk about the problem and possible solutions. 
@@ -6,33 +14,23 @@ The mediator does not take sides, decide who is right or wrong, or force anyone 
  
 You and the other person decide whether you can reach an agreement. 
  
-Q: How does this tool work? 
-A:   
-This tool lets landlords and tenants talk through rental problems by text, on their own time. 
- 
-You and the other person first try to **negotiate**, which means talking directly to each other to try to solve the problem. You can share information, discuss possible solutions, and work toward an agreement. 
- 
-If you need more help, a neutral mediator may join the conversation to help you communicate and work toward a solution. 
- 
-The goal is to help both sides reach an agreement without having to go to court. 
- 
-Q: When can I use this tool? 
-A: 
-You can use this tool to work through landlord-tenant problems **before an eviction is filed.** This may include: 
-	- Unpaid rent  
-	- Repairs or maintenance  
-	- Lease questions  
-	- Communication problems  
-	- Other landlord-tenant disagreements  
+Q: When can I use this tool?
+A:
+You can use this tool to work through landlord-tenant problems **before an eviction is filed.** This may include:
+	- Unpaid rent
+	- Repairs or maintenance
+	- Lease questions
+	- Communication problems
+	- Other landlord-tenant disagreements
 Mediation may also be available **after an eviction is filed but before the court hearing.**
-
-Q: Do I have to mediate? 
-A: 
-No. Mediation is voluntary. Everyone involved must agree to participate. You, the other person, or the mediator may end the mediation at any time. 
  
-Q: Why should I try mediation? 
+ 
+Q: Why should I try negotiation and mediation? 
 A: 
-Mediation gives landlords and tenants a chance to solve problems together. Going to court can take time, cost money, and cause stress. Mediation may help both sides avoid some of the costs of an eviction.  
+ 
+Negotiation and mediation give landlords and tenants a chance to solve problems together. They may help tenants avoid eviction and landlords avoid finding a new tenant. Going to court can take time, cost money, and cause stress. In court, a judge may decide the outcome. Through negotiation or mediation, you and the other person decide what works for you.  
+ 
+Negotiation and mediation may help both sides avoid some of the costs of an eviction.
  
 **Possible Costs for Landlords** 
 	- **Total cost:** $5,000+ 
@@ -55,12 +53,22 @@ Mediation gives landlords and tenants a chance to solve problems together. Going
  
 Mediation may help landlords and tenants avoid some of these costs by working toward a solution before the dispute goes further.  
  
-Q: What happens if we reach an agreement? 
+Q: Does everyone have to agree to participate?
 A: 
-You and the other person decide what you agree to. The mediator can help put the agreement in writing so everyone understands what they agreed to do. 
+Yes. Both the landlord and tenant must agree to participate. Negotiation and mediation are **voluntary**. Both the landlord and tenant must agree to participate. If the other person does not want to use the tool, you cannot force them to join. 
  
-The agreement is **not filed with or enforced by the court.** Instead, both people are expected to follow through on what they agreed to. The process depends on trust, communication, and accountability from both sides. 
+You, the other person, or the mediator may end mediation at any time. Neither person can be forced to reach an agreement. 
  
-Q: What if mediation does not work? 
+Q: What happens when we reach an agreement?
+A:
+You and the other person decide what you agree to. You can use the agreement templates in the **Generate Document** tab to put your agreement in writing, so everyone understands what they agreed to do. 
+ 
+Both people can review the terms, suggest changes, and accept, reject, or make a counteroffer before signing. A mediator can help with this process if one has been invited to join the conversation. 
+ 
+The agreement is not automatically filed with the court. However, if someone does not follow through with their end of the agreement, the other person may be able to take legal action for breaking it. 
+ 
+Both people are expected to follow the agreement, so only agree to something you understand and believe you can do.  
+ 
+Q: What if we cannot reach an agreement?
 A:  
-Mediation does not always end in an agreement. Either person can decide to stop participating. If you cannot reach an agreement, you may still have other options for handling the dispute. 
+Negotiation or mediation does not always end in an agreement. Either person can decide to stop participating. 
