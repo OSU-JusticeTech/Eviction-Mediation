@@ -13,7 +13,8 @@
       <h2> <i class="fa-solid fa-user-plus"></i> Sign Up</h2>
       <p class="signup-text"> Let's create your account. </p>
 
-    <%= form_with model: @user, url: signup_path, local: true, data: { turbo: false }, class: "signup-form" do |f| %>
+    <%= form_with model: @user, url: signup_path, local: true, data: { turbo: false, controller: "signup-disclaimer",
+              action: "submit->signup-disclaimer#validate" }, class: "signup-form" do |f| %>
       <%# Error handling display #%>
       <% if @user.errors.any? %>
         <div class="error-summary">
@@ -210,45 +211,36 @@
         </div>
       </div>
 
-      <!-- Disclaimer -->
-      <p style="color: #102a4d; font-weight: 600; margin-bottom: 12px; font-size: 15px;">
-        <i class="fa-solid fa-info-circle"></i> Please click "Legal Disclaimer" below to read the full terms before continuing.
-      </p>
       <div class="disclaimer">
-          <label class="custom-checkbox">
-              <%= f.check_box :ProfileDisclaimer, { required: true }, 'yes', 'no' %>
-              <span class="checkmark"></span>
-              <span class="disclaimer-text">
-                  I have read and agree to the
-                  <label for="toggleModal" class="disclaimer-link">Legal Disclaimer</label>
-              </span>
-          </label>
+        <p class="disclaimer-instructions">
+          Please read the
+          <button type="button" class="disclaimer-link" aria-haspopup="dialog" aria-controls="legal-disclaimer"
+                  data-signup-disclaimer-target="trigger" data-action="signup-disclaimer#open">Legal Disclaimer</button>
+          before signing up.
+        </p>
+        <div class="disclaimer-consent">
+          <%= f.check_box :ProfileDisclaimer, { required: true, data: { signup_disclaimer_target: "consent" } }, 'yes', 'no' %>
+          <%= f.label :ProfileDisclaimer, "I have read and agree to the Legal Disclaimer" %>
+        </div>
 
-          <!-- Display error message if the disclaimer is not checked -->
-          <% if @user.errors[:ProfileDisclaimer].any? %>
-              <div class="error-text"><%= @user.errors[:ProfileDisclaimer].first %></div>
-          <% end %>
-          <div id="terms-error" class="error-text" style="display: none;">You must open and read the Legal Disclaimer before signing up</div>
-      </div>
-
-      <!-- Hidden inputs for tracking -->
-      <input type="hidden" id="termsOpened" value="false">
-
-      <!-- Hidden Checkbox to Toggle Modal -->
-      <input type="checkbox" id="toggleModal" class="toggle-checkbox">
-
-      <!-- Modal Popup -->
-      <div id="legal-disclaimer" class="modal-popup">
-        <div class="popup-content">
-          <!-- Clicking this label will uncheck the checkbox, closing the modal -->
-          <label for="toggleModal" class="close-popup">&times;</label>
-          <h4>Legal Disclaimer</h4>
-          <%= render "shared/legal_disclaimer_text" %>
-          <div style="text-align: center; margin-top: 20px;">
-            <button type="button" id="agreeButton" class="btn-primary" style="padding: 12px 40px; font-size: 16px;">I Agree</button>
-          </div>
+        <% if @user.errors[:ProfileDisclaimer].any? %>
+          <div class="error-text"><%= @user.errors[:ProfileDisclaimer].first %></div>
+        <% end %>
+        <div id="terms-error" class="error-text" role="alert" hidden data-signup-disclaimer-target="error">
+          You must open and read the Legal Disclaimer before signing up
         </div>
       </div>
+
+      <dialog id="legal-disclaimer" class="modal-popup" aria-labelledby="signup-disclaimer-title"
+              data-signup-disclaimer-target="dialog" data-action="close->signup-disclaimer#restoreFocus">
+        <button type="button" class="close-popup" aria-label="Close legal disclaimer" autofocus
+                data-action="signup-disclaimer#close">&times;</button>
+        <h2 id="signup-disclaimer-title">Legal Disclaimer</h2>
+        <%= render "shared/legal_disclaimer_text" %>
+        <div class="disclaimer-actions">
+          <button type="button" id="agreeButton" class="btn-primary" data-action="signup-disclaimer#agree">I Agree</button>
+        </div>
+      </dialog>
 
       <!-- Sign Up Button -->
       <%= f.submit "Sign Up", class: "signup-btn" %>
@@ -396,53 +388,6 @@
     }
   }
 
-  function setupTermsTracking() {
-    const toggleModal = document.getElementById("toggleModal");
-    const termsOpened = document.getElementById("termsOpened");
-    const signupForm = document.querySelector(".signup-form");
-    const termsError = document.getElementById("terms-error");
-    const agreeButton = document.getElementById("agreeButton");
-    const disclaimerCheckbox = document.getElementById("user_ProfileDisclaimer");
-
-    // Track when modal is opened
-    if (toggleModal) {
-      toggleModal.addEventListener("change", function() {
-        if (this.checked && termsOpened) {
-          termsOpened.value = "true";
-          if (termsError) termsError.style.display = "none";
-        }
-      });
-    }
-
-    // Handle I Agree button click
-    if (agreeButton) {
-      agreeButton.addEventListener("click", function() {
-        // Mark terms as opened
-        if (termsOpened) termsOpened.value = "true";
-        // Check the disclaimer checkbox
-        if (disclaimerCheckbox) disclaimerCheckbox.checked = true;
-        // Close the modal
-        if (toggleModal) toggleModal.checked = false;
-        // Hide error if visible
-        if (termsError) termsError.style.display = "none";
-      });
-    }
-
-    // Validate before form submission
-    if (signupForm) {
-      signupForm.addEventListener("submit", function(e) {
-        if (termsOpened && termsOpened.value !== "true") {
-          e.preventDefault();
-          if (termsError) {
-            termsError.style.display = "block";
-            termsError.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-          return false;
-        }
-      });
-    }
-  }
-
   function setupToggleHandlers() {
     const tenantRadio = document.getElementById("role_tenant");
     const landlordRadio = document.getElementById("role_landlord");
@@ -466,7 +411,6 @@
     setupPhoneFormatting();
     setupAddressFormatting();
     toggleFields(); // initial setup
-    setupTermsTracking(); // setup terms validation
   }
 
   document.addEventListener("DOMContentLoaded", setupToggleHandlers);

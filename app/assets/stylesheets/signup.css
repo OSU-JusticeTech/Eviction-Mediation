@@ -611,147 +611,95 @@ select.signup-input {
     display: inline-block;
 }
 
-/* Hide the checkbox */
-.toggle-checkbox {
-    display: none;
+.disclaimer-instructions {
+    color: #102a4d;
 }
 
-/* Custom Checkbox Styling */
-.custom-checkbox {
+.disclaimer-consent {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 1rem;
-    cursor: pointer;
-    user-select: none;
 }
 
-/* Hide default checkbox */
-.custom-checkbox input {
-    display: none;
-}
-
-/* Custom checkbox design */
-.checkmark {
+.disclaimer-consent input[type="checkbox"] {
+    appearance: auto;
+    flex: none;
     width: 18px;
     height: 18px;
-    border: 2px solid #007bff;
-    border-radius: 5px;
-    display: inline-block;
-    position: relative;
+    accent-color: #0056b3;
 }
 
-/* Show check when checked */
-.custom-checkbox input:checked + .checkmark {
-    background-color: #007bff;
-    border-color: #007bff;
-}
-
-/* Add checkmark icon */
-.custom-checkbox input:checked + .checkmark::after {
-    content: "✔";
-    font-size: 12px;
-    color: white;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-weight: bold;
-}
-
-/* Disclaimer Text */
-.disclaimer-text {
-    color: black;
-    font-weight: normal;
-}
-
-/* Terms and Conditions Link */
 .disclaimer-link {
     color: #0056b3;
     text-decoration: underline;
     cursor: pointer;
-    margin-left: 0;
 }
 
-.disclaimer-link:hover {
-    color: #0056b3; 
+.disclaimer-link:focus-visible,
+.disclaimer-consent input:focus-visible,
+.modal-popup button:focus-visible {
+    outline: 2px solid #0056b3;
+    outline-offset: 3px;
 }
 
-/* Show modal when checkbox is checked */
-.toggle-checkbox:checked + .modal-popup {
-    opacity: 1;
-    visibility: visible;
-}
-
-/* Modal Popup */
 .modal-popup {
     position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 80vw;
-    max-width: 600px;
+    inset: 0;
+    margin: auto;
+    width: min(80vw, 600px);
     max-height: 80vh;
     background: #fff;
     padding: 20px;
     border: 2px solid #102a4d;
     border-radius: 10px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    color: #102a4d;
     text-align: justify;
-    visibility: hidden;
-    transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
-    z-index: 1000;
-    overflow-y: auto; /* Enables scrolling */
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
-.popup-content {
-    border-radius: 10px;
+.modal-popup::backdrop {
+    background: rgba(16, 42, 77, 0.55);
 }
 
-.popup-content h4 {
+#signup-disclaimer-title {
     text-align: center;
-    font-weight: bold;
-    font-size: 24px;
-    margin-top: 5px;
-    margin-bottom: 5px;
 }
 
-/* Close Button */
+.disclaimer-actions {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.disclaimer-actions button {
+    padding: 12px 40px;
+    font-size: 16px;
+}
+
 .close-popup {
     position: sticky;
     top: 0;
-    right: 0;
-    padding: 10px;
-    font-size: 24px;
-    text-decoration: none;
-    color: red;
-    cursor: pointer;
-    background: white;
-    border-radius: 50%;
+    margin-left: auto;
     width: 35px;
     height: 35px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-left: auto;
-    z-index: 1001; /* Ensures it's above the content */
+    font-size: 24px;
+    color: #b71c1c;
+    cursor: pointer;
+    background: white;
+    border-radius: 50%;
 }
 
-/* Close Button Hover Effect */
 .close-popup:hover {
     background: #f8d7da;
-    color: darkred;
-    cursor: pointer;
 }
 
-.close-popup:active {
-    transform: scale(0.95);
-}
-
-/* Ensure the modal adapts to smaller screens */
 @media (max-width: 600px) {
     .modal-popup {
-        width: 90vw; 
+        width: 90vw;
         max-height: 90vh;
     }
 }
@@ -878,7 +826,7 @@ select.signup-input {
         margin-bottom: 15px;
     }
 
-    .disclaimer-text {
+    .disclaimer-consent label {
         font-size: 0.85rem;
     }
     /* Make intake page main title smaller on small screens */

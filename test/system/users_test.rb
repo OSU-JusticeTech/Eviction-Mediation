@@ -55,8 +55,7 @@ class UsersTest < ApplicationSystemTestCase
       find("#zip-code").set("43215")
       find("#phone-number").set("614-555-0100")
 
-      find("label.disclaimer-link").click
-      within("#legal-disclaimer") { click_button "I Agree" }
+      accept_signup_disclaimer
 
       click_button "Sign Up"
     end
@@ -79,9 +78,7 @@ class UsersTest < ApplicationSystemTestCase
       find("#user_CompanyName").set("Property Management LLC")
       find("#phone-number").set("614-555-0200")
 
-      # Use JavaScript to accept disclaimer (both checkbox and termsOpened tracker)
-      page.execute_script("document.getElementById('user_ProfileDisclaimer').checked = true;")
-      page.execute_script("document.getElementById('termsOpened').value = 'true';")
+      accept_signup_disclaimer
 
       click_button "Sign Up"
     end
@@ -108,8 +105,7 @@ class UsersTest < ApplicationSystemTestCase
       select "Ohio", from: "state"
       find("#zip-code").set("43215")
       find("#phone-number").set("614-555-0300")
-      page.execute_script("document.getElementById('user_ProfileDisclaimer').checked = true;")
-      page.execute_script("document.getElementById('termsOpened').value = 'true';")
+      accept_signup_disclaimer
 
       click_button "Sign Up"
     end
@@ -133,13 +129,18 @@ class UsersTest < ApplicationSystemTestCase
       choose "role_landlord"
       find("#user_CompanyName").set("Duplicate Co")
       find("#phone-number").set("614-555-0400")
-      page.execute_script("document.getElementById('user_ProfileDisclaimer').checked = true;")
-      page.execute_script("document.getElementById('termsOpened').value = 'true';")
+      accept_signup_disclaimer
 
       click_button "Sign Up"
     end
 
     assert_current_path signup_path
     assert_text "Email is already registered"
+  end
+  private
+
+  def accept_signup_disclaimer
+    click_button "Legal Disclaimer", exact: true
+    within("#legal-disclaimer") { click_button "I Agree" }
   end
 end

@@ -12,12 +12,15 @@
     <% if mediator_assigned && !screenings_flagged %>
       <%# Moved to conversation details panel %>
     <% end %>
-    <div class="chat-page-wrapper">
+    <div class="chat-page-wrapper" data-controller="conversation-details"
+         data-action="turbo:before-cache@document->conversation-details#close">
       <div class="conversation-toolbar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: nowrap; gap: 1rem; width: 100%;">
         
         <%# Left Side Buttons Group %>
         <div style="display: flex; align-items: center; gap: 12px; flex-wrap: nowrap;">
-          <button type="button" class="conversation-cta conversation-cta--info" data-conversation-info-toggle>
+          <button type="button" class="conversation-cta conversation-cta--info"
+                  aria-haspopup="dialog" aria-controls="conversation-info"
+                  data-action="conversation-details#open">
             <span class="conversation-cta__icon" aria-hidden="true"><i class="fa-solid fa-circle-info"></i></span>
             <span class="conversation-cta__label">Conversation details</span>
             <span class="conversation-cta__chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
@@ -105,11 +108,14 @@
         </details>
       <% end %>
 
-      <div class="conversation-info-panel" data-conversation-info-panel hidden role="dialog" aria-modal="true" aria-labelledby="conversation-info-title">
+      <dialog id="conversation-info" class="conversation-info-panel" data-conversation-info-panel
+              aria-labelledby="conversation-info-title" data-conversation-details-target="dialog"
+              data-action="click->conversation-details#dismissBackdrop close->conversation-details#restoreFocus">
         <div class="conversation-info-card">
           <div class="conversation-info-card__header">
             <h2 id="conversation-info-title">Conversation details</h2>
-            <button type="button" class="info-close-btn" data-conversation-info-close aria-label="Close conversation details">
+            <button type="button" class="info-close-btn" aria-label="Close conversation details"
+                    autofocus data-action="conversation-details#close">
               <i class="fa-solid fa-xmark" aria-hidden="true"></i>
             </button>
           </div>
@@ -233,7 +239,7 @@
                         class: "conversation-link", data: { turbo: false } %>
           </div>
         </div>
-      </div>
+      </dialog>
     </div>
 
     
