@@ -27,12 +27,18 @@
     min-width: 20px;
     padding: 2px 5px;
     border-radius: 999px;
-    background: #e74c3c;
+    background: #c73526;
     color: white;
     font-size: 0.7rem;
     font-weight: 700;
     text-align: center;
     line-height: 1.4;
+}
+
+@media (forced-colors: active) {
+    .notification-badge {
+        border: 1px solid CanvasText;
+    }
 }
 
 .notification-dropdown {
