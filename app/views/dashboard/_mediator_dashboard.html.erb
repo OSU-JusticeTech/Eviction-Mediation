@@ -162,6 +162,11 @@
   }
 
   @media (forced-colors: active) {
+    .calendar-day.today {
+      outline: 2px solid CanvasText;
+      outline-offset: -4px;
+    }
+
     .calendar-day.other-month {
       border-color: CanvasText;
       border-style: dashed;
@@ -266,18 +271,35 @@
       const firstWeekday = new Date(year, month, 1).getDay();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+      const today = new Date();
 
       for (let i = 0; i < totalCells; i++) {
         const date = new Date(year, month, i - firstWeekday + 1);
         const cell = document.createElement("div");
         cell.className = "calendar-day";
 
-        if (date.getMonth() !== month) cell.classList.add("other-month");
-        if (sameDay(date, new Date())) cell.classList.add("today");
+        const otherMonth = date.getMonth() !== month;
+        if (otherMonth) cell.classList.add("other-month");
+        if (sameDay(date, today)) {
+          cell.classList.add("today");
+          cell.setAttribute("aria-current", "date");
+          const todayLabel = document.createElement("span");
+          todayLabel.className = "sr-only";
+          todayLabel.textContent = "Today";
+          cell.appendChild(todayLabel);
+        }
 
         const number = document.createElement("strong");
         number.textContent = date.getDate();
         cell.appendChild(number);
+
+        if (otherMonth) {
+          number.setAttribute("aria-hidden", "true");
+          const fullDate = document.createElement("span");
+          fullDate.className = "sr-only";
+          fullDate.textContent = date.toLocaleDateString([], { dateStyle: "long" });
+          cell.appendChild(fullDate);
+        }
 
         meetings.forEach(meeting => {
           if ((meeting.Status || "").toLowerCase() === "canceled") return;

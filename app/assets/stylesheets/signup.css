@@ -503,6 +503,17 @@ select.signup-input {
     border-color: #aaa;
 }
 
+.signup-page .signup-input:focus-visible {
+    outline: 3px solid #102a4d;
+    outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+    .signup-page .signup-input:focus-visible {
+        outline-color: CanvasText;
+    }
+}
+
 /* Role selection: Tenant/Landlord */
 .role-selection{
     text-align: left;

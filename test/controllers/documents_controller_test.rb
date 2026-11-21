@@ -1723,7 +1723,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
       amount2: "400", date2: "2026-04-01", amount5: "500", date5: "2026-05-01"
     ))
     get view_inline_document_path(file.FileID)
-    assert_equal %w[2 5], Nokogiri::HTML(response.body).css(".custom-payment-schedule tbody tr td:first-child").map(&:text)
+    assert_equal %w[2 5], Nokogiri::HTML(response.body).css(".custom-payment-schedule tbody th[scope=row]").map(&:text)
 
     patch update_review_document_path(file.FileID), params: { agreement_version: 1, date5: "2026-03-25", time5: "14:00" }
     assert_response :redirect
@@ -1735,7 +1735,7 @@ class DocumentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     get view_inline_document_path(file.FileID)
     rows = Nokogiri::HTML(response.body).css(".custom-payment-schedule tbody tr")
-    assert_equal %w[5 2], rows.map { |row| row.at_css("td").text }
+    assert_equal %w[5 2], rows.map { |row| row.at_css("th[scope=row]").text }
     assert_equal "500", rows.first.at_css('[data-agreement-field="amount5"]').text
     assert_equal "2026-03-25", rows.first.at_css('[data-agreement-field="date5"]').text
   end

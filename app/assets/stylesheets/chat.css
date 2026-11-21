@@ -1143,7 +1143,7 @@
 
   .conversation-cta--danger,
   .conversation-action--danger {
-    background: linear-gradient(135deg, #c62828 0%, #f44336 100%);
+    background: linear-gradient(135deg, #c62828 0%, #d32f2f 100%);
     color: #ffffff;
     box-shadow: 0 12px 24px rgba(16, 42, 77, 0.12);
   }
