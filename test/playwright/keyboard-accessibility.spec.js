@@ -447,17 +447,24 @@ test('mediator meeting dialog keyboard navigation and Escape', async ({ page }) 
   await expect(trigger).toBeFocused();
 });
 
-test('narrow dashboard menu leads to visible navigation links', async ({ page }, info) => {
-  await signup(page, 'tenant');
-  await page.setViewportSize({ width: 390, height: 800 });
-  const toggle = page.getByRole('button', { name: 'Toggle navigation menu' });
-  await activate(page, toggle, 'Space');
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  const nav = page.locator('#navbar-menu');
-  const messages = nav.getByRole('link', { name: /Messages/ });
-  await tabTo(page, messages, 'Shift+Tab');
-  await checkExposed(messages);
-  await info.attach('narrow-nav-focus', { body: await page.screenshot(), contentType: 'image/png' });
-  await page.keyboard.press('Enter');
-  await expect(page).toHaveURL('/messages');
-});
+for (const viewport of [{ width: 320, height: 180 }, { width: 390, height: 800 }]) {
+  test(`dashboard menu follows the toggle in tab order at ${viewport.width}px`, async ({ page }) => {
+    await signup(page, 'tenant');
+    await page.setViewportSize(viewport);
+    const toggle = page.getByRole('button', { name: 'Toggle navigation menu' });
+    const nav = page.locator('#navbar-menu');
+    await expect(nav).toBeHidden();
+    await activate(page, toggle, 'Enter');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Tab');
+    const home = nav.getByRole('link', { name: 'Home' });
+    await expect(home).toBeFocused();
+    await checkExposed(home);
+    await page.keyboard.press('Tab');
+    const messages = nav.getByRole('link', { name: /Messages/ });
+    await expect(messages).toBeFocused();
+    await checkExposed(messages);
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL('/messages');
+  });
+}

@@ -271,7 +271,7 @@
     }
 
     .navbar {
-        grid-template-columns: 1fr auto;
+        grid-template-columns: 1fr auto auto;
         grid-auto-rows: auto;
         border-radius: 12px;
         padding: 10px 16px;
@@ -279,6 +279,9 @@
     }
 
     .navbar-toggle {
+        grid-row: 1;
+        grid-column: 3;
+        margin-inline-start: 12px;
         display: block;
         font-size: 1.5rem;
         color: white;
@@ -288,6 +291,7 @@
     .navbar-menu {
         display: none;
         flex-direction: column;
+        justify-content: flex-start;
         width: 90%;
         background: rgba(26, 67, 110, 0.98);
         padding: 10px 0;
@@ -329,11 +333,9 @@
         font-weight: 600;
     }
 
-    .navbar-toggle {
-        display: block;
-    }
-
     .navbar-right {
+        grid-row: 1;
+        grid-column: 2;
         margin-right: 0px;
     }
 }

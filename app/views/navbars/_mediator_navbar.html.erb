@@ -3,6 +3,10 @@
         <span class="navbar-title">Eviction Mediation</span>
     </div>
 
+    <button type="button" class="navbar-toggle" id="navbar-toggle" aria-label="Toggle navigation menu" aria-controls="navbar-menu" aria-expanded="false">
+        <i class="fas fa-bars"></i>
+    </button>
+
     <ul class="navbar-menu" id="navbar-menu">
     <li><a href="/dashboard" title="Home" class="<%= active_nav_class('/dashboard') %>"><i class="fas fa-home"></i> Home</a></li>
     <li>
@@ -32,8 +36,5 @@
             <%= render "shared/time_tracker_pill", entry: current_time_entry %>
         <% end %>
         <%= link_to "Log Out", logout_path, method: :delete, class: "logout-btn navbar-logout" %>
-        <button type="button" class="navbar-toggle" id="navbar-toggle" aria-label="Toggle navigation menu" aria-controls="navbar-menu" aria-expanded="false">
-            <i class="fas fa-bars"></i>
-        </button>
     </div>
 </nav>
