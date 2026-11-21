@@ -81,58 +81,10 @@ import "mediator_schedule";
 })();
 
   const updateBodyModalState = () => {
-    const hasOpenModal = document.querySelector('[data-conversation-info-panel]:not([hidden])') ||
-      document.querySelector('[data-end-modal]:not([hidden])') ||
+    const hasOpenModal = document.querySelector('[data-end-modal]:not([hidden])') ||
       document.querySelector('[data-document-preview]:not([hidden])');
 
     document.body.classList.toggle('has-modal-open', Boolean(hasOpenModal));
-  };
-
-  const initConversationInfoPanel = () => {
-    const panel = document.querySelector('[data-conversation-info-panel]');
-    if (!panel) return;
-
-    panel.setAttribute('tabindex', '-1');
-
-    const openButtons = document.querySelectorAll('[data-conversation-info-toggle]');
-    const closeButtons = panel.querySelectorAll('[data-conversation-info-close]');
-
-    const openPanel = () => {
-      panel.hidden = false;
-      panel.classList.add('is-open');
-      panel.focus();
-      updateBodyModalState();
-    };
-
-    const closePanel = () => {
-      panel.classList.remove('is-open');
-      panel.hidden = true;
-      updateBodyModalState();
-    };
-
-    openButtons.forEach((button) => {
-      if (button.dataset.boundConversationInfo) return;
-      button.dataset.boundConversationInfo = 'true';
-      button.addEventListener('click', openPanel);
-    });
-
-    closeButtons.forEach((button) => {
-      if (button.dataset.boundConversationInfoClose) return;
-      button.dataset.boundConversationInfoClose = 'true';
-      button.addEventListener('click', closePanel);
-    });
-
-    panel.addEventListener('click', (event) => {
-      if (event.target === panel) {
-        closePanel();
-      }
-    });
-
-    panel.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
-        closePanel();
-      }
-    });
   };
 
   const initAttachmentMenus = () => {
@@ -387,7 +339,6 @@ import "mediator_schedule";
   })();
 
   const initChatExperience = () => {
-    initConversationInfoPanel();
     initAttachmentMenus();
     initEndModal();
     initMediatorModal();

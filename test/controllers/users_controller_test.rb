@@ -77,6 +77,29 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_select ".error-text", text: /you must agree to the disclaimer to sign up/i
   end
 
+  test "requires explicit disclaimer consent on signup" do
+    params = {
+      Email: "no-signup-consent@example.com",
+      password: "Password!23",
+      password_confirmation: "Password!23",
+      FName: "Fictional",
+      LName: "Landlord",
+      Role: "Landlord"
+    }
+
+    [params, params.merge(ProfileDisclaimer: "no")].each do |signup_params|
+      assert_no_enqueued_jobs do
+        assert_no_difference("User.count") do
+          post signup_url, params: { user: signup_params }
+        end
+      end
+
+      assert_response :success
+      assert_nil session[:user_id]
+      assert_select ".error-text", text: /you must agree to the disclaimer to sign up/i
+    end
+  end
+
   test "does not create a user with duplicate email" do
     duplicate_email_params = {
       Email: "TEST@EXAMPLE.COM",

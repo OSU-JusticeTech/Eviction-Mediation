@@ -45,6 +45,9 @@ class UsersController < ApplicationController
       :ZipCode
     )
 
+    # The model permits omitted consent for accounts provisioned outside signup.
+    permitted[:ProfileDisclaimer] ||= "no"
+
     if permitted[:Role] == "Tenant"
       permitted[:AddressLine1] = permitted[:AddressLine1].to_s.strip.presence
       permitted[:AddressLine2] = permitted[:AddressLine2].to_s.strip.presence
