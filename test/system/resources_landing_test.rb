@@ -40,18 +40,18 @@ class ResourcesLandingTest < ApplicationSystemTestCase
     visit root_path
 
     assert_text "Common questions"
-    assert_text "What is Mediation?"
-    assert_text "How does this tool work?"
-    assert_text "When can I use this tool?"
+    assert_text "Why should I try negotiation or mediation?"
+    assert_text "What happens if we reach an agreement?"
+    assert_selector "summary", text: "What is the difference between negotiation and mediation?", minimum: 1
   end
 
   test "visitor can expand a previewed question to read its answer" do
     visit root_path
 
     # Each preview is a <details>, so the answer stays collapsed until clicked.
-    assert_no_text "The mediator listens to both sides"
-    find("summary", text: "What is Mediation?").click
-    assert_text "The mediator listens to both sides"
+    assert_no_text "Going to court can take time"
+    find("summary", text: "Why should I try negotiation or mediation?").click
+    assert_text "Going to court can take time"
   end
 
   test "visitor can open the full FAQ page and return to the landing page" do
