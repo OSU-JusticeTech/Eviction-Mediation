@@ -5,6 +5,8 @@ class MediationNotificationsTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   setup do
+    # Notifications have no fixtures. The test transaction restores existing rows.
+    Notification.delete_all
     @mediation = primary_message_groups(:one)
     activate_mediation(@mediation)
     @file = file_drafts(:one)

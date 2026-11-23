@@ -4,6 +4,8 @@ class MessageNotificationTest < ActiveSupport::TestCase
   include ActionMailer::TestHelper
 
   setup do
+    # Notifications have no fixtures. The test transaction restores existing rows.
+    Notification.delete_all
     @mediation = primary_message_groups(:one)
     @tenant = @mediation.tenant
     @landlord = @mediation.landlord
