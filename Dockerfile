@@ -60,7 +60,8 @@ COPY --from=build /rails /rails
 # Add non-root user
 RUN groupadd --system --gid 1000 rails && \
     useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash && \
-    chown -R rails:rails db log storage tmp app/assets/builds
+    mkdir -p public/userFiles && \
+    chown -R rails:rails db log storage tmp app/assets/builds public/userFiles
 USER 1000:1000
 
 # Entrypoint & default command
